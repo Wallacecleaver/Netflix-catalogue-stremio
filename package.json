@@ -1,0 +1,22 @@
+{
+  "name": "netflix-catalogue-stremio",
+  "version": "1.0.0",
+  "description": "Addon Stremio : catalogue Netflix (métadonnées uniquement, aucun flux)",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "add": "node scripts/add.js",
+    "inspect": "node scripts/inspect.js",
+    "sync": "node scripts/sync.js",
+    "test": "node scripts/smoke.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "stremio-addon-sdk": "^1.6.10"
+  }
+}

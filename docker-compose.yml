@@ -1,0 +1,12 @@
+services:
+  netflix-catalogue:
+    build: .
+    container_name: netflix-catalogue-stremio
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/netflix.db
+    ports:
+      - "127.0.0.1:7000:7000"   # derrière un reverse proxy HTTPS (Caddy/Nginx)
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,79 @@
+const { addonBuilder } = require('stremio-addon-sdk');
+const store = require('./db');
+const { enrichTitle } = require('./enrich');
+
+const GENRES = ['Action', 'Animation', 'Aventure', 'Comédie', 'Crime', 'Documentaire', 'Drame', 'Familial', 'Fantastique',
+  'Guerre', 'Histoire', 'Horreur', 'Musique', 'Mystère', 'Romance', 'Science-Fiction', 'Thriller', 'Western',
+  'Action & Aventure', 'Kids', 'Reality', 'Sci-Fi & Fantastique'];
+
+const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: 'skip' }];
+
+const manifest = {
+  id: 'community.wallacecleaver.netflix-catalogue',
+  version: '1.0.0',
+  name: 'Netflix Catalogue',
+  description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Métadonnées uniquement, aucun flux.',
+  resources: ['catalog', 'meta'],
+  types: ['series', 'movie'],
+  idPrefixes: ['nflx:'],
+  catalogs: [
+    { type: 'series', id: 'netflix-series', name: 'Netflix — Séries', extra },
+    { type: 'movie', id: 'netflix-movies', name: 'Netflix — Films', extra },
+  ],
+};
+
+const builder = new addonBuilder(manifest);
+
+builder.defineCatalogHandler(async ({ type, extra }) => {
+  const rows = store.listCatalog({
+    type, genre: extra.genre, search: extra.search, skip: Number(extra.skip) || 0, limit: 100,
+  });
+  return {
+    metas: rows.map((r) => ({
+      id: r.id, type: r.type, name: r.name, poster: r.poster, posterShape: 'poster',
+      releaseInfo: r.year ? String(r.year) : undefined, genres: r.genres, description: r.synopsis || undefined,
+    })),
+    cacheMaxAge: 3600,
+  };
+});
+
+function buildMeta(row, eps) {
+  const description = [row.synopsis, row.certification ? `Classification : ${row.certification}` : null]
+    .filter(Boolean).join('\n\n');
+  const meta = {
+    id: row.id, type: row.type, name: row.name,
+    poster: row.poster, posterShape: 'poster', background: row.background, logo: row.logo,
+    description, releaseInfo: row.year ? String(row.year) : undefined,
+    released: row.release_date ? new Date(row.release_date).toISOString() : undefined,
+    genres: row.genres, cast: row.cast,
+    runtime: row.runtime ? `${row.runtime} min` : undefined,
+    imdbId: row.imdb_id || undefined,
+  };
+  if (row.trailer_yt) {
+    meta.trailerStreams = [{ title: 'Bande-annonce', ytId: row.trailer_yt }];
+    meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
+  }
+  if (row.type === 'series') {
+    meta.videos = eps.map((e) => ({
+      id: `${row.id}:${e.season}:${e.episode}`,
+      title: e.name || `Épisode ${e.episode}`,
+      season: e.season, episode: e.episode,
+      overview: e.synopsis || undefined,
+      thumbnail: e.image || undefined,
+      released: e.released,
+    }));
+  }
+  for (const k of Object.keys(meta)) if (meta[k] == null) delete meta[k];
+  return meta;
+}
+
+builder.defineMetaHandler(async ({ id }) => {
+  let row = store.getTitle(id);
+  if (!row) return { meta: null };
+  if (!row.enriched) {
+    try { row = (await enrichTitle(id)) || row; } catch (e) { console.warn('[enrich]', id, e.message); }
+  }
+  return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: 6 * 3600 };
+});
+
+module.exports = { builder, manifest, buildMeta };
