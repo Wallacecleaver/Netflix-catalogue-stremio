@@ -101,6 +101,7 @@ function fromReactContext(html, out) {
   if (!m) return;
   let ctx;
   try { ctx = JSON.parse(m[1].replace(/\\x([0-9A-Fa-f]{2})/g, '\\u00$1')); } catch { return; }
+  fromGraphql(ctx, out);
   walk(ctx, (o) => {
     if (Array.isArray(o)) return;
     const title = o.title || o.episodeTitle;
@@ -112,6 +113,54 @@ function fromReactContext(html, out) {
     out.episodes.push({
       season: Number(season) || 1, episode: ep, name: title, synopsis: syn,
       image: imgOf(o.stills?.[0]) || imgOf(o.thumbs?.[0]) || o.imgUrl || o.image || null, runtime: rt,
+    });
+  });
+}
+
+// ---- 2b) GraphQL embarqué (clcsHookV2 : Show -> seasons -> episodes) --------
+function fromGraphql(ctx, out) {
+  walk(ctx, (o) => {
+    if (Array.isArray(o)) return;
+    // Genres : coreGenres (ex. Thrillers, Drames) sinon primaryGenres
+    if (o.__typename === 'Show' || o.__typename === 'Movie') {
+      const g = (conn) => asArray(conn?.edges).map((e) => e?.node?.name).filter(Boolean);
+      const genres = g(o.coreGenres).length ? g(o.coreGenres) : g(o.primaryGenres);
+      if (genres.length) out.genres = genres;
+      if (o.__typename === 'Show' && !out.type) out.type = 'series';
+      if (o.__typename === 'Movie' && !out.type) out.type = 'movie';
+    }
+    // Saisons -> épisodes (ordre des saisons = numéro de saison)
+    if (o.seasons && Array.isArray(o.seasons.edges)) {
+      o.seasons.edges.forEach((se, i) => {
+        const sn = Number(se?.node?.seasonNumber ?? se?.node?.number) || i + 1;
+        for (const ee of asArray(se?.node?.episodes?.edges)) {
+          const n = ee?.node;
+          if (!n || typeof n.number !== 'number') continue;
+          out.episodes.push({
+            season: sn, episode: n.number,
+            name: typeof n.title === 'string' ? n.title.replace(/\u00a0/g, ' ') : null,
+            synopsis: n.shortSynopsis || n.contextualSynopsis?.text || null,
+            image: imgOf(n.merchStill300) || imgOf(n.merchStill) || null,
+            runtime: typeof n.runtimeSec === 'number' ? Math.round(n.runtimeSec / 60) : null,
+          });
+        }
+      });
+    }
+  });
+}
+
+// ---- 3) DOM : cartes d'épisodes (secours) -----------------------------------
+function fromDom($, out) {
+  $('li[data-uia="episode-card"]').each((i, el) => {
+    const t = $(el).find('[data-uia="episode-title"]').first().text().trim();
+    const m = t.match(/^(\d+)\.\s*(.*)$/);
+    const num = m ? +m[1] : i + 1;
+    const rt = $(el).find('span').filter((_, s) => /^\d+\s*(m|min)$/.test($(s).text().trim())).first().text().match(/\d+/);
+    out.episodes.push({
+      season: 1, episode: num, name: (m ? m[2] : t).replace(/\u00a0/g, ' ') || null,
+      synopsis: $(el).find('p').not('[data-uia]').first().text().trim() || null,
+      image: $(el).find('img').first().attr('src') || null,
+      runtime: rt ? +rt[0] : null,
     });
   });
 }
@@ -128,6 +177,7 @@ function parseNetflixHtml(html) {
 
   fromJsonLd($, out);
   fromReactContext(html, out);
+  if (!out.episodes.length) fromDom($, out);
 
   out.name = out.name || (og('og:title') || $('title').text() || '').split(' | ')[0].trim() || null;
   out.synopsis = out.synopsis || og('og:description') || null;
