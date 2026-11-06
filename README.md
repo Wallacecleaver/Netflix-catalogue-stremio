@@ -50,3 +50,15 @@ Sans épisodes Netflix, ceux de TMDB sont utilisés.
 
 ## Structure
 `src/netflix.js` scraper · `src/tmdb.js` · `src/youtube.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
+
+## Test en local (Windows / PC)
+```powershell
+git clone https://github.com/Wallacecleaver/Netflix-catalogue-stremio.git
+cd Netflix-catalogue-stremio
+npm install
+copy .env.example .env      # optionnel : TMDB_API_KEY, ADMIN_TOKEN
+npm run seed                # fiche de démo "Trouble échange"
+npm start
+```
+Dans Stremio : *Addons → barre de recherche → coller* `http://localhost:7000/manifest.json`.
+Test du scraping réel depuis ta connexion : `npm run inspect -- 81944880` puis `npm run add -- 81944880`.

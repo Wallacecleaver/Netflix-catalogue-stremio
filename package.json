@@ -9,7 +9,8 @@
     "add": "node scripts/add.js",
     "inspect": "node scripts/inspect.js",
     "sync": "node scripts/sync.js",
-    "test": "node scripts/smoke.js"
+    "test": "node scripts/smoke.js",
+    "seed": "node scripts/seed.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {
