@@ -62,3 +62,10 @@ npm start
 ```
 Dans Stremio : *Addons → barre de recherche → coller* `http://localhost:7000/manifest.json`.
 Test du scraping réel depuis ta connexion : `npm run inspect -- 81944880` puis `npm run add -- 81944880`.
+
+## Si Netflix répond 500 / bloque Node
+Enregistre la page depuis ton navigateur (Ctrl+S → « Page web, HTML uniquement », ou Ctrl+U puis copier dans un fichier `page.html`), puis :
+```powershell
+npm run inspect -- --file page.html
+npm run add -- 81944880 --file page.html
+```

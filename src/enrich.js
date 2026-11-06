@@ -33,10 +33,10 @@ function mergeEpisodes(netflixEps, tmdbEps) {
 }
 
 /** Ajoute / met à jour un titre depuis une URL ou un ID Netflix. */
-async function ingestNetflix(input) {
+async function ingestNetflix(input, opts = {}) {
   const nid = parseNetflixId(input);
   if (!nid) throw new Error('URL ou ID Netflix invalide');
-  const n = parseNetflixHtml(await fetchNetflixPage(nid));
+  const n = parseNetflixHtml(opts.html || (await fetchNetflixPage(nid)));
   if (!n.name) throw new Error('Titre illisible (page bloquée ou structure changée) — lance `npm run inspect -- ' + nid + '`');
 
   let t = null;

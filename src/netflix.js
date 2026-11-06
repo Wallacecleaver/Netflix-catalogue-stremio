@@ -10,16 +10,29 @@ function parseNetflixId(input) {
 }
 
 async function fetchNetflixPage(id, country = config.netflixCountry) {
-  const res = await fetch(`https://www.netflix.com/${country}/title/${id}`, {
-    headers: {
-      'user-agent': UA,
-      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'accept-language': 'fr-FR,fr;q=0.9,en;q=0.5',
-    },
-    redirect: 'follow',
-  });
-  if (!res.ok) throw new Error(`Netflix HTTP ${res.status}`);
-  return res.text();
+  const url = `https://www.netflix.com/${country}/title/${id}`;
+  const headers = {
+    'user-agent': UA,
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'accept-language': 'fr-FR,fr;q=0.9,en;q=0.5',
+    'upgrade-insecure-requests': '1',
+    'sec-ch-ua': '"Chromium";v="130", "Not_A Brand";v="24", "Google Chrome";v="130"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+  };
+  let status = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, { headers, redirect: 'follow' });
+    status = res.status;
+    if (res.ok) return res.text();
+    if (status < 500 && status !== 429) break;
+    await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+  }
+  throw new Error(`Netflix HTTP ${status} — la requête est probablement bloquée. Enregistre la page depuis ton navigateur et utilise --file (voir README).`);
 }
 
 // "PT1H2M" / "PT46M" -> minutes
