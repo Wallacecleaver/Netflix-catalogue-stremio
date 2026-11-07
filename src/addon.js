@@ -34,7 +34,7 @@ builder.defineCatalogHandler(async ({ type, extra }) => {
       id: r.id, type: r.type, name: r.name, poster: r.poster, posterShape: 'poster',
       releaseInfo: r.year ? String(r.year) : undefined, genres: r.genres, description: r.synopsis || undefined,
     })),
-    cacheMaxAge: 3600,
+    cacheMaxAge: config.metaCacheSeconds,
   };
 });
 
@@ -57,9 +57,13 @@ function buildMeta(row, eps) {
     ? (row.trailers || []).map((t, i) => ({ title: t.title || 'Bande-annonce', url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4` }))
     : [];
   const yt = row.trailer_yt ? [{ title: 'Bande-annonce (YouTube)', ytId: row.trailer_yt }] : [];
-  const trailerStreams = config.trailerPrefer === 'youtube' ? [...yt, ...netflixTrailers] : [...netflixTrailers, ...yt];
+  // Stremio préfère YouTube s'il est présent : avec "netflix" (défaut) on n'envoie YouTube que s'il n'y a pas de vidéo Netflix.
+  let trailerStreams;
+  if (config.trailerPrefer === 'youtube') trailerStreams = [...yt, ...netflixTrailers];
+  else if (config.trailerPrefer === 'both') trailerStreams = [...netflixTrailers, ...yt];
+  else trailerStreams = netflixTrailers.length ? netflixTrailers : yt;
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
-  if (row.trailer_yt) meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
+  if (trailerStreams.some((t) => t.ytId)) meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
   if (row.type === 'series') {
     meta.videos = eps.map((e) => ({
       id: `${row.id}:${e.season}:${e.episode}`,
@@ -80,7 +84,7 @@ builder.defineMetaHandler(async ({ id }) => {
   if (!row.enriched) {
     try { row = (await enrichTitle(id)) || row; } catch (e) { console.warn('[enrich]', id, e.message); }
   }
-  return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: 6 * 3600 };
+  return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });
 
 module.exports = { builder, manifest, buildMeta };

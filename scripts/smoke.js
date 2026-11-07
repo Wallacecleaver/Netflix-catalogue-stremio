@@ -64,7 +64,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
   assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"
   assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(meta.trailerStreams[0].url));   // bande-annonce Netflix d'abord (relayée)
-  assert.equal(meta.trailerStreams[1].ytId, 'dQw4w9WgXcQ');                        // puis YouTube
+  assert.equal(meta.trailerStreams.length, 1); assert.equal(meta.trailers, undefined); // pas de YouTube quand Netflix est dispo
   assert.equal(meta.posterShape, 'landscape'); assert.deepEqual(meta.director, ['Kasper Barfoed']);
   // Relais vidéo : faux serveur Netflix avec support des Range
   const http = require('http');

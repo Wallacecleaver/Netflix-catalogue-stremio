@@ -5,6 +5,7 @@ module.exports = {
   dbPath: process.env.DB_PATH || './data/netflix.db',
   tmdbKey: process.env.TMDB_API_KEY || '',
   publicUrl: (process.env.PUBLIC_URL || `http://localhost:${num(process.env.PORT, 7000)}`).replace(/\/+$/, ''),
+  metaCacheSeconds: num(process.env.META_CACHE_SECONDS, 300),
   trailerPrefer: (process.env.TRAILER_PREFER || 'netflix').toLowerCase(),
   adminToken: process.env.ADMIN_TOKEN || '',
   region: process.env.REGION || 'FR',

@@ -42,6 +42,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }))
 async function trailerHandler(req, res) {
   const nid = req.params.nid;
   const idx = Number(req.params.idx);
+  console.log(`[trailer] ${req.method} ${nid}/${idx}${req.headers.range ? ' ' + req.headers.range : ''}`);
   const t = store.getTitle(`nflx:${nid}`)?.trailers?.[idx];
   if (!t) return res.status(404).send('bande-annonce inconnue');
   try {
