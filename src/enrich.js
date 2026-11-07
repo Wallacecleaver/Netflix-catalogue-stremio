@@ -109,4 +109,18 @@ async function enrichTitle(id) {
   return store.getTitle(id);
 }
 
-module.exports = { ingestNetflix, enrichTitle, withReleased, mergeEpisodes };
+// Re-télécharge la page pour obtenir des liens vidéo Netflix frais (les liens signés expirent en quelques heures).
+const inflight = new Map();
+function refreshTrailers(nid) {
+  if (!inflight.has(nid)) {
+    inflight.set(nid, (async () => {
+      const n = parseNetflixHtml(await fetchNetflixPage(nid));
+      const row = store.getTitle(`nflx:${nid}`);
+      if (row && n.trailers.length) store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers: n.trailers });
+      return n.trailers;
+    })().finally(() => inflight.delete(nid)));
+  }
+  return inflight.get(nid);
+}
+
+module.exports = { refreshTrailers, ingestNetflix, enrichTitle, withReleased, mergeEpisodes };

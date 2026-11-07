@@ -1,4 +1,5 @@
 const { addonBuilder } = require('stremio-addon-sdk');
+const config = require('./config');
 const store = require('./db');
 const { enrichTitle } = require('./enrich');
 
@@ -51,12 +52,12 @@ function buildMeta(row, eps) {
     runtime: row.runtime ? `${row.runtime} min` : undefined,
     imdbId: row.imdb_id || undefined,
   };
-  // Bandes-annonces : YouTube (fiable) puis vidéos Netflix encore valides (URL signées, expirent au bout de quelques heures)
-  const trailerStreams = [];
-  if (row.trailer_yt) trailerStreams.push({ title: 'Bande-annonce', ytId: row.trailer_yt });
-  for (const t of row.trailers || []) {
-    if (t.url && (!t.expires || t.expires > Date.now() + 60000)) trailerStreams.push({ title: `${t.title || 'Bande-annonce'} (Netflix)`, url: t.url });
-  }
+  // Bande-annonce de la page Netflix : servie par NOTRE serveur (/trailer/...), qui renouvelle le lien signé à chaque lecture.
+  const netflixTrailers = row.netflix_id
+    ? (row.trailers || []).map((t, i) => ({ title: t.title || 'Bande-annonce', url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4` }))
+    : [];
+  const yt = row.trailer_yt ? [{ title: 'Bande-annonce (YouTube)', ytId: row.trailer_yt }] : [];
+  const trailerStreams = config.trailerPrefer === 'youtube' ? [...yt, ...netflixTrailers] : [...netflixTrailers, ...yt];
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
   if (row.trailer_yt) meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
   if (row.type === 'series') {

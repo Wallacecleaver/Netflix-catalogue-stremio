@@ -188,4 +188,4 @@ function parseNetflixHtml(html) {
   return out;
 }
 
-module.exports = { parseNetflixId, fetchNetflixPage, parseNetflixHtml, expiryOf };
+module.exports = { UA, parseNetflixId, fetchNetflixPage, parseNetflixHtml, expiryOf };

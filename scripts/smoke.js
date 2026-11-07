@@ -63,7 +63,30 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const { meta } = await iface.get('meta', 'series', 'nflx:81944880');
   assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
   assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"
-  assert.equal(meta.trailerStreams[0].ytId, 'dQw4w9WgXcQ'); assert.ok(meta.trailerStreams[1].url);
+  assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(meta.trailerStreams[0].url));   // bande-annonce Netflix d'abord (relayée)
+  assert.equal(meta.trailerStreams[1].ytId, 'dQw4w9WgXcQ');                        // puis YouTube
   assert.equal(meta.posterShape, 'landscape'); assert.deepEqual(meta.director, ['Kasper Barfoed']);
+  // Relais vidéo : faux serveur Netflix avec support des Range
+  const http = require('http');
+  const BODY = Buffer.from('0123456789abcdef');
+  const upstream = http.createServer((rq, rs) => {
+    const m = /bytes=(\d+)-(\d*)/.exec(rq.headers.range || '');
+    if (!m) { rs.writeHead(200, { 'content-type': 'video/mp4', 'content-length': BODY.length, 'accept-ranges': 'bytes' }); return rs.end(BODY); }
+    const a = +m[1], b = m[2] ? +m[2] : BODY.length - 1;
+    rs.writeHead(206, { 'content-type': 'video/mp4', 'content-range': `bytes ${a}-${b}/${BODY.length}`, 'content-length': b - a + 1 });
+    rs.end(BODY.subarray(a, b + 1));
+  }).listen(0);
+  await new Promise((r) => upstream.once('listening', r));
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange',
+    trailers: [{ title: 'ba', url: `http://127.0.0.1:${upstream.address().port}/v.mp4`, expires: Date.now() + 3600000 }] });
+  const app = require('../src/app').listen(0);
+  await new Promise((r) => app.once('listening', r));
+  const base = `http://127.0.0.1:${app.address().port}`;
+  const full = await fetch(`${base}/trailer/81944880/0.mp4`);
+  assert.equal(full.status, 200); assert.equal(Buffer.from(await full.arrayBuffer()).toString(), '0123456789abcdef');
+  const part = await fetch(`${base}/trailer/81944880/0.mp4`, { headers: { range: 'bytes=2-5' } });
+  assert.equal(part.status, 206); assert.equal(Buffer.from(await part.arrayBuffer()).toString(), '2345');
+  assert.equal((await fetch(`${base}/trailer/81944880/9.mp4`)).status, 404);
+  app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

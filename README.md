@@ -69,3 +69,10 @@ Enregistre la page depuis ton navigateur (Ctrl+S → « Page web, HTML uniquemen
 npm run inspect -- --file page.html
 npm run add -- 81944880 --file page.html
 ```
+
+## Bande-annonce de la page Netflix
+La vidéo de la page (≈1 min 40) est enregistrée avec le titre. Ses liens Netflix expirent en quelques heures, donc Stremio reçoit une URL
+stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'addon renouvelle le lien Netflix si besoin et relaie la vidéo
+(avec support des `Range`). Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`) et
+`TRAILER_PREFER=netflix|youtube` (ordre des bandes-annonces ; l'autre reste en secours).
+Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
