@@ -40,19 +40,25 @@ builder.defineCatalogHandler(async ({ type, extra }) => {
 function buildMeta(row, eps) {
   const description = [row.synopsis, row.certification ? `Classification : ${row.certification}` : null]
     .filter(Boolean).join('\n\n');
+  const extra = row.extra || {};
   const meta = {
     id: row.id, type: row.type, name: row.name,
-    poster: row.poster, posterShape: 'poster', background: row.background, logo: row.logo,
+    poster: row.poster, posterShape: extra.posterShape || 'poster', background: row.background, logo: row.logo,
     description, releaseInfo: row.year ? String(row.year) : undefined,
     released: row.release_date ? new Date(row.release_date).toISOString() : undefined,
     genres: row.genres, cast: row.cast,
+    director: extra.directors && extra.directors.length ? extra.directors : undefined,
     runtime: row.runtime ? `${row.runtime} min` : undefined,
     imdbId: row.imdb_id || undefined,
   };
-  if (row.trailer_yt) {
-    meta.trailerStreams = [{ title: 'Bande-annonce', ytId: row.trailer_yt }];
-    meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
+  // Bandes-annonces : YouTube (fiable) puis vidéos Netflix encore valides (URL signées, expirent au bout de quelques heures)
+  const trailerStreams = [];
+  if (row.trailer_yt) trailerStreams.push({ title: 'Bande-annonce', ytId: row.trailer_yt });
+  for (const t of row.trailers || []) {
+    if (t.url && (!t.expires || t.expires > Date.now() + 60000)) trailerStreams.push({ title: `${t.title || 'Bande-annonce'} (Netflix)`, url: t.url });
   }
+  if (trailerStreams.length) meta.trailerStreams = trailerStreams;
+  if (row.trailer_yt) meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
   if (row.type === 'series') {
     meta.videos = eps.map((e) => ({
       id: `${row.id}:${e.season}:${e.episode}`,

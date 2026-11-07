@@ -47,8 +47,12 @@ CREATE TABLE IF NOT EXISTS episodes (
 );
 `);
 
+for (const col of ['extra_json', 'trailers_json']) {
+  try { db.exec(`ALTER TABLE titles ADD COLUMN ${col} TEXT`); } catch { /* déjà présente */ }
+}
+
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
-  'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime'];
+  'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json'];
 
 const upsertSql = db.prepare(`
 INSERT INTO titles (id, ${FIELDS.join(',')}, enriched, added_at, updated_at)
@@ -65,12 +69,15 @@ function upsertTitle(t) {
   for (const [k, v] of Object.entries(t)) {
     if (k === 'genres') row.genres_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'cast') row.cast_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
+    else if (k === 'extra') row.extra_json = v ? JSON.stringify(v) : null;
+    else if (k === 'trailers') row.trailers_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (FIELDS.includes(k)) row[k] = v === undefined ? null : v;
   }
   upsertSql.run(row);
 }
 
-const parse = (r) => r && ({ ...r, genres: JSON.parse(r.genres_json || '[]'), cast: JSON.parse(r.cast_json || '[]') });
+const parse = (r) => r && ({ ...r, genres: JSON.parse(r.genres_json || '[]'), cast: JSON.parse(r.cast_json || '[]'),
+  extra: JSON.parse(r.extra_json || '{}'), trailers: JSON.parse(r.trailers_json || '[]') });
 
 const getTitle = (id) => parse(db.prepare('SELECT * FROM titles WHERE id = ?').get(id));
 const getEpisodes = (id) => db.prepare('SELECT * FROM episodes WHERE title_id = ? ORDER BY season, episode').all(id);

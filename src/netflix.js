@@ -32,135 +32,129 @@ async function fetchNetflixPage(id, country = config.netflixCountry) {
     if (status < 500 && status !== 429) break;
     await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
   }
-  throw new Error(`Netflix HTTP ${status} — la requête est probablement bloquée. Enregistre la page depuis ton navigateur et utilise --file (voir README).`);
+  throw new Error(`Netflix HTTP ${status} — requête probablement bloquée. Enregistre la page depuis ton navigateur et utilise --file (voir README).`);
 }
 
-// "PT1H2M" / "PT46M" -> minutes
-function isoToMinutes(d) {
+// ---------- utilitaires ----------
+const clean = (s) => (typeof s === 'string'
+  ? s.replace(/[\u2066-\u2069\u200E\u200F]/g, '').replace(/[\u00A0\u202F]/g, ' ').trim() : s);
+const asArray = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+const edges = (c) => (c?.edges || []).map((e) => e.node).filter(Boolean);
+const nameOf = (x) => (typeof x === 'string' ? x : x && x.name) || null;
+const imgOf = (x) => (typeof x === 'string' ? x : x && (x.url || x.contentUrl)) || null;
+const isoToMinutes = (d) => {
   const m = typeof d === 'string' && d.match(/^PT(?:(\d+)H)?(?:(\d+)M)?/);
   return m ? (+m[1] || 0) * 60 + (+m[2] || 0) || null : null;
-}
-
+};
 function walk(node, fn, depth = 0, seen = new Set()) {
-  if (!node || typeof node !== 'object' || depth > 40 || seen.has(node)) return;
+  if (!node || typeof node !== 'object' || depth > 60 || seen.has(node)) return;
   seen.add(node);
   fn(node);
   for (const v of Array.isArray(node) ? node : Object.values(node)) walk(v, fn, depth + 1, seen);
 }
+// Les URL vidéo Netflix sont signées (?e=<timestamp d'expiration en secondes>)
+const expiryOf = (url) => { try { const e = new URL(url).searchParams.get('e'); return e ? Number(e) * 1000 : null; } catch { return null; } };
 
-const asArray = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
-const nameOf = (x) => (typeof x === 'string' ? x : x && x.name) || null;
-const imgOf = (x) => (typeof x === 'string' ? x : x && (x.url || x.contentUrl)) || null;
+function seasonNumberOf(s, i) {
+  const direct = Number(s.number ?? s.seasonNumber ?? s.seq);
+  if (direct > 0) return direct;
+  const m = String(s.title || '').match(/(\d+)/);   // "Partie 3", "Saison 2"
+  return m ? +m[1] : i + 1;
+}
 
-// ---- 1) JSON-LD -----------------------------------------------------------
+// ---------- 1) Données GraphQL embarquées dans netflix.reactContext (source principale) ----------
+function fromGraphql(ctx, out, nid) {
+  let v = null;
+  walk(ctx, (o) => {
+    if (v || Array.isArray(o) || !Array.isArray(o.videos)) return;
+    v = o.videos.find((x) => x && x.shortSynopsis !== undefined && (x.seasons || x.contentAdvisory || x.primaryGenres)
+      && (!nid || String(x.videoId) === String(nid))) || null;
+  });
+  if (!v) return false;
+
+  out.type = v.__typename === 'Show' ? 'series' : v.__typename === 'Movie' ? 'movie' : out.type;
+  out.name = clean(v.title);
+  out.synopsis = clean(v.shortSynopsis);
+  out.year = v.latestYear || out.year;
+  out.certification = v.contentAdvisory?.certificationValue || out.certification;
+  out.genres = edges(v.primaryGenres).map((g) => clean(g.name)).filter(Boolean);   // genre affiché sur la page ("Drame")
+  out.cast = edges(v.actors).map((p) => clean(p.name)).filter(Boolean);
+  out.directors = edges(v.directors).map((p) => clean(p.name)).filter(Boolean);
+  out.creators = edges(v.creators).map((p) => clean(p.name)).filter(Boolean);
+  out.netflixGenres = edges(v.genres).map((g) => clean(g.title)).filter(Boolean);
+  out.tags = (v.tags || []).filter((t) => t.isDisplayable !== false).map((t) => clean(t.displayName)).filter(Boolean);
+  out.releaseDate = String(v.availabilityStartTime || '').slice(0, 10) || null;
+  out.background = v.eclipseBillboardRedux1920?.url || v.billboardOrStoryArt1280?.url || null;
+  out.logo = v.logoStackCropped350?.url || null;
+
+  let trailers = edges(v.trailers);
+  if (!trailers.length && v.promoVideo?.video?.playableVideo?.url) {
+    trailers = [{ title: v.promoVideo.video.title, runtimeSec: v.promoVideo.video.displayRuntimeMs / 1000,
+      playableVideo: v.promoVideo.video.playableVideo, artwork: null }];
+  }
+  out.trailers = trailers.map((t) => ({
+    title: clean(t.title), runtime: t.runtimeSec || null, url: t.playableVideo?.url || null,
+    thumb: t.artwork?.url || null, expires: expiryOf(t.playableVideo?.url),
+  })).filter((t) => t.url);
+
+  edges(v.seasons).forEach((s, i) => {
+    const sn = seasonNumberOf(s, i);
+    out.seasonLabels[sn] = clean(s.title) || null;
+    for (const ep of edges(s.episodes)) {
+      if (typeof ep.number !== 'number') continue;
+      out.episodes.push({
+        season: sn, episode: ep.number, name: clean(ep.title) || null, synopsis: clean(ep.shortSynopsis) || null,
+        image: ep.merchStill300?.url || null, runtime: ep.runtimeSec ? Math.round(ep.runtimeSec / 60) : null,
+      });
+    }
+  });
+  return true;
+}
+
+function fromReactContext(html, out, nid) {
+  const m = html.match(/netflix\.reactContext\s*=\s*(\{[\s\S]*?\})\s*;?\s*<\/script>/);
+  if (!m) { out.warnings.push('netflix.reactContext introuvable'); return; }
+  let ctx;
+  try { ctx = JSON.parse(m[1].replace(/\\x([0-9A-Fa-f]{2})/g, '\\u00$1')); }
+  catch (e) { out.warnings.push(`JSON.parse(reactContext) a échoué : ${e.message}`); return; }
+  if (!fromGraphql(ctx, out, nid)) out.warnings.push('données du titre introuvables dans reactContext');
+}
+
+// ---------- 2) JSON-LD (complément) ----------
 function fromJsonLd($, out) {
   $('script[type="application/ld+json"]').each((_, el) => {
     let data;
     try { data = JSON.parse($(el).contents().text()); } catch { return; }
-    const items = [];
-    walk(data, (o) => { if (!Array.isArray(o) && o['@type']) items.push(o); });
-    for (const it of items) {
+    walk(data, (it) => {
+      if (Array.isArray(it) || !it['@type']) return;
       const types = asArray(it['@type']);
-      const isSeries = types.includes('TVSeries');
-      const isMovie = types.includes('Movie');
-      if (isSeries || isMovie) {
-        out.type = out.type || (isSeries ? 'series' : 'movie');
-        out.name = out.name || it.name;
-        out.synopsis = out.synopsis || it.description;
+      if (types.includes('TVSeries') || types.includes('Movie')) {
+        out.type = out.type || (types.includes('TVSeries') ? 'series' : 'movie');
+        out.name = out.name || clean(it.name);
+        out.synopsis = out.synopsis || clean(it.description);
         const y = String(it.datePublished || it.dateCreated || '').slice(0, 4);
         if (/^\d{4}$/.test(y)) out.year = out.year || +y;
+        out.releaseDate = out.releaseDate || String(it.dateCreated || it.datePublished || '').slice(0, 10) || null;
         out.certification = out.certification || (typeof it.contentRating === 'string' ? it.contentRating : null);
-        if (it.genre) out.genres = out.genres.length ? out.genres : asArray(it.genre).map(nameOf).filter(Boolean);
+        if (!out.genres.length && it.genre) out.genres = asArray(it.genre).map(nameOf).filter(Boolean);
         const actors = asArray(it.actor || it.actors).map(nameOf).filter(Boolean);
-        if (actors.length && !out.cast.length) out.cast = actors;
+        if (!out.cast.length && actors.length) out.cast = actors;
         out.image = out.image || imgOf(it.image);
       }
-      if (types.includes('TVSeason')) {
-        const sn = Number(it.seasonNumber) || 1;
-        for (const ep of asArray(it.episode)) pushEpisode(out, sn, ep);
-      }
-      if (types.includes('TVEpisode')) {
-        pushEpisode(out, Number(it.partOfSeason?.seasonNumber) || 1, it);
-      }
-    }
-  });
-}
-
-function pushEpisode(out, season, ep) {
-  const num = Number(ep.episodeNumber ?? ep.position);
-  if (!num) return;
-  out.episodes.push({
-    season, episode: num, name: ep.name || null, synopsis: ep.description || null,
-    image: imgOf(ep.image), runtime: isoToMinutes(ep.timeRequired || ep.duration),
-  });
-}
-
-// ---- 2) netflix.reactContext (JS literal avec échappements \xNN) -----------
-function fromReactContext(html, out) {
-  const m = html.match(/netflix\.reactContext\s*=\s*(\{[\s\S]*?\})\s*;?\s*<\/script>/);
-  if (!m) return;
-  let ctx;
-  try { ctx = JSON.parse(m[1].replace(/\\x([0-9A-Fa-f]{2})/g, '\\u00$1')); } catch { return; }
-  fromGraphql(ctx, out);
-  walk(ctx, (o) => {
-    if (Array.isArray(o)) return;
-    const title = o.title || o.episodeTitle;
-    const syn = o.synopsis || o.contextualSynopsis?.text || o.summary?.synopsis;
-    const ep = o.episode ?? o.episodeNumber ?? o.seq;
-    if (typeof title !== 'string' || typeof syn !== 'string' || typeof ep !== 'number') return;
-    const season = typeof o.season === 'number' ? o.season : o.season?.seq ?? o.seasonNumber ?? 1;
-    const rt = typeof o.runtime === 'number' ? (o.runtime > 300 ? Math.round(o.runtime / 60) : o.runtime) : null;
-    out.episodes.push({
-      season: Number(season) || 1, episode: ep, name: title, synopsis: syn,
-      image: imgOf(o.stills?.[0]) || imgOf(o.thumbs?.[0]) || o.imgUrl || o.image || null, runtime: rt,
     });
   });
 }
 
-// ---- 2b) GraphQL embarqué (clcsHookV2 : Show -> seasons -> episodes) --------
-function fromGraphql(ctx, out) {
-  walk(ctx, (o) => {
-    if (Array.isArray(o)) return;
-    // Genres : coreGenres (ex. Thrillers, Drames) sinon primaryGenres
-    if (o.__typename === 'Show' || o.__typename === 'Movie') {
-      const g = (conn) => asArray(conn?.edges).map((e) => e?.node?.name).filter(Boolean);
-      const genres = g(o.coreGenres).length ? g(o.coreGenres) : g(o.primaryGenres);
-      if (genres.length) out.genres = genres;
-      if (o.__typename === 'Show' && !out.type) out.type = 'series';
-      if (o.__typename === 'Movie' && !out.type) out.type = 'movie';
-    }
-    // Saisons -> épisodes (ordre des saisons = numéro de saison)
-    if (o.seasons && Array.isArray(o.seasons.edges)) {
-      o.seasons.edges.forEach((se, i) => {
-        const sn = Number(se?.node?.seasonNumber ?? se?.node?.number) || i + 1;
-        for (const ee of asArray(se?.node?.episodes?.edges)) {
-          const n = ee?.node;
-          if (!n || typeof n.number !== 'number') continue;
-          out.episodes.push({
-            season: sn, episode: n.number,
-            name: typeof n.title === 'string' ? n.title.replace(/\u00a0/g, ' ') : null,
-            synopsis: n.shortSynopsis || n.contextualSynopsis?.text || null,
-            image: imgOf(n.merchStill300) || imgOf(n.merchStill) || null,
-            runtime: typeof n.runtimeSec === 'number' ? Math.round(n.runtimeSec / 60) : null,
-          });
-        }
-      });
-    }
-  });
-}
-
-// ---- 3) DOM : cartes d'épisodes (secours) -----------------------------------
+// ---------- 3) DOM : cartes d'épisodes (secours si le GraphQL n'est pas lisible) ----------
 function fromDom($, out) {
   $('li[data-uia="episode-card"]').each((i, el) => {
-    const t = $(el).find('[data-uia="episode-title"]').first().text().trim();
+    const t = clean($(el).find('[data-uia="episode-title"]').first().text());
     const m = t.match(/^(\d+)\.\s*(.*)$/);
-    const num = m ? +m[1] : i + 1;
-    const rt = $(el).find('span').filter((_, s) => /^\d+\s*(m|min)$/.test($(s).text().trim())).first().text().match(/\d+/);
+    const rt = $(el).find('span').filter((_, x) => /^\d+\s*(m|min)$/.test(clean($(x).text()))).first().text().match(/\d+/);
     out.episodes.push({
-      season: 1, episode: num, name: (m ? m[2] : t).replace(/\u00a0/g, ' ') || null,
-      synopsis: $(el).find('p').not('[data-uia]').first().text().trim() || null,
-      image: $(el).find('img').first().attr('src') || null,
-      runtime: rt ? +rt[0] : null,
+      season: 1, episode: m ? +m[1] : i + 1, name: (m ? m[2] : t) || null,
+      synopsis: clean($(el).find('p').not('[data-uia]').first().text()) || null,
+      image: $(el).find('img').first().attr('src') || null, runtime: rt ? +rt[0] : null,
     });
   });
 }
@@ -168,47 +162,30 @@ function fromDom($, out) {
 function parseNetflixHtml(html) {
   const $ = cheerio.load(html);
   const og = (p) => $(`meta[property="${p}"]`).attr('content') || null;
-  const out = { name: null, synopsis: null, year: null, type: null, certification: null,
-    genres: [], cast: [], image: og('og:image'), episodes: [] };
-
+  const nid = (og('og:url') || '').match(/title\/(\d+)/)?.[1] || null;
+  const out = {
+    netflixId: nid, name: null, synopsis: null, year: null, type: null, certification: null, releaseDate: null,
+    genres: [], cast: [], directors: [], creators: [], netflixGenres: [], tags: [],
+    image: og('og:image'), background: null, logo: null, trailers: [], seasonLabels: {}, episodes: [], warnings: [],
+  };
   const ogType = og('og:type') || '';
   if (/tv_show|tv_episode/.test(ogType)) out.type = 'series';
   else if (/movie/.test(ogType)) out.type = 'movie';
 
-  fromJsonLd($, out);
-  fromReactContext(html, out);
-  if (!out.episodes.length) fromDom($, out);
+  fromReactContext(html, out, nid);   // source principale
+  fromJsonLd($, out);                 // complète ce qui manque
+  if (!out.episodes.length) { fromDom($, out); if (out.episodes.length) out.warnings.push('épisodes lus depuis le HTML (secours)'); }
 
-  out.name = out.name || (og('og:title') || $('title').text() || '').split(' | ')[0].trim() || null;
-  out.synopsis = out.synopsis || og('og:description') || null;
+  out.name = out.name || clean((og('og:title') || $('title').text() || '').replace(/^Regarder\s+/i, '').split(' | ')[0]) || null;
+  out.synopsis = out.synopsis || clean(og('og:description')) || null;
 
-  const bodyText = $('body').text().replace(/\s+/g, ' ');
-  if (!out.certification) {
-    const c = bodyText.match(/(?<![\w+])(TP|7\+|10\+|12\+|13\+|16\+|18\+)(?![\w+])/);
-    if (c) out.certification = c[1];
-  }
-  // "Avec : A, B, C" (feuille la plus petite qui contient le motif)
-  if (!out.cast.length) {
-    const cands = $('p,div,span,li').filter((_, el) => /^\s*Avec\s*:/.test($(el).text()) && $(el).text().length < 400)
-      .toArray().sort((a, b) => $(a).text().length - $(b).text().length);
-    if (cands[0]) {
-      out.cast = $(cands[0]).text().replace(/^\s*Avec\s*:\s*/, '').split(/\s*,\s*/).map((s) => s.trim()).filter(Boolean);
-    }
-  }
-  if (!out.year) {
-    const y = bodyText.match(/(?<!\d)(19|20)\d{2}(?!\d)/);
-    if (y) out.year = +y[0];
-  }
-
-  // dédoublonnage des épisodes (priorité à la première source trouvée)
+  // Dédoublonnage + tri des épisodes
   const seen = new Map();
-  for (const e of out.episodes) {
-    const k = `${e.season}:${e.episode}`;
-    if (!seen.has(k)) seen.set(k, e);
-  }
+  for (const e of out.episodes) { const k = `${e.season}:${e.episode}`; if (!seen.has(k)) seen.set(k, e); }
   out.episodes = [...seen.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
-  if (!out.type) out.type = out.episodes.length || /Épisodes|Saison/i.test(bodyText) ? 'series' : null;
+  if (!out.type) out.type = out.episodes.length ? 'series' : null;
+  if (!out.episodes.length && out.type === 'series') out.warnings.push('aucun épisode trouvé dans la page');
   return out;
 }
 
-module.exports = { parseNetflixId, fetchNetflixPage, parseNetflixHtml };
+module.exports = { parseNetflixId, fetchNetflixPage, parseNetflixHtml, expiryOf };
