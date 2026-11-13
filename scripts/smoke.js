@@ -105,6 +105,8 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
   assert.ok((await page.text()).includes('Netflix Catalogue'));
+  const root = await fetch(`${base}/`, { redirect: 'manual' });
+  assert.equal(root.status, 302); assert.equal(root.headers.get('location'), '/admin');
   assert.equal((await fetch(`${base}/admin/api/summary`)).status, 401);
   assert.equal((await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'mauvais' } })).status, 401);
   const summary = await (await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'test-token' } })).json();

@@ -57,6 +57,9 @@ app.post('/admin/sync', auth, async (_req, res) => {
 });
 app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
 
+// Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).
+app.get('/', (_req, res) => res.redirect('/admin'));
+
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
 async function trailerHandler(req, res) {
   const nid = req.params.nid;
