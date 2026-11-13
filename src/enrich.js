@@ -105,7 +105,12 @@ async function enrichTitle(id) {
     certification: t.certification, genres: t.genres, synopsis: t.synopsis, cast: t.cast,
     poster: t.poster, background: t.background, logo: t.logo, trailer_yt: trailer, runtime: t.runtime, enriched: 1,
   });
-  if (row.type === 'series') store.replaceEpisodes(id, withReleased(t.episodes, t.release_date || t.year));
+  if (row.type === 'series') {
+    // Fiche liée à Netflix : on garde la découpe Netflix (saisons/parties) et on complète avec TMDB.
+    const existing = store.getEpisodes(id);
+    const eps = row.netflix_id && existing.length ? mergeEpisodes(existing, t.episodes) : t.episodes;
+    store.replaceEpisodes(id, withReleased(eps, t.release_date || t.year));
+  }
   return store.getTitle(id);
 }
 
@@ -115,7 +120,7 @@ function refreshTrailers(nid) {
   if (!inflight.has(nid)) {
     inflight.set(nid, (async () => {
       const n = parseNetflixHtml(await fetchNetflixPage(nid));
-      const row = store.getTitle(`nflx:${nid}`);
+      const row = store.findByNetflixId(nid);
       if (row && n.trailers.length) store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers: n.trailers });
       return n.trailers;
     })().finally(() => inflight.delete(nid)));

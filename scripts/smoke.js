@@ -6,6 +6,7 @@ const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
 const { withReleased, mergeEpisodes } = require('../src/enrich');
 const { builder } = require('../src/addon');
+const jw = require('../src/justwatch');
 
 const ep = (n, title, syn, sec, id) => ({ node: { __typename: 'Episode', videoId: id, number: n, runtimeSec: sec, shortSynopsis: syn, title,
   merchStill300: { url: `https://img.nflx/ep${n}.webp?r=9ef` } } });
@@ -50,6 +51,24 @@ assert.equal(mergeEpisodes(p.episodes, tm).length, 4); assert.equal(mergeEpisode
 const tm4 = p.episodes.map((e) => ({ ...e, released: '2026-10-30', synopsis: 'tmdb' }));
 assert.equal(mergeEpisodes(p.episodes, tm4)[0].released, '2026-10-30'); assert.equal(mergeEpisodes(p.episodes, tm4)[0].synopsis, p.episodes[0].synopsis);
 
+// Association JustWatch : titre exact ou originalTitle, année + type, offre Netflix obligatoire
+const cand = (o) => ({ netflixId: o.id, title: o.title, originalTitle: o.originalTitle || null,
+  year: o.year, type: o.type, objectType: o.type === 'movie' ? 'MOVIE' : 'SHOW' });
+assert.equal(jw.netflixIdOf('https://www.netflix.com/title/81707977'), '81707977');
+assert.equal(jw.pickBest([cand({ id: '81707977', title: 'ChiaroScuro', year: 2026, type: 'series' })],
+  { name: 'ChiaroScuro', year: 2026, type: 'series' }).netflixId, '81707977');
+assert.equal(jw.pickBest([cand({ id: '80991090', title: 'La Demoiselle et le Dragon', originalTitle: 'Damsel', year: 2024, type: 'movie' })],
+  { name: 'Damsel', year: 2024, type: 'movie' }).netflixId, '80991090');           // originalTitle
+assert.equal(jw.pickBest([cand({ id: '1', title: 'ChiaroScuro', year: 2026, type: 'series' })],
+  { name: 'ChiaroScuro', year: 2026, type: 'movie' }), null);                       // type incompatible
+assert.equal(jw.pickBest([cand({ id: '1', title: 'ChiaroScuro', year: 2020, type: 'series' })],
+  { name: 'ChiaroScuro', year: 2026, type: 'series' }), null);                      // mauvaise année
+assert.equal(jw.pickBest([cand({ id: '1', title: 'The Gentlemen', year: 2024, type: 'series' }),
+  cand({ id: '2', title: 'The Gentlemen', year: 2024, type: 'series' })],
+  { name: 'The Gentlemen', year: 2024, type: 'series' }), null);                    // ambiguïté
+assert.equal(jw.pickBest([cand({ id: '1', title: 'Autre titre', year: 2026, type: 'series' })],
+  { name: 'ChiaroScuro', year: 2026, type: 'series' }), null);                      // titre différent
+
 store.upsertTitle({ id: 'nflx:81944880', netflix_id: '81944880', type: p.type, name: p.name, year: p.year, release_date: p.releaseDate,
   certification: p.certification, genres: p.genres, synopsis: p.synopsis, cast: p.cast, poster: p.image, background: p.background, logo: p.logo,
   trailer_yt: 'dQw4w9WgXcQ', trailers: p.trailers, extra: { directors: p.directors, posterShape: 'landscape' }, enriched: 1 });
@@ -92,6 +111,11 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   await new Promise((r) => upstream.once('listening', r));
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange',
     trailers: [{ title: 'ba', url: `http://127.0.0.1:${upstream.address().port}/v.mp4`, expires: Date.now() + 3600000 }] });
+  // Fiche liée dont l'ID Stremio n'est PAS `nflx:<id>` : le relais doit la retrouver par netflix_id.
+  store.upsertTitle({ id: 'nflx:mv-777', netflix_id: '77777777', type: 'movie', name: 'Film lié',
+    trailers: [{ title: 'ba', url: `http://127.0.0.1:${upstream.address().port}/v.mp4`, expires: Date.now() + 3600000 }] });
+  assert.equal(store.findByNetflixId('77777777').id, 'nflx:mv-777');
+  assert.ok(!store.listUnlinked().some((r) => r.id === 'nflx:mv-777'));
   const app = require('../src/app').listen(0);
   await new Promise((r) => app.once('listening', r));
   const base = `http://127.0.0.1:${app.address().port}`;
@@ -100,6 +124,17 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const part = await fetch(`${base}/trailer/81944880/0.mp4`, { headers: { range: 'bytes=2-5' } });
   assert.equal(part.status, 206); assert.equal(Buffer.from(await part.arrayBuffer()).toString(), '2345');
   assert.equal((await fetch(`${base}/trailer/81944880/9.mp4`)).status, 404);
+  // Même relais, mais la fiche porte un ID Stremio différent (`nflx:mv-777`) : lookup par netflix_id.
+  const linked = await fetch(`${base}/trailer/77777777/0.mp4`);
+  assert.equal(linked.status, 200); assert.equal(Buffer.from(await linked.arrayBuffer()).toString(), '0123456789abcdef');
+  const linkedPart = await fetch(`${base}/trailer/77777777/0.mp4`, { headers: { range: 'bytes=2-5' } });
+  assert.equal(linkedPart.status, 206); assert.equal(Buffer.from(await linkedPart.arrayBuffer()).toString(), '2345');
+
+  // Doublon d'ID Netflix : la fiche de référence est conservée, l'autre est supprimée.
+  store.upsertTitle({ id: 'nflx:77777777', netflix_id: '77777777', type: 'movie', name: 'Doublon' });
+  assert.equal(store.deleteNetflixDuplicates('77777777', 'nflx:mv-777'), 1);
+  assert.equal(store.getTitle('nflx:77777777'), undefined);
+  assert.equal(store.findByNetflixId('77777777').id, 'nflx:mv-777');
 
   // Dashboard admin : page HTML + API protégées par ADMIN_TOKEN
   const page = await fetch(`${base}/admin`);
@@ -112,6 +147,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const summary = await (await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'test-token' } })).json();
   assert.ok(summary.stats.total >= 1); assert.ok(summary.stats.movies >= 1);
   assert.equal(summary.stats.recent.days > 0, true);
+  assert.ok(summary.stats.unlinked >= 2); assert.ok(typeof summary.stats.withImdb === 'number');
   const items = summary.settings.flatMap((g) => g.items);
   assert.ok(summary.settings.some((g) => g.title === 'Sécurité'));
   const adminItem = items.find((i) => i.key === 'ADMIN_TOKEN');
@@ -135,6 +171,13 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
   assert.equal(item.source, 'default'); assert.equal(sum.stats.recent.days, 90);
   assert.equal((await post({ values: { ADMIN_TOKEN: null } })).status, 200);          // secours .env présent
+
+  // IDs Netflix : statut du liage + export des IDs stockés (nom + TMDB/IMDb)
+  const linkStatus = await (await fetch(`${base}/admin/api/netflix-ids`, { headers: auth })).json();
+  assert.equal(linkStatus.running, false); assert.equal(typeof linkStatus.total, 'number');
+  const exported = await (await fetch(`${base}/admin/api/netflix-ids/export`, { headers: auth })).json();
+  const linkedRow = exported.find((r) => r.netflix_id === '77777777');
+  assert.ok(linkedRow); assert.equal(linkedRow.name, 'Film lié');
 
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');

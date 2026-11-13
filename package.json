@@ -9,6 +9,7 @@
     "add": "node scripts/add.js",
     "inspect": "node scripts/inspect.js",
     "sync": "node scripts/sync.js",
+    "netflix-ids": "node scripts/netflix-ids.js",
     "test": "node scripts/smoke.js",
     "seed": "node scripts/seed.js"
   },

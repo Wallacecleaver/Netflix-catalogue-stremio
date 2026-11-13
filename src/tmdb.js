@@ -116,4 +116,10 @@ async function genreMap(tmdbType) {
   return new Map(res.genres.map((g) => [g.id, g.name]));
 }
 
-module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, img };
+/** Identifiants externes TMDB → IMDb (sans recharger toute la fiche). */
+async function externalIds(tmdbType, id) {
+  const d = await call(`/${tmdbType}/${id}/external_ids`);
+  return { imdb_id: d.imdb_id || null, tvdb_id: d.tvdb_id || null };
+}
+
+module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, img };

@@ -8,9 +8,11 @@ Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3
 ## Sources de données
 1. **Page Netflix** (`netflix.com/fr/title/<id>`) : titre, synopsis, casting, classification, épisodes (JSON-LD + `netflix.reactContext`).
 2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours, trailers YouTube, et **catalogue automatique** des titres Netflix France.
-3. **YouTube** (recherche) : filet de sécurité pour la bande-annonce.
+3. **JustWatch** (API GraphQL publique) : correspondance nom → **ID Netflix** (la recherche netflix.com redirige vers `/login`, elle ne permet pas de découvrir les IDs).
+4. **YouTube** (recherche) : filet de sécurité pour la bande-annonce.
 
-> La vidéo de bande-annonce hébergée par Netflix n'est pas lisible dans Stremio : on fournit l'ID YouTube (`trailerStreams`).
+> La bande-annonce de la page Netflix est relayée par ton addon (`PUBLIC_URL/trailer/<id>/<n>.mp4`) : Stremio reçoit une URL
+> stable, et le lien signé Netflix est renouvelé à chaque lecture.
 > Le scraping de netflix.com va à l'encontre de leurs CGU et peut casser si la page change : à utiliser avec modération (le cache SQL limite les requêtes).
 
 ## Installation (VPS)
@@ -40,9 +42,9 @@ Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 Deux onglets :
 
 **Vue d'ensemble**
-- Statistiques : titres, films, séries, épisodes, sorties récentes, taille de la base, uptime.
+- Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
 - Configuration actuelle (lecture seule) avec la provenance de chaque valeur.
-- Actions : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix.
+- Actions : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix, **liage des IDs Netflix** (progression en direct).
 - Liens Stremio : manifest, `/health`, relais bande-annonce.
 
 **Paramètres**
@@ -56,6 +58,17 @@ Deux onglets :
 ## Catalogue automatique
 Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix de la région `REGION`.
 Les fiches sont complétées (épisodes, casting, trailer) à la première ouverture. Manuel : `npm run sync`.
+
+## Association des IDs Netflix (JustWatch)
+Chaque fiche du catalogue reçoit son `netflix_id`, ses bandes-annonces Netflix (jusqu'à plusieurs par titre) et les identifiants TMDB/IMDb manquants.
+La correspondance passe par **JustWatch** (nom + année + type + offre Netflix réelle).
+- Dans le dashboard : bouton **Lier les titres manquants**, avec progression en direct et bouton d'arrêt.
+- Automatiquement après chaque synchronisation TMDB, puis au démarrage s'il reste des fiches non liées.
+- En ligne de commande : `npm run netflix-ids -- --limit 50` (tout par défaut).
+
+Chaque titre est stocké avec `netflix_id`, `name`, `tmdb_id`, `tmdb_type`, `imdb_id`.
+Export JSON depuis le dashboard (**Exporter les IDs**) ; le relais `/trailer/<id>/...` recherche la fiche par `netflix_id`
+(et non par ID Stremio), donc les fiches venues des catalogues TMDB diffusent aussi la bande-annonce Netflix.
 
 ## Dernières sorties
 Deux catalogues dédiés dans Stremio : **Netflix — Dernières sorties (films)** et **Netflix — Dernières sorties (séries)**.
@@ -74,7 +87,7 @@ Sans épisodes Netflix, ceux de TMDB sont utilisés.
 `npm test` : parseur + SQL + handlers Stremio, sans réseau.
 
 ## Structure
-`src/netflix.js` scraper · `src/tmdb.js` · `src/youtube.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
+`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/youtube.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
 
 ## Test en local (Windows / PC)
 ```powershell

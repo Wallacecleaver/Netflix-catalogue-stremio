@@ -148,6 +148,8 @@
   .out.ok{color:var(--green)}
   .out.err{color:var(--red2)}
   .sep{height:1px;background:var(--line);margin:18px 0}
+  .progress{height:8px;border-radius:999px;background:#0d0d12;border:1px solid var(--line);overflow:hidden;margin:10px 0}
+  .progress .bar{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .3s}
 
   /* ---------- toast ---------- */
   .toast{position:fixed;right:20px;bottom:20px;max-width:min(380px,calc(100vw - 40px));padding:12px 16px;
@@ -203,6 +205,7 @@
         <div class="stat"><div class="l">Films</div><div class="v" id="stat-movies">—</div><div class="s" id="sub-movies">&nbsp;</div></div>
         <div class="stat"><div class="l">Séries</div><div class="v" id="stat-series">—</div><div class="s" id="sub-series">&nbsp;</div></div>
         <div class="stat accent"><div class="l">Dernières sorties</div><div class="v" id="stat-recent">—</div><div class="s" id="sub-recent">&nbsp;</div></div>
+        <div class="stat accent"><div class="l">IDs Netflix</div><div class="v" id="stat-netflix">—</div><div class="s" id="sub-netflix">&nbsp;</div></div>
         <div class="stat"><div class="l">Base SQLite</div><div class="v" id="stat-db">—</div><div class="s" id="sub-db">&nbsp;</div></div>
         <div class="stat"><div class="l">En ligne depuis</div><div class="v" id="stat-uptime">—</div><div class="s" id="sub-uptime">&nbsp;</div></div>
       </section>
@@ -235,6 +238,18 @@
             </form>
             <div id="add-out" class="out"></div>
             <p class="hint">L'ID seul fonctionne aussi (ex. <code>81944880</code>).</p>
+
+            <div class="sep"></div>
+
+            <h2>IDs Netflix &amp; bandes-annonces</h2>
+            <div class="row"><span class="k">LIÉS</span><span class="val" id="link-count">—</span></div>
+            <div class="progress"><div class="bar" id="link-bar"></div></div>
+            <div id="link-out" class="out"></div>
+            <div class="field">
+              <button id="link-btn" class="btn primary wide" type="button">Lier les titres manquants</button>
+              <button id="link-stop" class="btn" type="button" disabled>Arrêter</button>
+            </div>
+            <p class="hint">Recherche chaque titre sur JustWatch, associe l'ID Netflix, récupère la bande-annonce et complète TMDB/IMDb. <a href="#" id="link-export">Exporter les IDs</a></p>
           </section>
 
           <section class="card">
@@ -275,6 +290,7 @@
   var token = sessionStorage.getItem('nflx_token') || '';
   var toastTimer = null;
   var dirty = {};
+  var linkTimer = null;
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -352,6 +368,11 @@
     var r = s.recent || {};
     $('stat-recent').textContent = fmtNum((r.movies || 0) + (r.series || 0));
     $('sub-recent').textContent = (r.movies || 0) + ' films · ' + (r.series || 0) + ' séries · ' + (r.days || 0) + ' j';
+    var linkedIds = s.netflixId || 0;
+    var missingIds = s.unlinked != null ? s.unlinked : Math.max(0, (s.total || 0) - linkedIds);
+    $('stat-netflix').textContent = fmtNum(linkedIds);
+    $('sub-netflix').textContent = fmtNum(missingIds) + ' à lier';
+    $('link-count').textContent = fmtNum(linkedIds) + ' / ' + fmtNum(s.total) + ' titres';
     $('stat-db').textContent = fmtBytes(s.dbBytes);
     $('sub-db').textContent = s.netflixId ? fmtNum(s.netflixId) + ' titres liés à Netflix' : 'base locale';
     $('stat-uptime').textContent = fmtUptime(d.uptime);
@@ -418,7 +439,7 @@
   }
 
   function boot() {
-    return refresh().then(showApp).catch(function (e) {
+    return refresh().then(showApp).then(function () { pollLink(); }).catch(function (e) {
       if (e.message !== 'Non autorisé') showLogin(e.message);
     });
   }
@@ -433,7 +454,7 @@
     token = pass;
     api('/admin/api/summary').then(function (d) {
       sessionStorage.setItem('nflx_token', pass);
-      render(d); showApp(); toast('Bienvenue 👋');
+      render(d); showApp(); toast('Bienvenue 👋'); pollLink();
     }).catch(function (e) {
       token = ''; sessionStorage.removeItem('nflx_token');
       $('login-err').textContent = e.message === 'Non autorisé' ? 'Mot de passe incorrect.' : e.message;
@@ -464,13 +485,88 @@
       out.className = 'out ok';
       out.textContent = '+' + fmtNum(res.added) + ' titres · +' + fmtNum(res.recent) + ' dernières sorties';
       toast('Catalogue synchronisé');
-      return refresh();
+      return refresh().then(function () { pollLink(); });
     }).catch(function (e) {
       out.className = 'out err'; out.textContent = e.message;
       toast(e.message, 'err');
     }).finally(function () {
       btn.disabled = false; btn.textContent = 'Synchroniser le catalogue';
     });
+  });
+
+  // ---- IDs Netflix ----
+  function renderLink(st) {
+    st = st || {};
+    var running = !!st.running;
+    $('link-btn').disabled = running;
+    $('link-btn').textContent = running ? 'Liage en cours…' : 'Lier les titres manquants';
+    $('link-stop').disabled = !running;
+    $('link-bar').style.width = (st.percent || 0) + '%';
+    var out = $('link-out');
+    if (running) {
+      out.className = 'out';
+      out.textContent = (st.done || 0) + ' / ' + (st.total || 0) +
+        (st.current ? ' — ' + st.current.name : '') + ' · ' + (st.linked || 0) + ' liés';
+    } else if (st.finishedAt) {
+      out.className = 'out ok';
+      out.textContent = '+' + (st.linked || 0) + ' IDs liés · ' + (st.skipped || 0) + ' introuvables · ' + (st.failed || 0) + ' erreurs';
+    } else if (st.total) {
+      out.className = 'out';
+      out.textContent = 'Prêt : ' + st.total + ' titre(s) à lier.';
+    }
+    return running;
+  }
+
+  function pollLink() {
+    clearTimeout(linkTimer); linkTimer = null;
+    return api('/admin/api/netflix-ids').then(function (st) {
+      if (renderLink(st)) {
+        linkTimer = setTimeout(pollLink, 2000);
+      } else {
+        api('/admin/api/summary').then(renderOverview).catch(function () {});
+      }
+      return st;
+    }).catch(function (e) {
+      if (e.message !== 'Non autorisé') toast(e.message, 'err');
+    });
+  }
+
+  $('link-btn').addEventListener('click', function () {
+    $('link-btn').disabled = true;
+    api('/admin/netflix-ids', {}).then(function (st) {
+      toast(st.total ? 'Liage des IDs Netflix lancé' : 'Tous les titres sont déjà liés');
+      renderLink(st);
+      if (st.running) { clearTimeout(linkTimer); linkTimer = setTimeout(pollLink, 1200); }
+      else refresh();
+    }).catch(function (e) {
+      toast(e.message, 'err');
+      $('link-btn').disabled = false;
+    });
+  });
+
+  $('link-stop').addEventListener('click', function () {
+    api('/admin/netflix-ids/stop', {}).then(function (st) {
+      toast('Arrêt demandé — le titre en cours se termine');
+      renderLink(st);
+    }).catch(function (e) { toast(e.message, 'err'); });
+  });
+
+  $('link-export').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch('/admin/api/netflix-ids/export', { headers: { 'x-admin-token': token } })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status === 401 ? 'Non autorisé' : 'HTTP ' + r.status);
+        return r.blob();
+      })
+      .then(function (blob) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'netflix-ids.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+        toast('Export téléchargé');
+      })
+      .catch(function (e) { toast(e.message, 'err'); });
   });
 
   $('add-form').addEventListener('submit', function (ev) {

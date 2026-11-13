@@ -90,6 +90,27 @@ const getEpisodes = (id) => db.prepare('SELECT * FROM episodes WHERE title_id = 
 const findByTmdb = (tmdbType, tmdbId) => db.prepare('SELECT id FROM titles WHERE tmdb_type = ? AND tmdb_id = ?').get(tmdbType, tmdbId);
 const count = () => db.prepare('SELECT COUNT(*) c FROM titles').get().c;
 
+// L'ID Netflix n'est pas toujours l'ID Stremio (`nflx:tv-123`) : on retrouve la fiche par `netflix_id`.
+const findByNetflixId = (netflixId) => parse(db.prepare(
+  'SELECT * FROM titles WHERE netflix_id = ? ORDER BY enriched DESC, added_at ASC LIMIT 1').get(String(netflixId)));
+
+/** Titres pas encore associés à un ID Netflix (les plus récents d'abord). */
+function listUnlinked({ limit = 0 } = {}) {
+  const sql = `SELECT * FROM titles WHERE netflix_id IS NULL
+    ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT ?' : ''}`;
+  return (limit > 0 ? db.prepare(sql).all(limit) : db.prepare(sql).all()).map(parse);
+}
+
+/** Tous les IDs Netflix stockés avec leur nom + correspondances TMDB/IMDb (export dashboard). */
+const listLinked = () => db.prepare(`SELECT netflix_id, name, type, year, tmdb_type, tmdb_id, imdb_id
+  FROM titles WHERE netflix_id IS NOT NULL ORDER BY name`).all();
+
+/** Supprime les doublons d'un même ID Netflix (garde la fiche dont l'ID Stremio est déjà connu des utilisateurs). */
+function deleteNetflixDuplicates(netflixId, keepId) {
+  return db.prepare('DELETE FROM titles WHERE id != ? AND (netflix_id = ? OR id = ?)')
+    .run(keepId, String(netflixId), `nflx:${netflixId}`).changes;
+}
+
 const insEp = db.prepare(`INSERT INTO episodes (title_id, season, episode, name, synopsis, image, runtime, released)
   VALUES (@title_id, @season, @episode, @name, @synopsis, @image, @runtime, @released)`);
 const replaceEpisodes = db.transaction((titleId, eps) => {
@@ -144,6 +165,8 @@ function stats({ days = config.recentDays } = {}) {
     series: byType.series || 0,
     enriched: db.prepare('SELECT COUNT(*) c FROM titles WHERE enriched = 1').get().c,
     netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
+    unlinked: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NULL').get().c,
+    withImdb: db.prepare('SELECT COUNT(*) c FROM titles WHERE imdb_id IS NOT NULL').get().c,
     episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
     recent: { days, movies: recent.movie || 0, series: recent.series || 0 },
     dbBytes,
@@ -160,4 +183,6 @@ const setSettings = db.transaction((entries) => {
 });
 const deleteSetting = (key) => db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes;
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats, allSettings, setSettings, deleteSetting };
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByNetflixId, listUnlinked, listLinked,
+  deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats,
+  allSettings, setSettings, deleteSetting };

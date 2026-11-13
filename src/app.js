@@ -8,6 +8,7 @@ const { builder, manifest } = require('./addon');
 const { HTML: ADMIN_HTML } = require('./admin');
 const settings = require('./settings');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
+const link = require('./link');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
@@ -59,8 +60,22 @@ app.post('/admin/add', auth, async (req, res) => {
 app.post('/admin/sync', auth, async (_req, res) => {
   try {
     const [added, recent] = await Promise.all([syncCatalog(), syncRecent()]);
-    res.json({ added, recent });
+    const linking = store.stats().unlinked > 0 ? link.start({}) : link.status();
+    res.json({ added, recent, link: linking });
   } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/admin/api/netflix-ids', auth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(link.status());
+});
+app.post('/admin/netflix-ids', auth, (_req, res) => {
+  try { res.json(link.start({})); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/admin/netflix-ids/stop', auth, (_req, res) => { res.json(link.stop()); });
+app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {
+  res.set('content-disposition', 'attachment; filename="netflix-ids.json"');
+  res.json(store.listLinked());
 });
 app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
 
@@ -72,7 +87,7 @@ async function trailerHandler(req, res) {
   const nid = req.params.nid;
   const idx = Number(req.params.idx);
   console.log(`[trailer] ${req.method} ${nid}/${idx}${req.headers.range ? ' ' + req.headers.range : ''}`);
-  const t = store.getTitle(`nflx:${nid}`)?.trailers?.[idx];
+  const t = store.findByNetflixId(nid)?.trailers?.[idx];
   if (!t) return res.status(404).send('bande-annonce inconnue');
   try {
     let url = t.url;
