@@ -5,7 +5,8 @@ const { getRouter } = require('stremio-addon-sdk');
 const config = require('./config');
 const store = require('./db');
 const { builder, manifest } = require('./addon');
-const { HTML: ADMIN_HTML, configView } = require('./admin');
+const { HTML: ADMIN_HTML } = require('./admin');
+const settings = require('./settings');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
@@ -43,7 +44,13 @@ function auth(req, res, next) {
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
 app.get('/admin/api/summary', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
-  res.json({ version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), config: configView() });
+  res.json({ version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view() });
+});
+app.post('/admin/api/settings', auth, (req, res) => {
+  try {
+    const result = settings.save(req.body && req.body.values ? req.body.values : {});
+    res.json({ ok: true, ...result });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 app.post('/admin/add', auth, async (req, res) => {
   try { res.json(await ingestNetflix(req.body.url || req.body.id)); }

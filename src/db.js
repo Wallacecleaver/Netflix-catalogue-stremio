@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS episodes (
   released TEXT,
   PRIMARY KEY (title_id, season, episode)
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `);
 
 for (const col of ['extra_json', 'trailers_json']) {
@@ -145,4 +150,14 @@ function stats({ days = config.recentDays } = {}) {
   };
 }
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats };
+// Paramètres surchargés depuis le dashboard (prioritaires sur le .env).
+const allSettings = () => Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((r) => [r.key, r.value]));
+const setSettings = db.transaction((entries) => {
+  const now = Date.now();
+  const up = db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`);
+  for (const [k, v] of Object.entries(entries)) up.run(k, String(v), now);
+});
+const deleteSetting = (key) => db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes;
+
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats, allSettings, setSettings, deleteSetting };

@@ -112,8 +112,29 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const summary = await (await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'test-token' } })).json();
   assert.ok(summary.stats.total >= 1); assert.ok(summary.stats.movies >= 1);
   assert.equal(summary.stats.recent.days > 0, true);
-  assert.ok(summary.config.some((g) => g.title === 'Sécurité'));
-  assert.ok(summary.config.flatMap((g) => g.items).find((i) => i.env === 'ADMIN_TOKEN').secret); // jamais en clair
+  const items = summary.settings.flatMap((g) => g.items);
+  assert.ok(summary.settings.some((g) => g.title === 'Sécurité'));
+  const adminItem = items.find((i) => i.key === 'ADMIN_TOKEN');
+  assert.ok(adminItem.secret && adminItem.value === '' && adminItem.hint.startsWith('••')); // jamais en clair
+
+  // Paramètres éditables : enregistrement, effet immédiat, validation, retour au .env
+  const auth = { 'x-admin-token': 'test-token' };
+  const post = (body) => fetch(`${base}/admin/api/settings`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  assert.equal((await post({ values: { RECENT_DAYS: 30 } })).status, 200);
+  let sum = await (await fetch(`${base}/admin/api/summary`, { headers: auth })).json();
+  let item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
+  assert.equal(item.value, '30'); assert.equal(item.source, 'dashboard');
+  assert.equal(sum.stats.recent.days, 30);                                           // effet immédiat
+  assert.equal((await post({ values: { RECENT_DAYS: 'abc' } })).status, 400);         // nombre invalide
+  assert.equal((await post({ values: { TRAILER_PREFER: 'nimporte' } })).status, 400); // hors liste
+  assert.equal((await post({ values: { INCONNU: 'x' } })).status, 400);               // clé inconnue
+  assert.equal((await post({ values: { RECENT_DAYS: null } })).status, 200);          // retour au .env
+  sum = await (await fetch(`${base}/admin/api/summary`, { headers: auth })).json();
+  item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
+  assert.equal(item.source, 'default'); assert.equal(sum.stats.recent.days, 90);
+  assert.equal((await post({ values: { ADMIN_TOKEN: null } })).status, 200);          // secours .env présent
 
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');

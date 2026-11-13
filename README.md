@@ -35,13 +35,23 @@ docker compose exec netflix-catalogue node scripts/add.js https://www.netflix.co
 Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 
 ## Dashboard d'administration
-`https://netflix.mondomaine.fr/admin` — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
+`https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
 
-- **Statistiques** : titres, films, séries, épisodes, sorties récentes, taille de la base, uptime.
-- **Configuration** : toutes les variables du `.env` (secrets masqués, valeurs par défaut signalées).
-- **Actions** : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix.
-- Le mot de passe reste en session (`sessionStorage`) et est envoyé en en-tête `x-admin-token`.
-- 10 essais échoués par minute et par IP maximum (protection basique contre le bruteforce).
+Deux onglets :
+
+**Vue d'ensemble**
+- Statistiques : titres, films, séries, épisodes, sorties récentes, taille de la base, uptime.
+- Configuration actuelle (lecture seule) avec la provenance de chaque valeur.
+- Actions : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix.
+- Liens Stremio : manifest, `/health`, relais bande-annonce.
+
+**Paramètres**
+- Toutes les variables du `.env` sont **modifiables** : port, URL publique, clé TMDB, région/langue/pays, pages et fréquences de synchro, fenêtre des nouveautés, cache, préférence de bande-annonce, mot de passe admin.
+- Les valeurs sont validées (nombres, listes) et enregistrées dans la table `settings` de SQLite, donc **persistées dans le volume `./data`** et conservées à chaque redéploiement. Le conteneur ne voyant pas le `.env` de l'hôte, c'est la base qui porte les surcharges.
+- Priorité : **dashboard > `.env` > valeur par défaut**. Le bouton ↺ d'un champ restaure la valeur du `.env` ; la provenance est affichée pour chaque paramètre.
+- `PORT`, `DB_PATH` et `SYNC_EVERY_HOURS` sont marqués **⟳ redémarrage** : ils ne s'appliquent qu'après `docker compose restart`.
+- Modifier `ADMIN_TOKEN` prend effet immédiatement et met à jour la session du dashboard ; les autres sessions devront se reconnecter.
+- Sécurité : 10 essais échoués par minute et par IP maximum (protection basique contre le bruteforce).
 
 ## Catalogue automatique
 Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix de la région `REGION`.

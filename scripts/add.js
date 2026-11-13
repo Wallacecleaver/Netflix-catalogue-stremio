@@ -1,4 +1,5 @@
 const fs = require('fs');
+require('../src/settings');                     // applique les surcharges enregistrées depuis /admin
 const { ingestNetflix } = require('../src/enrich');
 // Usage : npm run add -- <url|id> [<url|id> ...]
 //         npm run add -- <id> --file page.html   (page enregistrée depuis ton navigateur)
