@@ -23,7 +23,7 @@ const DEFS = [
   { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties (jours)', group: 'Synchronisation', type: 'number', min: 1, max: 365 },
   { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
   { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache fiches/catalogues (s)', group: 'Stremio', type: 'number', min: 0, max: 86400 },
-  { key: 'TRAILER_PREFER', prop: 'trailerPrefer', label: 'Bande-annonce préférée', group: 'Stremio', type: 'select', options: ['netflix', 'youtube', 'both'] },
+
   { key: 'ADMIN_TOKEN', prop: 'adminToken', label: 'Mot de passe du dashboard', group: 'Sécurité', type: 'password', secret: true, minLength: 4 },
 ];
 

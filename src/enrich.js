@@ -1,7 +1,7 @@
 const config = require('./config');
 const store = require('./db');
 const tmdb = require('./tmdb');
-const youtube = require('./youtube');
+
 const { parseNetflixId, fetchNetflixPage, parseNetflixHtml } = require('./netflix');
 
 // Stremio exige une date `released` par épisode. Netflix n'en donne pas : on part de la date de mise en ligne,
@@ -61,7 +61,7 @@ async function ingestNetflix(input, opts = {}) {
   const releaseDate = n.releaseDate || t?.release_date || null;
 
   let trailerYt = t?.trailer_yt || null;
-  if (!trailerYt) trailerYt = await youtube.searchTrailer(`${n.name} bande-annonce Netflix France`);
+  trailerYt = null;
 
   const hasTmdbPoster = !!t?.poster;
   store.upsertTitle({
@@ -99,7 +99,7 @@ async function enrichTitle(id) {
   const row = store.getTitle(id);
   if (!row || row.enriched || !row.tmdb_id || !config.tmdbKey) return row;
   const t = await tmdb.fetchFull(row.tmdb_type, row.tmdb_id);
-  const trailer = t.trailer_yt || (await youtube.searchTrailer(`${t.name} bande-annonce`));
+  const trailer = t.trailer_yt || null;
   store.upsertTitle({
     id, type: row.type, name: row.name, imdb_id: t.imdb_id, year: t.year, release_date: t.release_date,
     certification: t.certification, genres: t.genres, synopsis: t.synopsis, cast: t.cast,

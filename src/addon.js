@@ -62,14 +62,10 @@ function buildMeta(row, eps) {
   const netflixTrailers = row.netflix_id
     ? (row.trailers || []).map((t, i) => ({ title: t.title || 'Bande-annonce', url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4` }))
     : [];
-  const yt = row.trailer_yt ? [{ title: 'Bande-annonce (YouTube)', ytId: row.trailer_yt }] : [];
-  // Stremio préfère YouTube s'il est présent : avec "netflix" (défaut) on n'envoie YouTube que s'il n'y a pas de vidéo Netflix.
-  let trailerStreams;
-  if (config.trailerPrefer === 'youtube') trailerStreams = [...yt, ...netflixTrailers];
-  else if (config.trailerPrefer === 'both') trailerStreams = [...netflixTrailers, ...yt];
-  else trailerStreams = netflixTrailers.length ? netflixTrailers : yt;
+  // On ne propose que les bandes-annonces Netflix (si disponibles).
+  const trailerStreams = netflixTrailers;
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
-  if (trailerStreams.some((t) => t.ytId)) meta.trailers = [{ source: row.trailer_yt, type: 'Trailer' }]; // anciens clients
+  // YouTube trailer support removed
   if (row.type === 'series') {
     meta.videos = eps.map((e) => ({
       id: `${row.id}:${e.season}:${e.episode}`,

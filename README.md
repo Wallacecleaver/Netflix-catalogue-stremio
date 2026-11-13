@@ -94,7 +94,7 @@ Sans épisodes Netflix, ceux de TMDB sont utilisés.
 `npm test` : parseur + SQL + handlers Stremio, sans réseau.
 
 ## Structure
-`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/youtube.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
+`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
 
 ## Test en local (Windows / PC)
 ```powershell
@@ -119,5 +119,5 @@ npm run add -- 81944880 --file page.html
 La vidéo de la page (≈1 min 40) est enregistrée avec le titre. Ses liens Netflix expirent en quelques heures, donc Stremio reçoit une URL
 stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'addon renouvelle le lien Netflix si besoin et relaie la vidéo
 (avec support des `Range`). Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`) et
-`TRAILER_PREFER=netflix|youtube` (ordre des bandes-annonces ; l'autre reste en secours).
+*(Le choix de bande-annonce est désormais limité à Netflix uniquement.)*
 Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
