@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Netflix Catalogue — dashboard</title>
+<style>
+  :root{
+    --bg:#0a0a0d; --card:#131318; --card2:#17171e; --line:#26262f; --line2:#32323d;
+    --txt:#f2f2f5; --muted:#8f8f9c; --red:#e50914; --red2:#ff2b36;
+    --green:#3ddc84; --amber:#ffb020; --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--txt); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1100px 560px at 8% -12%, rgba(229,9,20,.20), transparent 62%),
+      radial-gradient(900px 520px at 102% -6%, rgba(229,9,20,.10), transparent 58%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--red2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .hidden{display:none !important}
+  .wrap{max-width:1120px;margin:0 auto;padding:26px 20px 64px}
+
+  /* ---------- login ---------- */
+  .login{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .login .card{width:min(410px,100%);padding:30px 28px;text-align:center}
+  .login .logo{margin:0 auto 16px}
+  .login h1{font-size:20px;margin:0 0 4px}
+  .login p{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+  .login .inp{text-align:center;letter-spacing:2px}
+  .login .btn{width:100%;margin-top:12px;padding:11px}
+  .login .err{color:var(--red2);font-size:13px;min-height:20px;margin-top:12px}
+
+  /* ---------- header ---------- */
+  header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:13px;min-width:0}
+  .logo{width:44px;height:44px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;
+    background:linear-gradient(150deg,var(--red),#8c0009);font-weight:800;font-size:22px;color:#fff;
+    box-shadow:0 10px 28px rgba(229,9,20,.35), inset 0 1px 0 rgba(255,255,255,.25)}
+  h1{font-size:19px;margin:0;letter-spacing:.2px;font-weight:700}
+  .sub{color:var(--muted);font-size:12.5px}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);
+    color:var(--muted);border-radius:999px;padding:5px 11px;font-size:12px;white-space:nowrap}
+  .pill:hover{color:var(--txt);border-color:var(--line2);text-decoration:none}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(61,220,132,.8)}
+
+  /* ---------- cards ---------- */
+  .card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 14px;font-weight:600}
+  .cols{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
+  .stack{display:grid;gap:16px}
+  @media(max-width:880px){.cols{grid-template-columns:1fr}}
+
+  /* ---------- stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+  .stat::after{content:"";position:absolute;inset:auto auto 0 0;height:2px;width:100%;
+    background:linear-gradient(90deg,transparent,rgba(229,9,20,.55),transparent);opacity:0;transition:.2s}
+  .stat:hover::after{opacity:1}
+  .stat .l{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .stat .v{font-size:27px;font-weight:750;letter-spacing:-.6px;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+  .stat .s{font-size:12px;color:var(--muted)}
+  .stat.accent .v{color:var(--red2)}
+
+  /* ---------- config ---------- */
+  .cfg-group + .cfg-group{margin-top:18px}
+  .cfg-title{font-size:11px;font-weight:700;color:var(--red2);letter-spacing:.9px;text-transform:uppercase;margin-bottom:6px}
+  .row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:8px 0;
+    border-bottom:1px dashed rgba(255,255,255,.06);font-size:13.5px}
+  .cfg-group .row:last-child{border-bottom:0;padding-bottom:0}
+  .row .k{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .row .val{font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
+  .row .val .ph{color:var(--muted);font-weight:500}
+  .tag{display:inline-block;font-size:10px;line-height:1.4;padding:1px 6px;margin-left:8px;border-radius:6px;
+    border:1px solid var(--line2);color:var(--muted);vertical-align:1px;font-family:inherit;font-weight:600;letter-spacing:.3px}
+  .tag.env{color:var(--green);border-color:rgba(61,220,132,.35);background:rgba(61,220,132,.08)}
+  .tag.def{color:var(--amber);border-color:rgba(255,176,32,.35);background:rgba(255,176,32,.08)}
+  .tag.off{color:var(--red2);border-color:rgba(229,9,20,.4);background:rgba(229,9,20,.1)}
+  .missing{color:var(--amber);font-weight:600}
+
+  /* ---------- forms ---------- */
+  .btn{font:inherit;font-weight:600;border-radius:10px;border:1px solid var(--line2);background:#1c1c24;
+    color:var(--txt);padding:9px 14px;cursor:pointer;transition:.16s;white-space:nowrap}
+  .btn:hover:not(:disabled){background:#24242e;border-color:#40404d}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn.primary{background:linear-gradient(180deg,var(--red2),var(--red));border-color:#b30710;
+    box-shadow:0 6px 18px rgba(229,9,20,.28)}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.08);background:linear-gradient(180deg,var(--red2),var(--red))}
+  .btn.wide{width:100%}
+  .inp{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);
+    background:#0d0d12;color:var(--txt);outline:none;transition:.16s}
+  .inp::placeholder{color:#5f5f6b}
+  .inp:focus{border-color:rgba(229,9,20,.65);box-shadow:0 0 0 3px rgba(229,9,20,.14)}
+  .field{display:flex;gap:10px;margin-top:10px}
+  .field .inp{min-width:0}
+  .hint{color:var(--muted);font-size:12.5px;margin:14px 0 0}
+  .hint code{background:#0d0d12;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+  .out{font-size:12.5px;color:var(--muted);min-height:18px;margin-top:10px;word-break:break-word}
+  .out.ok{color:var(--green)}
+  .out.err{color:var(--red2)}
+  .sep{height:1px;background:var(--line);margin:18px 0}
+
+  /* ---------- toast ---------- */
+  .toast{position:fixed;right:20px;bottom:20px;max-width:min(380px,calc(100vw - 40px));padding:12px 16px;
+    border-radius:12px;border:1px solid var(--line2);background:#17171e;color:var(--txt);font-size:13.5px;
+    box-shadow:0 18px 45px rgba(0,0,0,.55);opacity:0;transform:translateY(12px);pointer-events:none;transition:.22s;z-index:9}
+  .toast.show{opacity:1;transform:none}
+  .toast.ok{border-color:rgba(61,220,132,.45)}
+  .toast.err{border-color:rgba(229,9,20,.55)}
+
+  footer{margin-top:26px;color:#5f5f6b;font-size:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+
+<!-- Connexion -->
+<div id="login" class="login hidden">
+  <div class="card">
+    <div class="logo">N</div>
+    <h1>Netflix Catalogue</h1>
+    <p>Dashboard d'administration</p>
+    <form id="login-form" autocomplete="on">
+      <input id="login-pass" class="inp" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
+      <button id="login-btn" class="btn primary" type="submit">Se connecter</button>
+    </form>
+    <div id="login-err" class="err"></div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="app" class="hidden">
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">N</div>
+        <div>
+          <h1>Netflix Catalogue</h1>
+          <div class="sub"><span id="version">v—</span> · dashboard</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <span class="pill"><span class="dot"></span>Addon en ligne</span>
+      <a class="pill" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
+      <button id="logout" class="btn">Déconnexion</button>
+    </header>
+
+    <section class="stats" aria-label="Statistiques">
+      <div class="stat"><div class="l">Titres</div><div class="v" id="stat-total">—</div><div class="s" id="sub-total">&nbsp;</div></div>
+      <div class="stat"><div class="l">Films</div><div class="v" id="stat-movies">—</div><div class="s" id="sub-movies">&nbsp;</div></div>
+      <div class="stat"><div class="l">Séries</div><div class="v" id="stat-series">—</div><div class="s" id="sub-series">&nbsp;</div></div>
+      <div class="stat accent"><div class="l">Dernières sorties</div><div class="v" id="stat-recent">—</div><div class="s" id="sub-recent">&nbsp;</div></div>
+      <div class="stat"><div class="l">Base SQLite</div><div class="v" id="stat-db">—</div><div class="s" id="sub-db">&nbsp;</div></div>
+      <div class="stat"><div class="l">En ligne depuis</div><div class="v" id="stat-uptime">—</div><div class="s" id="sub-uptime">&nbsp;</div></div>
+    </section>
+
+    <div class="cols">
+      <section class="card">
+        <h2>Configuration (.env)</h2>
+        <div id="cfg"></div>
+        <p class="hint">Les secrets sont masqués. Les valeurs marquées <span class="tag def">défaut</span> ne viennent pas du <code>.env</code>.</p>
+      </section>
+
+      <div class="stack">
+        <section class="card">
+          <h2>Actions</h2>
+          <button id="sync-btn" class="btn primary wide" type="button">Synchroniser le catalogue</button>
+          <div id="sync-out" class="out"></div>
+
+          <div class="sep"></div>
+
+          <h2>Ajouter un titre Netflix</h2>
+          <form id="add-form">
+            <input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880" required>
+            <div class="field">
+              <button id="add-btn" class="btn wide" type="submit">Ajouter / rafraîchir</button>
+            </div>
+          </form>
+          <div id="add-out" class="out"></div>
+          <p class="hint">L'ID seul fonctionne aussi (ex. <code>81944880</code>).</p>
+        </section>
+
+        <section class="card">
+          <h2>Stremio</h2>
+          <div class="row"><span class="k">MANIFEST</span><a id="manifest-url" class="val" href="/manifest.json" target="_blank" rel="noreferrer">/manifest.json</a></div>
+          <div class="row"><span class="k">SANTÉ</span><a id="health-url" class="val" href="/health" target="_blank" rel="noreferrer">/health</a></div>
+          <div class="row"><span class="k">BANDE-ANNONCE</span><a id="trailer-url" class="val" href="/trailer/81944880/0.mp4" target="_blank" rel="noreferrer">/trailer/…</a></div>
+          <p class="hint">Dans Stremio : <strong>Addons → Install from URL</strong>, puis colle l'URL du manifest.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var token = sessionStorage.getItem('nflx_token') || '';
+  var toastTimer = null;
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmtNum(n) { return new Intl.NumberFormat('fr-FR').format(n || 0); }
+  function fmtBytes(n) {
+    n = n || 0; var u = ['o', 'Ko', 'Mo', 'Go'], i = 0, v = n;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return (i ? v.toFixed(v < 10 ? 1 : 0) : v) + ' ' + u[i];
+  }
+  function fmtUptime(s) {
+    s = Math.floor(s || 0);
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d) return d + ' j ' + h + ' h';
+    if (h) return h + ' h ' + m + ' min';
+    return m + ' min';
+  }
+  function toast(msg, kind) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (kind || 'ok');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = 'toast'; }, 4500);
+  }
+
+  function api(path, body) {
+    var opt = { method: body === undefined ? 'GET' : 'POST', headers: { 'x-admin-token': token } };
+    if (body !== undefined) { opt.headers['content-type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch(path, opt).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (r.status === 401) { showLogin('Mot de passe incorrect.'); throw new Error('Non autorisé'); }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        return data;
+      });
+    });
+  }
+
+  function showLogin(msg) {
+    $('app').classList.add('hidden');
+    $('login').classList.remove('hidden');
+    $('login-err').textContent = msg || '';
+    setTimeout(function () { $('login-pass').focus(); }, 60);
+  }
+  function showApp() {
+    $('login').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    $('login-err').textContent = '';
+    $('login-pass').value = '';
+  }
+
+  function render(d) {
+    var s = d.stats || {};
+    $('version').textContent = 'v' + (d.version || '—');
+    $('stat-total').textContent = fmtNum(s.total);
+    $('sub-total').textContent = fmtNum(s.enriched) + ' fiches complètes';
+    $('stat-movies').textContent = fmtNum(s.movies);
+    $('sub-movies').textContent = 'films sur Netflix';
+    $('stat-series').textContent = fmtNum(s.series);
+    $('sub-series').textContent = fmtNum(s.episodes) + ' épisodes en base';
+    var r = s.recent || {};
+    $('stat-recent').textContent = fmtNum((r.movies || 0) + (r.series || 0));
+    $('sub-recent').textContent = (r.movies || 0) + ' films · ' + (r.series || 0) + ' séries · ' + (r.days || 0) + ' j';
+    $('stat-db').textContent = fmtBytes(s.dbBytes);
+    $('sub-db').textContent = s.netflixId ? fmtNum(s.netflixId) + ' titres liés à Netflix' : 'base locale';
+    $('stat-uptime').textContent = fmtUptime(d.uptime);
+    $('sub-uptime').textContent = 'Node ' + (d.node || '');
+
+    var html = (d.config || []).map(function (g) {
+      return '<div class="cfg-group"><div class="cfg-title">' + esc(g.title) + '</div>' +
+        g.items.map(function (it) {
+          var tag = it.secret
+            ? (it.set ? '<span class="tag env">défini</span>' : '<span class="tag off">absent</span>')
+            : (it.fromEnv ? '<span class="tag env">.env</span>' : '<span class="tag def">défaut</span>');
+          var val = it.secret && !it.set
+            ? '<span class="missing">non renseigné</span>'
+            : esc(it.value);
+          return '<div class="row"><span class="k">' + esc(it.env) + '</span><span class="val">' + val + tag + '</span></div>';
+        }).join('') + '</div>';
+    }).join('');
+    $('cfg').innerHTML = html;
+  }
+
+  function refresh() {
+    return api('/admin/api/summary').then(render);
+  }
+
+  function boot() {
+    return refresh().then(showApp).catch(function (e) {
+      if (e.message !== 'Non autorisé') showLogin(e.message);
+    });
+  }
+
+  $('login-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var pass = $('login-pass').value;
+    if (!pass) return;
+    var btn = $('login-btn');
+    btn.disabled = true; btn.textContent = 'Connexion…';
+    token = pass;
+    api('/admin/api/summary').then(function (d) {
+      sessionStorage.setItem('nflx_token', pass);
+      render(d); showApp(); toast('Bienvenue 👋');
+    }).catch(function (e) {
+      token = ''; sessionStorage.removeItem('nflx_token');
+      $('login-err').textContent = e.message === 'Non autorisé' ? 'Mot de passe incorrect.' : e.message;
+    }).finally(function () {
+      btn.disabled = false; btn.textContent = 'Se connecter';
+    });
+  });
+
+  $('logout').addEventListener('click', function () {
+    token = ''; sessionStorage.removeItem('nflx_token');
+    showLogin('');
+  });
+
+  $('sync-btn').addEventListener('click', function () {
+    var btn = $('sync-btn'), out = $('sync-out');
+    btn.disabled = true; btn.textContent = 'Synchronisation en cours…';
+    out.className = 'out'; out.textContent = 'Interrogation de TMDB…';
+    api('/admin/sync', {}).then(function (res) {
+      out.className = 'out ok';
+      out.textContent = '+' + fmtNum(res.added) + ' titres · +' + fmtNum(res.recent) + ' dernières sorties';
+      toast('Catalogue synchronisé');
+      return refresh();
+    }).catch(function (e) {
+      out.className = 'out err'; out.textContent = e.message;
+      toast(e.message, 'err');
+    }).finally(function () {
+      btn.disabled = false; btn.textContent = 'Synchroniser le catalogue';
+    });
+  });
+
+  $('add-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var url = $('add-url').value.trim(), btn = $('add-btn'), out = $('add-out');
+    if (!url) return;
+    btn.disabled = true; btn.textContent = 'Ajout en cours…';
+    out.className = 'out'; out.textContent = 'Lecture de la page Netflix…';
+    api('/admin/add', { url: url }).then(function (res) {
+      var name = (res.title && res.title.name) || res.name || url;
+      out.className = 'out ok'; out.textContent = 'Ajouté : ' + name;
+      $('add-url').value = '';
+      toast('Titre ajouté');
+      return refresh();
+    }).catch(function (e) {
+      out.className = 'out err'; out.textContent = e.message;
+      toast(e.message, 'err');
+    }).finally(function () {
+      btn.disabled = false; btn.textContent = 'Ajouter / rafraîchir';
+    });
+  });
+
+  var origin = location.origin;
+  $('manifest-url').textContent = origin + '/manifest.json';
+  $('manifest-url').href = origin + '/manifest.json';
+  $('health-url').textContent = origin + '/health';
+  $('health-url').href = origin + '/health';
+  $('trailer-url').textContent = origin + '/trailer/…';
+
+  if (token) boot(); else showLogin('');
+})();
+</script>
+</body>
+</html>

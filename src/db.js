@@ -124,4 +124,25 @@ function listRecent({ type, genre, skip = 0, limit = 100, days = config.recentDa
     LIMIT @limit OFFSET @skip`).all(p).map(parse);
 }
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent };
+// Chiffres affichés dans le dashboard (aucune donnée sensible).
+function stats({ days = config.recentDays } = {}) {
+  const now = Date.now();
+  const today = new Date(now).toISOString().slice(0, 10);
+  const since = new Date(now - days * 86400000).toISOString().slice(0, 10);
+  const byType = Object.fromEntries(db.prepare('SELECT type, COUNT(*) c FROM titles GROUP BY type').all().map((r) => [r.type, r.c]));
+  const recent = Object.fromEntries(db.prepare(`SELECT type, COUNT(*) c FROM titles
+    WHERE release_date IS NOT NULL AND release_date BETWEEN @since AND @today GROUP BY type`).all({ since, today }).map((r) => [r.type, r.c]));
+  const dbBytes = db.pragma('page_count', { simple: true }) * db.pragma('page_size', { simple: true });
+  return {
+    total: (byType.movie || 0) + (byType.series || 0),
+    movies: byType.movie || 0,
+    series: byType.series || 0,
+    enriched: db.prepare('SELECT COUNT(*) c FROM titles WHERE enriched = 1').get().c,
+    netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
+    episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
+    recent: { days, movies: recent.movie || 0, series: recent.series || 0 },
+    dbBytes,
+  };
+}
+
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats };

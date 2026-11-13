@@ -34,6 +34,15 @@ docker compose exec netflix-catalogue node scripts/add.js https://www.netflix.co
 ```
 Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 
+## Dashboard d'administration
+`https://netflix.mondomaine.fr/admin` — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
+
+- **Statistiques** : titres, films, séries, épisodes, sorties récentes, taille de la base, uptime.
+- **Configuration** : toutes les variables du `.env` (secrets masqués, valeurs par défaut signalées).
+- **Actions** : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix.
+- Le mot de passe reste en session (`sessionStorage`) et est envoyé en en-tête `x-admin-token`.
+- 10 essais échoués par minute et par IP maximum (protection basique contre le bruteforce).
+
 ## Catalogue automatique
 Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix de la région `REGION`.
 Les fiches sont complétées (épisodes, casting, trailer) à la première ouverture. Manuel : `npm run sync`.

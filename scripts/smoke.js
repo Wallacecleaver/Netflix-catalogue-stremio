@@ -1,5 +1,6 @@
 // Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL et handlers Stremio. Aucun appel réseau.
 process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-${Date.now()}.db`);
+process.env.ADMIN_TOKEN = 'test-token';
 const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
@@ -99,6 +100,19 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const part = await fetch(`${base}/trailer/81944880/0.mp4`, { headers: { range: 'bytes=2-5' } });
   assert.equal(part.status, 206); assert.equal(Buffer.from(await part.arrayBuffer()).toString(), '2345');
   assert.equal((await fetch(`${base}/trailer/81944880/9.mp4`)).status, 404);
+
+  // Dashboard admin : page HTML + API protégées par ADMIN_TOKEN
+  const page = await fetch(`${base}/admin`);
+  assert.equal(page.status, 200);
+  assert.ok((await page.text()).includes('Netflix Catalogue'));
+  assert.equal((await fetch(`${base}/admin/api/summary`)).status, 401);
+  assert.equal((await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'mauvais' } })).status, 401);
+  const summary = await (await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'test-token' } })).json();
+  assert.ok(summary.stats.total >= 1); assert.ok(summary.stats.movies >= 1);
+  assert.equal(summary.stats.recent.days > 0, true);
+  assert.ok(summary.config.some((g) => g.title === 'Sécurité'));
+  assert.ok(summary.config.flatMap((g) => g.items).find((i) => i.env === 'ADMIN_TOKEN').secret); // jamais en clair
+
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');
 })().catch((e) => { console.error(e); process.exitCode = 1; });
