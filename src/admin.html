@@ -151,6 +151,26 @@
   .progress{height:8px;border-radius:999px;background:#0d0d12;border:1px solid var(--line);overflow:hidden;margin:10px 0}
   .progress .bar{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .3s}
 
+  /* ---------- journal ---------- */
+  .log-inp{max-width:170px}
+  #logs{max-height:min(62vh,640px);overflow:auto;display:grid;gap:8px;padding-right:4px}
+  .log-row{display:grid;grid-template-columns:128px 60px 96px minmax(0,1fr);gap:10px;align-items:start;
+    padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#0f0f14;
+    font-size:12.5px;line-height:1.45}
+  .log-row:hover{border-color:var(--line2)}
+  .log-time{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .log-src{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);font-size:11.5px;word-break:break-all}
+  .log-msg{word-break:break-word}
+  .log-meta{margin-top:3px;color:var(--muted);font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
+  .lv{font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;
+    border-radius:6px;justify-self:start;white-space:nowrap}
+  .lv-error{background:rgba(229,9,20,.14);color:var(--red2);border:1px solid rgba(229,9,20,.4)}
+  .lv-warn{background:rgba(255,176,32,.12);color:var(--amber);border:1px solid rgba(255,176,32,.35)}
+  .lv-info{background:rgba(61,220,132,.1);color:var(--green);border:1px solid rgba(61,220,132,.3)}
+  .lv-debug{background:#1a1a22;color:var(--muted);border:1px solid var(--line2)}
+  .log-empty{color:var(--muted);text-align:center;padding:28px 10px}
+  @media(max-width:720px){.log-row{grid-template-columns:96px 54px}.log-src,.log-msg{grid-column:1 / -1}}
+
   /* ---------- toast ---------- */
   .toast{position:fixed;right:20px;bottom:20px;max-width:min(380px,calc(100vw - 40px));padding:12px 16px;
     border-radius:12px;border:1px solid var(--line2);background:#17171e;color:var(--txt);font-size:13.5px;
@@ -196,6 +216,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" type="button" data-tab="overview" role="tab">Vue d'ensemble</button>
       <button class="tab" type="button" data-tab="settings" role="tab">Paramètres<span class="count" id="settings-count">—</span></button>
+      <button class="tab" type="button" data-tab="journal" role="tab">Journal<span class="count" id="log-count">—</span></button>
     </nav>
 
     <!-- Vue d'ensemble -->
@@ -279,6 +300,26 @@
         </div>
       </form>
     </section>
+
+    <!-- Journal -->
+    <section id="tab-journal" class="hidden" role="tabpanel">
+      <section class="card">
+        <div class="card-head">
+          <h2>Journal</h2>
+          <div class="spacer"></div>
+          <select id="log-level" class="inp log-inp">
+            <option value="">Tous les niveaux</option>
+            <option value="error">Erreurs</option>
+            <option value="warn">Avertissements</option>
+            <option value="info">Infos</option>
+          </select>
+          <input id="log-search" class="inp log-inp" placeholder="Rechercher…" autocomplete="off">
+          <button id="log-refresh" class="btn small" type="button">Rafraîchir</button>
+          <button id="log-clear" class="btn small" type="button">Effacer</button>
+        </div>
+        <div id="logs"><div class="log-empty">Chargement…</div></div>
+      </section>
+    </section>
   </div>
 </div>
 
@@ -291,6 +332,8 @@
   var toastTimer = null;
   var dirty = {};
   var linkTimer = null;
+  var logTimer = null;
+  var logSearchTimer = null;
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -348,6 +391,8 @@
     for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.tab === name);
     $('tab-overview').classList.toggle('hidden', name !== 'overview');
     $('tab-settings').classList.toggle('hidden', name !== 'settings');
+    $('tab-journal').classList.toggle('hidden', name !== 'journal');
+    if (name === 'journal') startLogPoll(); else stopLogPoll();
   }
 
   var SOURCE_TAG = {
@@ -373,6 +418,9 @@
     $('stat-netflix').textContent = fmtNum(linkedIds);
     $('sub-netflix').textContent = fmtNum(missingIds) + ' à lier';
     $('link-count').textContent = fmtNum(linkedIds) + ' / ' + fmtNum(s.total) + ' titres';
+    var logErrs = s.logErrors || 0;
+    $('log-count').textContent = fmtNum(logErrs);
+    $('log-count').title = logErrs ? fmtNum(logErrs) + ' erreur(s)' : 'Aucune erreur';
     $('stat-db').textContent = fmtBytes(s.dbBytes);
     $('sub-db').textContent = s.netflixId ? fmtNum(s.netflixId) + ' titres liés à Netflix' : 'base locale';
     $('stat-uptime').textContent = fmtUptime(d.uptime);
@@ -567,6 +615,61 @@
         toast('Export téléchargé');
       })
       .catch(function (e) { toast(e.message, 'err'); });
+  });
+
+  // ---- journal ----
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' +
+      d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function renderLogs(data) {
+    var rows = (data && data.logs) || [];
+    var el = $('logs');
+    var scroll = el.scrollTop;
+    if (!rows.length) { el.innerHTML = '<div class="log-empty">Aucune entrée.</div>'; return; }
+    el.innerHTML = rows.map(function (l) {
+      var meta = l.meta && typeof l.meta === 'object' && Object.keys(l.meta).length
+        ? '<div class="log-meta">' + esc(JSON.stringify(l.meta)) + '</div>' : '';
+      return '<div class="log-row"><span class="log-time">' + fmtTime(l.ts) + '</span>' +
+        '<span class="lv lv-' + esc(l.level) + '">' + esc(l.level) + '</span>' +
+        '<span class="log-src">' + esc(l.source || '—') + '</span>' +
+        '<span class="log-msg">' + esc(l.message) + meta + '</span></div>';
+    }).join('');
+    el.scrollTop = scroll;
+  }
+
+  function loadLogs() {
+    var q = '?level=' + encodeURIComponent($('log-level').value) +
+      '&search=' + encodeURIComponent($('log-search').value.trim()) + '&limit=200';
+    return api('/admin/api/logs' + q).then(renderLogs).catch(function (e) {
+      if (e.message !== 'Non autorisé') toast(e.message, 'err');
+    });
+  }
+
+  function startLogPoll() {
+    stopLogPoll();
+    loadLogs();
+    logTimer = setInterval(loadLogs, 3000);
+  }
+  function stopLogPoll() {
+    if (logTimer) clearInterval(logTimer);
+    logTimer = null;
+  }
+
+  $('log-refresh').addEventListener('click', loadLogs);
+  $('log-level').addEventListener('change', loadLogs);
+  $('log-search').addEventListener('input', function () {
+    clearTimeout(logSearchTimer);
+    logSearchTimer = setTimeout(loadLogs, 400);
+  });
+  $('log-clear').addEventListener('click', function () {
+    if (!confirm('Effacer tout le journal ?')) return;
+    api('/admin/api/logs/clear', {}).then(function () {
+      toast('Journal effacé');
+      return loadLogs();
+    }).catch(function (e) { toast(e.message, 'err'); });
   });
 
   $('add-form').addEventListener('submit', function (ev) {

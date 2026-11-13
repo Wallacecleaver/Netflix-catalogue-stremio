@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  level TEXT NOT NULL,
+  source TEXT,
+  message TEXT NOT NULL,
+  meta TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC);
 `);
 
 for (const col of ['extra_json', 'trailers_json']) {
@@ -167,6 +176,8 @@ function stats({ days = config.recentDays } = {}) {
     netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
     unlinked: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NULL').get().c,
     withImdb: db.prepare('SELECT COUNT(*) c FROM titles WHERE imdb_id IS NOT NULL').get().c,
+    logs: db.prepare('SELECT COUNT(*) c FROM logs').get().c,
+    logErrors: db.prepare("SELECT COUNT(*) c FROM logs WHERE level = 'error'").get().c,
     episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
     recent: { days, movies: recent.movie || 0, series: recent.series || 0 },
     dbBytes,
@@ -183,6 +194,26 @@ const setSettings = db.transaction((entries) => {
 });
 const deleteSetting = (key) => db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes;
 
+// ---- Journal d'événements (erreurs liage/synchro/relais, actions admin…) ----
+const LOG_KEEP = 2000;
+function addLog({ level = 'info', source = null, message, meta = null }) {
+  db.prepare('INSERT INTO logs (ts, level, source, message, meta) VALUES (?, ?, ?, ?, ?)')
+    .run(Date.now(), level, source || null, String(message ?? ''), meta ? JSON.stringify(meta) : null);
+  db.prepare('DELETE FROM logs WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM logs)').run(LOG_KEEP);
+}
+function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
+  const where = [];
+  const p = { limit: Math.min(Number(limit) || 200, 500), offset: Math.max(Number(offset) || 0, 0) };
+  if (level) { where.push('level = @level'); p.level = level; }
+  if (search) { where.push('(message LIKE @like OR source LIKE @like)'); p.like = `%${search}%`; }
+  const cond = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const total = db.prepare(`SELECT COUNT(*) c FROM logs ${cond}`).get(p).c;
+  const logs = db.prepare(`SELECT * FROM logs ${cond} ORDER BY id DESC LIMIT @limit OFFSET @offset`).all(p)
+    .map((r) => ({ ...r, meta: JSON.parse(r.meta || 'null') }));
+  return { total, logs };
+}
+const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
+
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByNetflixId, listUnlinked, listLinked,
   deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats,
-  allSettings, setSettings, deleteSetting };
+  allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };

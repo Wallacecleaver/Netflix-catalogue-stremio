@@ -179,6 +179,20 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const linkedRow = exported.find((r) => r.netflix_id === '77777777');
   assert.ok(linkedRow); assert.equal(linkedRow.name, 'Film lié');
 
+  // Journal : écriture, API filtrée par niveau, protection, effacement
+  const log = require('../src/log');
+  log.info('test', 'Entrée de test info');
+  log.error('test', 'Entrée de test erreur');
+  let jdata = await (await fetch(`${base}/admin/api/logs`, { headers: auth })).json();
+  assert.ok(jdata.total >= 2); assert.equal(jdata.logs[0].source, 'test');
+  const errOnly = await (await fetch(`${base}/admin/api/logs?level=error`, { headers: auth })).json();
+  assert.ok(errOnly.total >= 1); assert.ok(errOnly.logs.every((l) => l.level === 'error'));
+  assert.equal((await fetch(`${base}/admin/api/logs`)).status, 401);
+  const cleared = await (await fetch(`${base}/admin/api/logs/clear`, { method: 'POST', headers: auth })).json();
+  assert.equal(cleared.ok, true);
+  jdata = await (await fetch(`${base}/admin/api/logs`, { headers: auth })).json();
+  assert.equal(jdata.total, 1); // l'effacement est lui-même journalisé
+
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

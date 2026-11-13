@@ -1,6 +1,7 @@
 const { addonBuilder } = require('stremio-addon-sdk');
 const config = require('./config');
 const store = require('./db');
+const log = require('./log');
 const { enrichTitle } = require('./enrich');
 
 const GENRES = ['Action', 'Animation', 'Aventure', 'Comédie', 'Crime', 'Documentaire', 'Drame', 'Familial', 'Fantastique',
@@ -87,7 +88,8 @@ builder.defineMetaHandler(async ({ id }) => {
   let row = store.getTitle(id);
   if (!row) return { meta: null };
   if (!row.enriched) {
-    try { row = (await enrichTitle(id)) || row; } catch (e) { console.warn('[enrich]', id, e.message); }
+    try { row = (await enrichTitle(id)) || row; }
+    catch (e) { log.warn('enrich', `${id} : ${e.message}`); console.warn('[enrich]', id, e.message); }
   }
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });

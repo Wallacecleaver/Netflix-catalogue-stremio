@@ -7,6 +7,7 @@ const store = require('./db');
 const { builder, manifest } = require('./addon');
 const { HTML: ADMIN_HTML } = require('./admin');
 const settings = require('./settings');
+const log = require('./log');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
 const { syncCatalog, syncRecent } = require('./sync');
@@ -36,6 +37,7 @@ function auth(req, res, next) {
     if (!a || a.reset <= now) attempts.set(key, { n: 1, reset: now + 60000 });
     else a.n++;
     if (attempts.size > 500) attempts.clear();
+    log.warn('auth', 'Tentative d\'accès refusée', { ip: key });
     return res.status(401).json({ error: 'Mot de passe incorrect' });
   }
   attempts.delete(key);
@@ -50,32 +52,69 @@ app.get('/admin/api/summary', auth, (_req, res) => {
 app.post('/admin/api/settings', auth, (req, res) => {
   try {
     const result = settings.save(req.body && req.body.values ? req.body.values : {});
+    log.info('admin', 'Paramètres mis à jour', { saved: result.saved, reset: result.reset, restart: result.restart });
     res.json({ ok: true, ...result });
-  } catch (e) { res.status(400).json({ error: e.message }); }
+  } catch (e) {
+    log.warn('admin', `Réglage refusé : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
 });
 app.post('/admin/add', auth, async (req, res) => {
-  try { res.json(await ingestNetflix(req.body.url || req.body.id)); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  try {
+    const r = await ingestNetflix(req.body.url || req.body.id);
+    log.info('admin', `Titre ajouté : ${r.name}`, { id: r.id, netflix_id: r.id.replace(/^nflx:/, '') });
+    res.json(r);
+  } catch (e) {
+    log.error('admin', `Ajout échoué (${req.body.url || req.body.id}) : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
 });
 app.post('/admin/sync', auth, async (_req, res) => {
   try {
+    log.info('admin', 'Synchronisation manuelle lancée');
     const [added, recent] = await Promise.all([syncCatalog(), syncRecent()]);
     const linking = store.stats().unlinked > 0 ? link.start({}) : link.status();
     res.json({ added, recent, link: linking });
-  } catch (e) { res.status(400).json({ error: e.message }); }
+  } catch (e) {
+    log.error('admin', `Synchronisation échouée : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
 });
 app.get('/admin/api/netflix-ids', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json(link.status());
 });
 app.post('/admin/netflix-ids', auth, (_req, res) => {
-  try { res.json(link.start({})); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  try {
+    const st = link.start({});
+    log.info('link', 'Liage lancé depuis le dashboard', { total: st.total });
+    res.json(st);
+  } catch (e) {
+    log.error('link', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
 });
-app.post('/admin/netflix-ids/stop', auth, (_req, res) => { res.json(link.stop()); });
+app.post('/admin/netflix-ids/stop', auth, (_req, res) => {
+  const st = link.stop();
+  log.warn('link', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
+  res.json(st);
+});
 app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {
   res.set('content-disposition', 'attachment; filename="netflix-ids.json"');
   res.json(store.listLinked());
+});
+app.get('/admin/api/logs', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(log.list({
+    level: String(req.query.level || ''),
+    search: String(req.query.search || ''),
+    limit: Number(req.query.limit) || 200,
+  }));
+});
+app.post('/admin/api/logs/clear', auth, (_req, res) => {
+  const removed = log.clear();
+  log.info('admin', 'Journal effacé', { removed });
+  res.json({ ok: true, removed });
 });
 app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
 
@@ -112,6 +151,7 @@ async function trailerHandler(req, res) {
     stream.pipe(res);
   } catch (e) {
     console.warn('[trailer]', nid, e.message);
+    log.error('trailer', `${nid}/${idx} : ${e.message}`);
     if (!res.headersSent) res.status(502).send(`bande-annonce indisponible : ${e.message}`);
   }
 }

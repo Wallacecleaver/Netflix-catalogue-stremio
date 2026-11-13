@@ -1,5 +1,6 @@
 const config = require('./config');
 const store = require('./db');
+const log = require('./log');
 const tmdb = require('./tmdb');
 
 const isoDay = (ts) => new Date(ts).toISOString().slice(0, 10);
@@ -26,7 +27,7 @@ function addResults(results, tmdbType, genres) {
 
 /** Remplit le catalogue avec les titres disponibles sur Netflix (région config.region) via TMDB. */
 async function syncCatalog({ pages = config.syncPages } = {}) {
-  if (!config.tmdbKey) throw new Error('TMDB_API_KEY manquant');
+  if (!config.tmdbKey) { const msg = 'TMDB_API_KEY manquant'; log.error('sync', msg); throw new Error(msg); }
   let added = 0;
   for (const tmdbType of ['tv', 'movie']) {
     const genres = await tmdb.genreMap(tmdbType);
@@ -36,12 +37,13 @@ async function syncCatalog({ pages = config.syncPages } = {}) {
       if (p >= data.total_pages) break;
     }
   }
+  log.info('sync', `Catalogue synchronisé : +${added} titres`);
   return added;
 }
 
 /** Alimente les catalogues « Dernières sorties » : titres Netflix sortis ces RECENT_DAYS derniers jours. */
 async function syncRecent({ pages = config.recentPages, days = config.recentDays } = {}) {
-  if (!config.tmdbKey) throw new Error('TMDB_API_KEY manquant');
+  if (!config.tmdbKey) { const msg = 'TMDB_API_KEY manquant'; log.error('sync', msg); throw new Error(msg); }
   const now = Date.now();
   const range = { since: isoDay(now - days * 86400000), until: isoDay(now) };
   let added = 0;
@@ -53,6 +55,7 @@ async function syncRecent({ pages = config.recentPages, days = config.recentDays
       if (p >= data.total_pages) break;
     }
   }
+  log.info('sync', `Dernières sorties synchronisées : +${added} titres`, { days });
   return added;
 }
 

@@ -1,5 +1,6 @@
 const config = require('./config');
 const store = require('./db');
+const log = require('./log');
 const tmdb = require('./tmdb');
 const jw = require('./justwatch');
 const { fetchNetflixPage, parseNetflixHtml } = require('./netflix');
@@ -67,8 +68,10 @@ async function linkOne(row) {
     const parsed = parseNetflixHtml(await fetchNetflixPage(nid));
     if (parsed.name) n = parsed;
   } catch (e) {
-    state.errors.push(`${row.name} : page Netflix — ${e.message}`);
+    const msg = `page Netflix : ${e.message}`;
+    state.errors.push(`${row.name} : ${msg}`);
     if (state.errors.length > 40) state.errors.shift();
+    log.warn('link', `${row.name} : ${msg}`, { netflix_id: nid });
   }
 
   // Complète TMDB/IMDb si la fiche n'a pas encore ces identifiants.
@@ -145,6 +148,7 @@ async function run({ limit = 0, delayMs = 300, onProgress } = {}) {
     state.finishedAt = Date.now();
     return status();
   }
+  log.info('link', `Début du liage : ${rows.length} titre(s) à associer`, { total: rows.length });
 
   try {
     for (const row of rows) {
@@ -152,12 +156,18 @@ async function run({ limit = 0, delayMs = 300, onProgress } = {}) {
       state.current = { id: row.id, name: row.name, type: row.type };
       try {
         const res = await linkOne(row);
-        if (res.linked) state.linked++;
-        else state.skipped++;
+        if (res.linked) {
+          state.linked++;
+          log.info('link', `ID Netflix associé : ${row.name}`, { netflix_id: res.netflixId, trailers: res.trailers });
+        } else {
+          state.skipped++;
+          log.warn('link', `Introuvable : ${row.name}`, { type: row.type, id: row.id });
+        }
       } catch (e) {
         state.failed++;
         state.errors.push(`${row.name} : ${e.message}`);
         if (state.errors.length > 40) state.errors.shift();
+        log.error('link', `${row.name} : ${e.message}`, { id: row.id });
         console.warn('[link]', row.name, e.message);
       }
       state.done++;
@@ -169,6 +179,8 @@ async function run({ limit = 0, delayMs = 300, onProgress } = {}) {
     state.current = null;
     state.finishedAt = Date.now();
     console.log(`[link] terminé : +${state.linked} liés, ${state.skipped} introuvables, ${state.failed} erreurs`);
+    log.info('link', `Liage terminé : ${state.linked} liés, ${state.skipped} introuvables, ${state.failed} erreurs`,
+      { linked: state.linked, skipped: state.skipped, failed: state.failed, total: state.total });
   }
   return status();
 }
