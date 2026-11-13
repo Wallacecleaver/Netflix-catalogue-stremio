@@ -70,6 +70,13 @@ Chaque titre est stocké avec `netflix_id`, `name`, `tmdb_id`, `tmdb_type`, `imd
 Export JSON depuis le dashboard (**Exporter les IDs**) ; le relais `/trailer/<id>/...` recherche la fiche par `netflix_id`
 (et non par ID Stremio), donc les fiches venues des catalogues TMDB diffusent aussi la bande-annonce Netflix.
 
+## Journal d'événements
+Un journal persistant capture les actions clés (liage, synchronisation, erreurs de bande-annonce, etc.).
+- Accessible depuis le dashboard via l'onglet **Journal**.
+- Filtrable par niveau (`error`, `warn`, `info`) et recherche libre.
+- API : `GET /admin/api/logs`, `POST /admin/api/logs/clear`.
+- Historique conservé en base SQLite (`logs`), limité à 2000 entrées.
+
 ## Dernières sorties
 Deux catalogues dédiés dans Stremio : **Netflix — Dernières sorties (films)** et **Netflix — Dernières sorties (séries)**.
 Ils listent les titres sortis sur Netflix dans les `RECENT_DAYS` derniers jours (90 par défaut), du plus récent au plus ancien,
