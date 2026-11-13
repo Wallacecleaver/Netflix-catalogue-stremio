@@ -38,6 +38,12 @@ Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix de la région `REGION`.
 Les fiches sont complétées (épisodes, casting, trailer) à la première ouverture. Manuel : `npm run sync`.
 
+## Dernières sorties
+Deux catalogues dédiés dans Stremio : **Netflix — Dernières sorties (films)** et **Netflix — Dernières sorties (séries)**.
+Ils listent les titres sortis sur Netflix dans les `RECENT_DAYS` derniers jours (90 par défaut), du plus récent au plus ancien,
+et acceptent le filtre par genre. La synchro récupère `RECENT_PAGES` pages TMDB par type (3 par défaut, 20 titres/page),
+au démarrage puis à chaque cycle `SYNC_EVERY_HOURS`.
+
 ## Si le scraping Netflix ne remonte pas tout
 ```bash
 npm run inspect -- 81944880

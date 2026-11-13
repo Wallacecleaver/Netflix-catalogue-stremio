@@ -5,7 +5,7 @@ const config = require('./config');
 const store = require('./db');
 const { builder } = require('./addon');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
-const { syncCatalog } = require('./sync');
+const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
 const app = express();
@@ -33,8 +33,10 @@ app.post('/admin/add', auth, async (req, res) => {
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 app.post('/admin/sync', auth, async (_req, res) => {
-  try { res.json({ added: await syncCatalog() }); }
-  catch (e) { res.status(400).json({ error: e.message }); }
+  try {
+    const [added, recent] = await Promise.all([syncCatalog(), syncRecent()]);
+    res.json({ added, recent });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
 

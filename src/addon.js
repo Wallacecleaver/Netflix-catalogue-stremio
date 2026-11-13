@@ -11,13 +11,15 @@ const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: '
 
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '1.0.0',
+  version: '1.1.0',
   name: 'Netflix Catalogue',
   description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Métadonnées uniquement, aucun flux.',
   resources: ['catalog', 'meta'],
   types: ['series', 'movie'],
   idPrefixes: ['nflx:'],
   catalogs: [
+    { type: 'movie', id: 'netflix-new-movies', name: 'Netflix — Dernières sorties (films)', extra },
+    { type: 'series', id: 'netflix-new-series', name: 'Netflix — Dernières sorties (séries)', extra },
     { type: 'series', id: 'netflix-series', name: 'Netflix — Séries', extra },
     { type: 'movie', id: 'netflix-movies', name: 'Netflix — Films', extra },
   ],
@@ -25,10 +27,13 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-builder.defineCatalogHandler(async ({ type, extra }) => {
-  const rows = store.listCatalog({
-    type, genre: extra.genre, search: extra.search, skip: Number(extra.skip) || 0, limit: 100,
-  });
+// Catalogues « dernières sorties » : triés par date de sortie, fenêtre config.recentDays.
+const RECENT_CATALOGS = new Set(['netflix-new-movies', 'netflix-new-series']);
+
+builder.defineCatalogHandler(async ({ type, id, extra }) => {
+  const rows = RECENT_CATALOGS.has(id)
+    ? store.listRecent({ type, genre: extra.genre, skip: Number(extra.skip) || 0, limit: 100 })
+    : store.listCatalog({ type, genre: extra.genre, search: extra.search, skip: Number(extra.skip) || 0, limit: 100 });
   return {
     metas: rows.map((r) => ({
       id: r.id, type: r.type, name: r.name, poster: r.poster, posterShape: 'poster',

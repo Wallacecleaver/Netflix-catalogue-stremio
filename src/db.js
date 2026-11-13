@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS titles (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_titles_type ON titles(type);
+CREATE INDEX IF NOT EXISTS idx_titles_release ON titles(type, release_date);
 CREATE INDEX IF NOT EXISTS idx_titles_tmdb ON titles(tmdb_type, tmdb_id);
 CREATE TABLE IF NOT EXISTS episodes (
   title_id TEXT NOT NULL REFERENCES titles(id) ON DELETE CASCADE,
@@ -109,4 +110,18 @@ function listCatalog({ type, genre, search, skip = 0, limit = 100 }) {
     LIMIT @limit OFFSET @skip`).all(p).map(parse);
 }
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog };
+// Sorties récentes : déjà sorties (date <= aujourd'hui) et pas plus vieilles que `days`.
+function listRecent({ type, genre, skip = 0, limit = 100, days = config.recentDays }) {
+  const day = 86400000;
+  const now = Date.now();
+  const today = new Date(now).toISOString().slice(0, 10);
+  const since = new Date(now - days * day).toISOString().slice(0, 10);
+  const where = ['type = @type', 'release_date IS NOT NULL', 'release_date <= @today', 'release_date >= @since'];
+  const p = { type, today, since, skip, limit };
+  if (genre) { where.push('genres_json LIKE @genre'); p.genre = `%"${genre}"%`; }
+  return db.prepare(`SELECT * FROM titles WHERE ${where.join(' AND ')}
+    ORDER BY release_date DESC, added_at DESC
+    LIMIT @limit OFFSET @skip`).all(p).map(parse);
+}
+
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent };

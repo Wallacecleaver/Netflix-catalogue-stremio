@@ -13,4 +13,6 @@ module.exports = {
   netflixCountry: (process.env.NETFLIX_COUNTRY || 'fr').toLowerCase(),
   syncPages: num(process.env.SYNC_PAGES, 5),
   syncEveryHours: num(process.env.SYNC_EVERY_HOURS, 24),
+  recentDays: num(process.env.RECENT_DAYS, 90),
+  recentPages: num(process.env.RECENT_PAGES, 3),
 };

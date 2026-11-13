@@ -60,6 +60,18 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(cat.metas[0].id, 'nflx:81944880');
   assert.equal((await iface.get('catalog', 'series', 'netflix-series', { genre: 'Drame' })).metas.length, 1);
   assert.equal((await iface.get('catalog', 'series', 'netflix-series', { search: 'zzz' })).metas.length, 0);
+
+  // Catalogues « dernières sorties » : fenêtre récente + tri par date de sortie décroissante
+  const today = new Date().toISOString().slice(0, 10);
+  store.upsertTitle({ id: 'nflx:new-mv', type: 'movie', name: 'Film tout neuf', year: +today.slice(0, 4), release_date: today });
+  store.upsertTitle({ id: 'nflx:new-tv', type: 'series', name: 'Série toute neuve', year: +today.slice(0, 4), release_date: today });
+  store.upsertTitle({ id: 'nflx:old-mv', type: 'movie', name: 'Film ancien', year: 2019, release_date: '2019-05-01' });
+  const newMv = await iface.get('catalog', 'movie', 'netflix-new-movies', {});
+  assert.equal(newMv.metas[0].id, 'nflx:new-mv');
+  assert.ok(!newMv.metas.some((m) => m.id === 'nflx:old-mv'));        // hors fenêtre RECENT_DAYS
+  const newTv = await iface.get('catalog', 'series', 'netflix-new-series', {});
+  assert.ok(newTv.metas.some((m) => m.id === 'nflx:new-tv'));         // visible dans le catalogue nouveautés
+  assert.equal((await iface.get('catalog', 'series', 'netflix-new-series', { genre: 'zzz' })).metas.length, 0);
   const { meta } = await iface.get('meta', 'series', 'nflx:81944880');
   assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
   assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"

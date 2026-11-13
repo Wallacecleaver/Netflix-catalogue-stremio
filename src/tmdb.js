@@ -98,9 +98,22 @@ async function discover(tmdbType, page = 1) {
   });
 }
 
+/** Sorties récentes sur Netflix (région config.region), de la plus récente à la plus ancienne. */
+async function discoverRecent(tmdbType, { since, until, page = 1 } = {}) {
+  const dateFilter = tmdbType === 'tv' ? 'first_air_date' : 'primary_release_date';
+  return call(`/discover/${tmdbType}`, {
+    language: config.lang, watch_region: config.region, with_watch_providers: 8,
+    with_watch_monetization_types: 'flatrate',
+    sort_by: `${dateFilter}.desc`,
+    [`${dateFilter}.gte`]: since,
+    [`${dateFilter}.lte`]: until,
+    page,
+  });
+}
+
 async function genreMap(tmdbType) {
   const res = await call(`/genre/${tmdbType}/list`, { language: config.lang });
   return new Map(res.genres.map((g) => [g.id, g.name]));
 }
 
-module.exports = { searchMatch, fetchFull, discover, genreMap, img };
+module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, img };
