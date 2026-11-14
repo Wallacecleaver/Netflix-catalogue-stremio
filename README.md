@@ -88,6 +88,15 @@ Sortie : `data/netflix-ids.json` et `data/netflix-ids.csv` (`netflix_id, name, t
 Ensuite `npm run netflix-ids` complète TMDB/IMDb, bandes-annonces et épisodes. Pour garder les « Dernières sorties » à jour,
 planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.
 
+## Catalogue mondial et bandes-annonces VF
+- **Plusieurs pays** : `HARVEST_COUNTRIES` (défaut `FR,US,GB,CA`, modifiable dans *Paramètres*) ou `npm run harvest -- --countries FR,US,DE`.
+  L'ID Netflix est identique dans tous les pays : le moissonnage fait l'union dédoublonnée, donc les titres exclusifs aux États-Unis sont inclus.
+- **Bande-annonce VF** : `npm run vf` (ou le bouton du dashboard) interroge TMDB, une requête par titre, et retient la bande-annonce YouTube marquée en français.
+  La même requête complète affiche, fond, synopsis, genres et IMDb des fiches moissonnées. Nécessite `TMDB_API_KEY`.
+  Résultat : flux **« Netflix VF »** (YouTube) en premier dans Stremio et deux catalogues **« Films / Séries avec bande-annonce VF »**.
+- Les titres sans résultat sont revérifiés après 14 jours (une bande-annonce VF peut sortir plus tard).
+- Ordre conseillé : `npm run harvest` → `npm run vf` → `npm run netflix-ids` (bande-annonce Netflix, casting, épisodes).
+
 ## Journal d'événements
 Un journal persistant capture les actions clés (liage, synchronisation, erreurs de bande-annonce, etc.).
 - Accessible depuis le dashboard via l'onglet **Journal**.

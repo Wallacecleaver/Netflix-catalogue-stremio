@@ -62,12 +62,15 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC);
 `);
 
-for (const col of ['extra_json', 'trailers_json']) {
-  try { db.exec(`ALTER TABLE titles ADD COLUMN ${col} TEXT`); } catch { /* déjà présente */ }
+for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER']) {
+  try { db.exec(`ALTER TABLE titles ADD COLUMN ${col}`); } catch { /* déjà présente */ }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
 
+// vf_trailer = clé YouTube de la bande-annonce en français (TMDB) ; vf_checked = date de la dernière vérification.
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
-  'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json'];
+  'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json',
+  'vf_trailer', 'vf_checked'];
 
 const upsertSql = db.prepare(`
 INSERT INTO titles (id, ${FIELDS.join(',')}, enriched, added_at, updated_at)
@@ -110,6 +113,16 @@ function listUnlinked({ limit = 0 } = {}) {
   return (limit > 0 ? db.prepare(sql).all(limit) : db.prepare(sql).all()).map(parse);
 }
 
+// Titres dont la bande-annonce VF n'a pas encore été cherchée (ou sans résultat depuis plus de `retryDays` jours).
+const vfPendingWhere = '(vf_checked IS NULL OR (vf_trailer IS NULL AND vf_checked < @before))';
+function listVfPending({ limit = 0, retryDays = 14 } = {}) {
+  const p = { before: Date.now() - retryDays * 86400000 };
+  if (limit > 0) p.limit = limit;
+  const sql = `SELECT * FROM titles WHERE ${vfPendingWhere}
+    ORDER BY (tmdb_id IS NULL), COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT @limit' : ''}`;
+  return db.prepare(sql).all(p).map(parse);
+}
+
 /** Tous les IDs Netflix stockés avec leur nom + correspondances TMDB/IMDb (export dashboard). */
 const listLinked = () => db.prepare(`SELECT netflix_id, name, type, year, tmdb_type, tmdb_id, imdb_id
   FROM titles WHERE netflix_id IS NOT NULL ORDER BY name`).all();
@@ -135,9 +148,10 @@ function deleteDuplicates(tmdbType, tmdbId, keepId) {
   db.prepare('DELETE FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').run(tmdbType, tmdbId, keepId);
 }
 
-function listCatalog({ type, genre, search, skip = 0, limit = 100 }) {
+function listCatalog({ type, genre, search, vf = false, skip = 0, limit = 100 }) {
   const where = ['type = @type'];
   const p = { type, skip, limit };
+  if (vf) where.push('vf_trailer IS NOT NULL');
   if (genre) { where.push('genres_json LIKE @genre'); p.genre = `%"${genre}"%`; }
   if (search) { where.push('name LIKE @search'); p.search = `%${search}%`; }
   return db.prepare(`SELECT * FROM titles WHERE ${where.join(' AND ')}
@@ -176,6 +190,9 @@ function stats({ days = config.recentDays } = {}) {
     netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
     unlinked: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NULL').get().c,
     withImdb: db.prepare('SELECT COUNT(*) c FROM titles WHERE imdb_id IS NOT NULL').get().c,
+    withVf: db.prepare('SELECT COUNT(*) c FROM titles WHERE vf_trailer IS NOT NULL').get().c,
+    vfChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE vf_checked IS NOT NULL').get().c,
+    vfPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${vfPendingWhere}`).get({ before: Date.now() - 14 * 86400000 }).c,
     logs: db.prepare('SELECT COUNT(*) c FROM logs').get().c,
     logErrors: db.prepare("SELECT COUNT(*) c FROM logs WHERE level = 'error'").get().c,
     episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
@@ -214,6 +231,6 @@ function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
 }
 const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByNetflixId, listUnlinked, listLinked,
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByNetflixId, listUnlinked, listLinked, listVfPending,
   deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats,
   allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };

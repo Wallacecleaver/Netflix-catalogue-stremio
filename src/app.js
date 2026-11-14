@@ -11,6 +11,7 @@ const log = require('./log');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
 const harvest = require('./harvest');
+const vf = require('./vf');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
@@ -119,6 +120,26 @@ app.post('/admin/harvest', auth, (req, res) => {
 app.post('/admin/harvest/stop', auth, (_req, res) => {
   const st = harvest.stop();
   log.warn('harvest', 'Arrêt demandé depuis le dashboard', { seen: st.seen });
+  res.json(st);
+});
+// Bandes-annonces VF (TMDB) : statut, lancement, arrêt. Complète aussi affiches/synopsis des fiches moissonnées.
+app.get('/admin/api/vf', auth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(vf.status());
+});
+app.post('/admin/vf', auth, (_req, res) => {
+  try {
+    const st = vf.start({});
+    log.info('vf', 'Recherche des bandes-annonces VF lancée depuis le dashboard', { total: st.total });
+    res.json(st);
+  } catch (e) {
+    log.error('vf', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/admin/vf/stop', auth, (_req, res) => {
+  const st = vf.stop();
+  log.warn('vf', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
 });
 app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {

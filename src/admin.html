@@ -271,7 +271,19 @@
               <button id="harvest-recent" class="btn" type="button">Dernières sorties</button>
               <button id="harvest-stop" class="btn" type="button" disabled>Arrêter</button>
             </div>
-            <p class="hint">Liste tous les titres Netflix de la région via JustWatch (année par année) et enregistre leur ID Netflix. Résultat aussi dans <code>data/netflix-ids.json</code> et <code>.csv</code>. Le détail des erreurs est dans l'onglet Journal (source <code>harvest</code>).</p>
+            <p class="hint">Liste tous les titres Netflix des pays choisis (Paramètres → <em>Pays moissonnés</em>, FR, US, GB, CA par défaut) via JustWatch, année par année, et enregistre leur ID Netflix (le même dans tous les pays : l'union est dédoublonnée). Résultat aussi dans <code>data/netflix-ids.json</code> et <code>.csv</code>. Le détail des erreurs est dans l'onglet Journal (source <code>harvest</code>).</p>
+
+            <div class="sep"></div>
+
+            <h2>Bandes-annonces VF (TMDB)</h2>
+            <div class="row"><span class="k">AVEC VF</span><span class="val" id="vf-count">—</span></div>
+            <div class="progress"><div class="bar" id="vf-bar"></div></div>
+            <div id="vf-out" class="out"></div>
+            <div class="field">
+              <button id="vf-btn" class="btn primary wide" type="button">Chercher les bandes-annonces VF</button>
+              <button id="vf-stop" class="btn" type="button" disabled>Arrêter</button>
+            </div>
+            <p class="hint">Pour chaque titre (américains compris), cherche sur TMDB une bande-annonce en français et complète au passage affiche, synopsis et genres. Les titres trouvés apparaissent dans les catalogues <strong>« avec bande-annonce VF »</strong> de Stremio. Nécessite la clé TMDB.</p>
 
             <div class="sep"></div>
 
@@ -346,6 +358,7 @@
   var dirty = {};
   var linkTimer = null;
   var harvestTimer = null;
+  var vfTimer = null;
   var logTimer = null;
   var logSearchTimer = null;
 
@@ -433,6 +446,7 @@
     $('sub-netflix').textContent = fmtNum(missingIds) + ' à lier';
     $('link-count').textContent = fmtNum(linkedIds) + ' / ' + fmtNum(s.total) + ' titres';
     $('harvest-count').textContent = fmtNum(linkedIds) + ' ID Netflix';
+    $('vf-count').textContent = fmtNum(s.withVf || 0) + ' titres · ' + fmtNum(s.vfPending || 0) + ' à vérifier';
     var logErrs = s.logErrors || 0;
     $('log-count').textContent = fmtNum(logErrs);
     $('log-count').title = logErrs ? fmtNum(logErrs) + ' erreur(s)' : 'Aucune erreur';
@@ -502,7 +516,7 @@
   }
 
   function boot() {
-    return refresh().then(showApp).then(function () { pollLink(); pollHarvest(); }).catch(function (e) {
+    return refresh().then(showApp).then(function () { pollLink(); pollHarvest(); pollVf(); }).catch(function (e) {
       if (e.message !== 'Non autorisé') showLogin(e.message);
     });
   }
@@ -517,7 +531,7 @@
     token = pass;
     api('/admin/api/summary').then(function (d) {
       sessionStorage.setItem('nflx_token', pass);
-      render(d); showApp(); toast('Bienvenue 👋'); pollLink(); pollHarvest();
+      render(d); showApp(); toast('Bienvenue 👋'); pollLink(); pollHarvest(); pollVf();
     }).catch(function (e) {
       token = ''; sessionStorage.removeItem('nflx_token');
       $('login-err').textContent = e.message === 'Non autorisé' ? 'Mot de passe incorrect.' : e.message;
@@ -650,7 +664,8 @@
     var counts = (st.seen || 0) + ' IDs vus · ' + (st.added || 0) + ' nouveaux · ' + (st.linked || 0) + ' liés à une fiche · ' + (st.known || 0) + ' déjà connus';
     if (running) {
       out.className = 'out';
-      out.textContent = (st.percent || 0) + '% — ' + (st.current ? (st.current.type === 'movie' ? 'films ' : 'séries ') + st.current.label + ' — ' : '') + counts;
+      out.textContent = (st.percent || 0) + '% — ' + (st.current ? (st.current.country ? st.current.country + ' · ' : '') +
+        (st.current.type === 'movie' ? 'films ' : 'séries ') + st.current.label + ' — ' : '') + counts;
     } else if (st.finishedAt) {
       var errs = (st.errors || []).length;
       out.className = errs ? 'out err' : 'out ok';
@@ -693,6 +708,61 @@
     api('/admin/harvest/stop', {}).then(function (st) {
       toast('Arrêt demandé — la page en cours se termine');
       renderHarvest(st);
+    }).catch(function (e) { toast(e.message, 'err'); });
+  });
+
+  // ---- bandes-annonces VF ----
+  function renderVf(st) {
+    st = st || {};
+    var running = !!st.running;
+    $('vf-btn').disabled = running;
+    $('vf-btn').textContent = running ? 'Recherche en cours…' : 'Chercher les bandes-annonces VF';
+    $('vf-stop').disabled = !running;
+    $('vf-bar').style.width = (st.percent || 0) + '%';
+    var out = $('vf-out');
+    var counts = (st.withVf || 0) + ' avec VF · ' + (st.noMatch || 0) + ' sans fiche TMDB · ' + (st.failed || 0) + ' erreurs';
+    if (running) {
+      out.className = 'out';
+      out.textContent = (st.done || 0) + ' / ' + (st.total || 0) + (st.current ? ' — ' + st.current.name : '') + ' · ' + counts;
+    } else if (st.finishedAt) {
+      var errs = (st.errors || []).length;
+      out.className = errs ? 'out err' : 'out ok';
+      out.textContent = 'Terminé en ' + fmtDuration(st.finishedAt - st.startedAt) + ' : ' + (st.done || 0) + ' vérifiés · ' + counts +
+        (errs ? ' · dernière erreur : ' + st.errors[errs - 1] : '');
+    }
+    return running;
+  }
+
+  function pollVf() {
+    clearTimeout(vfTimer); vfTimer = null;
+    return api('/admin/api/vf').then(function (st) {
+      if (renderVf(st)) {
+        vfTimer = setTimeout(pollVf, 2000);
+      } else {
+        api('/admin/api/summary').then(renderOverview).catch(function () {});
+      }
+      return st;
+    }).catch(function (e) {
+      if (e.message !== 'Non autorisé') toast(e.message, 'err');
+    });
+  }
+
+  $('vf-btn').addEventListener('click', function () {
+    $('vf-btn').disabled = true;
+    api('/admin/vf', {}).then(function (st) {
+      toast(st.total ? 'Recherche des bandes-annonces VF lancée' : 'Rien à vérifier');
+      renderVf(st);
+      clearTimeout(vfTimer); vfTimer = setTimeout(pollVf, 1200);
+    }).catch(function (e) {
+      toast(e.message, 'err');
+      $('vf-btn').disabled = false;
+    });
+  });
+
+  $('vf-stop').addEventListener('click', function () {
+    api('/admin/vf/stop', {}).then(function (st) {
+      toast('Arrêt demandé — les requêtes en cours se terminent');
+      renderVf(st);
     }).catch(function (e) { toast(e.message, 'err'); });
   });
 

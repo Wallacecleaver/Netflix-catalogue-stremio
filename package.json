@@ -12,6 +12,7 @@
     "netflix-ids": "node scripts/netflix-ids.js",
     "harvest": "node scripts/harvest-all.js",
     "harvest:recent": "node scripts/harvest-all.js --recent",
+    "vf": "node scripts/vf-check.js",
     "test": "node scripts/smoke.js",
     "seed": "node scripts/seed.js"
   },

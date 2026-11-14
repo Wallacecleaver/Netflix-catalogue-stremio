@@ -12,7 +12,7 @@ const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: '
 
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '1.2.0',
+  version: '1.3.0',
   name: 'Netflix Catalogue',
   description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Le seul flux proposé est la bande-annonce Netflix.',
   resources: ['catalog', 'meta', 'stream'],
@@ -23,6 +23,8 @@ const manifest = {
     { type: 'series', id: 'netflix-new-series', name: 'Netflix — Dernières sorties (séries)', extra },
     { type: 'series', id: 'netflix-series', name: 'Netflix — Séries', extra },
     { type: 'movie', id: 'netflix-movies', name: 'Netflix — Films', extra },
+    { type: 'movie', id: 'netflix-vf-movies', name: 'Netflix — Films avec bande-annonce VF', extra },
+    { type: 'series', id: 'netflix-vf-series', name: 'Netflix — Séries avec bande-annonce VF', extra },
   ],
 };
 
@@ -30,11 +32,13 @@ const builder = new addonBuilder(manifest);
 
 // Catalogues « dernières sorties » : triés par date de sortie, fenêtre config.recentDays.
 const RECENT_CATALOGS = new Set(['netflix-new-movies', 'netflix-new-series']);
+// Catalogues « bande-annonce VF » : uniquement les titres pour lesquels TMDB a une bande-annonce en français.
+const VF_CATALOGS = new Set(['netflix-vf-movies', 'netflix-vf-series']);
 
 builder.defineCatalogHandler(async ({ type, id, extra }) => {
   const rows = RECENT_CATALOGS.has(id)
     ? store.listRecent({ type, genre: extra.genre, skip: Number(extra.skip) || 0, limit: 100 })
-    : store.listCatalog({ type, genre: extra.genre, search: extra.search, skip: Number(extra.skip) || 0, limit: 100 });
+    : store.listCatalog({ type, genre: extra.genre, search: extra.search, vf: VF_CATALOGS.has(id), skip: Number(extra.skip) || 0, limit: 100 });
   return {
     metas: rows.map((r) => ({
       id: r.id, type: r.type, name: r.name, poster: r.poster, posterShape: 'poster',
@@ -62,8 +66,8 @@ function buildMeta(row, eps) {
   const netflixTrailers = row.netflix_id
     ? (row.trailers || []).map((t, i) => ({ title: t.title || 'Bande-annonce', url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4` }))
     : [];
-  // On ne propose que les bandes-annonces Netflix (si disponibles).
-  const trailerStreams = netflixTrailers;
+  // Bande-annonce VF (YouTube, via TMDB) d'abord, puis celles de la page Netflix.
+  const trailerStreams = [...(row.vf_trailer ? [{ title: 'Bande-annonce VF', ytId: row.vf_trailer }] : []), ...netflixTrailers];
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
   // YouTube trailer support removed
   if (row.type === 'series') {
@@ -93,18 +97,23 @@ builder.defineMetaHandler(async ({ id }) => {
 /** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`). */
 const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
 
-// Flux : uniquement la/les bande(s)-annonce(s) Netflix, relayée(s) par /trailer/... (lien Netflix renouvelé à chaque lecture).
-// Pour une série, la même bande-annonce est proposée sur chaque épisode.
+// Flux : la bande-annonce VF (YouTube) en premier si elle existe, puis la/les bande(s)-annonce(s) de la page Netflix,
+// relayée(s) par /trailer/... (lien Netflix renouvelé à chaque lecture). Pour une série, elles sont proposées sur chaque épisode.
 builder.defineStreamHandler(async ({ type, id }) => {
   const row = store.getTitle(baseId(id));
-  if (!row || !row.netflix_id) return { streams: [], cacheMaxAge: 60 };
+  if (!row) return { streams: [], cacheMaxAge: 60 };
   const isEpisode = type === 'series' && String(id).split(':').length > 2;
-  const streams = (row.trailers || []).map((t, i) => ({
-    name: 'Netflix',
-    title: `▶ ${t.title || 'Bande-annonce'}${isEpisode ? ' (série)' : ''}`,
-    url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`,
-    behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id}` },
-  }));
+  const suffix = isEpisode ? ' (série)' : '';
+  const streams = [];
+  if (row.vf_trailer) streams.push({ name: 'Netflix VF', title: `▶ Bande-annonce VF${suffix}`, ytId: row.vf_trailer });
+  if (row.netflix_id) {
+    (row.trailers || []).forEach((t, i) => streams.push({
+      name: 'Netflix',
+      title: `▶ ${t.title || 'Bande-annonce'}${suffix}`,
+      url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`,
+      behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id}` },
+    }));
+  }
   return { streams, cacheMaxAge: 60 };
 });
 

@@ -15,4 +15,6 @@ module.exports = {
   syncEveryHours: num(process.env.SYNC_EVERY_HOURS, 24),
   recentDays: num(process.env.RECENT_DAYS, 90),
   recentPages: num(process.env.RECENT_PAGES, 3),
+  // Pays dont on moissonne le catalogue Netflix (l'ID Netflix est le même partout : on fait l'union, dédoublonnée).
+  harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
 };

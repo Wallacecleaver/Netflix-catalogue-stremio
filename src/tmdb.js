@@ -111,6 +111,34 @@ async function discoverRecent(tmdbType, { since, until, page = 1 } = {}) {
   });
 }
 
+/** Meilleure bande-annonce YouTube EN FRANÇAIS (iso_639_1 = fr), ou null. Bande-annonce > teaser, officielle d'abord. */
+function pickFrenchTrailer(videos) {
+  const rank = (v) => (v.type === 'Trailer' ? 0 : v.type === 'Teaser' ? 10 : 99) + (v.official ? 0 : 1);
+  const fr = (videos?.results || []).filter((v) => v.site === 'YouTube' && v.iso_639_1 === 'fr' && v.key && rank(v) < 99);
+  fr.sort((a, b) => rank(a) - rank(b) || String(b.published_at || '').localeCompare(String(a.published_at || '')));
+  return fr[0]?.key || null;
+}
+
+/**
+ * Une seule requête par titre : visuels, synopsis, genres, IMDb + bande-annonce VF.
+ * Sert à compléter les fiches moissonnées (sans affiche) et à repérer celles qui ont une bande-annonce en français.
+ */
+async function basics(tmdbType, id) {
+  const d = await call(`/${tmdbType}/${id}`, {
+    language: config.lang, append_to_response: 'videos,external_ids', include_video_language: 'fr',
+  });
+  const date = d.first_air_date || d.release_date || null;
+  return {
+    name: d.name || d.title || null, synopsis: d.overview || null,
+    year: date ? +date.slice(0, 4) : null, release_date: date,
+    genres: (d.genres || []).map((g) => g.name),
+    poster: img(d.poster_path, 'w500'), background: img(d.backdrop_path, 'w1280'),
+    imdb_id: d.external_ids?.imdb_id || null,
+    runtime: d.runtime || d.episode_run_time?.[0] || null,
+    vf: pickFrenchTrailer(d.videos),
+  };
+}
+
 async function genreMap(tmdbType) {
   const res = await call(`/genre/${tmdbType}/list`, { language: config.lang });
   return new Map(res.genres.map((g) => [g.id, g.name]));
@@ -122,4 +150,4 @@ async function externalIds(tmdbType, id) {
   return { imdb_id: d.imdb_id || null, tvdb_id: d.tvdb_id || null };
 }
 
-module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, img };
+module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, basics, pickFrenchTrailer, img };

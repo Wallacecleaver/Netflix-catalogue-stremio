@@ -3,6 +3,7 @@
 //         npm run harvest -- --recent          (dernières sorties : année en cours, précédente et suivante)
 //         npm run harvest -- --from 2020 --to 2026
 //         npm run harvest -- --type series     (movie | series)
+//         npm run harvest -- --countries FR,US,GB,CA,DE   (union des catalogues de ces pays ; défaut : HARVEST_COUNTRIES)
 //         npm run harvest -- --dry             (n'écrit pas en base, exporte seulement les IDs trouvés)
 //         npm run harvest -- --delay 800       (pause entre requêtes, en ms)
 // Résultat : data/netflix-ids.json et data/netflix-ids.csv
@@ -25,10 +26,11 @@ const num = (v) => (v !== undefined && Number.isFinite(Number(v)) ? Number(v) : 
     from: recent ? year - 1 : num(val('from')),
     to: num(val('to')),
     types: type ? [type] : ['movie', 'series'],
+    countries: val('countries'),                // ex. FR,US,GB,CA (sinon HARVEST_COUNTRIES)
     delayMs: num(val('delay')) ?? 400,
     dry: flag('dry'),
     onProgress(st) {
-      const line = `\r${st.type} ${st.slice.minYear === st.slice.maxYear ? st.slice.minYear : `${st.slice.minYear}-${st.slice.maxYear}`}`
+      const line = `\r${st.country} ${st.type} ${st.slice.minYear === st.slice.maxYear ? st.slice.minYear : `${st.slice.minYear}-${st.slice.maxYear}`}`
         + ` · ${st.seen} IDs · ${st.added} ajoutés · ${st.linked} liés · ${st.known} déjà connus   `;
       if (line !== last) { process.stdout.write(line); last = line; }
     },

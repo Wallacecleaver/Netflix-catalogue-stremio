@@ -103,6 +103,27 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const sEp = await iface.get('stream', 'series', 'nflx:81944880:1:1');
   assert.equal(sEp.streams.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(sEp.streams[0].url));
   assert.deepEqual((await iface.get('stream', 'series', 'nflx:inconnu:1:1')).streams, []);
+  // Bande-annonce VF : TMDB (iso_639_1 = fr uniquement) → flux YouTube en premier + catalogues dédiés
+  const tmdbApi = require('../src/tmdb');
+  assert.equal(tmdbApi.pickFrenchTrailer({ results: [
+    { site: 'YouTube', iso_639_1: 'en', type: 'Trailer', official: true, key: 'EN1' },
+    { site: 'YouTube', iso_639_1: 'fr', type: 'Teaser', official: true, key: 'FRteaser' },
+    { site: 'YouTube', iso_639_1: 'fr', type: 'Trailer', official: false, key: 'FRtrailer' },
+    { site: 'Vimeo', iso_639_1: 'fr', type: 'Trailer', official: true, key: 'VIM' }] }), 'FRtrailer');
+  assert.equal(tmdbApi.pickFrenchTrailer({ results: [{ site: 'YouTube', iso_639_1: 'en', type: 'Trailer', key: 'EN1' }] }), null);
+  assert.equal(store.listVfPending().some((r) => r.id === 'nflx:81944880'), true);   // jamais vérifié
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', vf_trailer: 'abcDEF12345', vf_checked: Date.now() });
+  assert.equal(store.listVfPending().some((r) => r.id === 'nflx:81944880'), false);
+  const vfStreams = (await iface.get('stream', 'series', 'nflx:81944880:1:1')).streams;
+  assert.equal(vfStreams.length, 2); assert.equal(vfStreams[0].ytId, 'abcDEF12345'); assert.ok(vfStreams[1].url);
+  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams[0].ytId, 'abcDEF12345');
+  assert.ok(iface.manifest.catalogs.some((c) => c.id === 'netflix-vf-series'));
+  const vfCat = await iface.get('catalog', 'series', 'netflix-vf-series', {});
+  assert.deepEqual(vfCat.metas.map((m) => m.id), ['nflx:81944880']);                // seuls les titres avec VF
+  assert.equal((await iface.get('catalog', 'movie', 'netflix-vf-movies', {})).metas.length, 0);
+  const hv = require('../src/harvest');
+  assert.deepEqual(hv.countryList('fr, us;gb  CA fr'), ['FR', 'US', 'GB', 'CA']);   // dédoublonné, majuscules
+  assert.deepEqual(hv.countryList('xx1,'), ['FR']);                                   // invalide → repli
   // Relais vidéo : faux serveur Netflix avec support des Range
   const http = require('http');
   const BODY = Buffer.from('0123456789abcdef');
@@ -188,6 +209,10 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal((await fetch(`${base}/admin/api/harvest`)).status, 401);
   const hStatus = await (await fetch(`${base}/admin/api/harvest`, { headers: auth })).json();
   assert.equal(hStatus.running, false); assert.equal(hStatus.percent, 0); assert.equal(typeof hStatus.seen, 'number');
+  assert.equal((await fetch(`${base}/admin/api/vf`)).status, 401);
+  const vStatus = await (await fetch(`${base}/admin/api/vf`, { headers: auth })).json();
+  assert.equal(vStatus.running, false); assert.equal(typeof vStatus.withVf, 'number');
+  assert.ok(summary.stats.withVf >= 1); assert.equal(typeof summary.stats.vfPending, 'number');
   assert.equal((await fetch(`${base}/admin/harvest/stop`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })).status, 200);
   const hs = require('../src/harvest').yearSlices({ from: 2025, to: 2026 });
   assert.deepEqual(hs.map((s) => s.minYear), [2026, 2025]);                           // récent d'abord, année par année

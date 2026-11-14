@@ -34,6 +34,13 @@ async function pageWithRetry(args) {
   }
 }
 
+/** « FR,US » ou ['fr','us'] → ['FR','US'] ; sans valeur : HARVEST_COUNTRIES (puis REGION). */
+function countryList(input) {
+  const raw = Array.isArray(input) ? input : String(input || config.harvestCountries || config.region || 'FR').split(/[\s,;]+/);
+  const list = [...new Set(raw.map((c) => String(c).trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)))];
+  return list.length ? list : ['FR'];
+}
+
 /** Enregistre un titre : met à jour une fiche connue, ou lie l'ID Netflix à la fiche TMDB, ou crée la fiche. */
 function saveItem(it) {
   const tmdbType = it.type === 'series' ? 'tv' : 'movie';
@@ -71,44 +78,47 @@ function saveItem(it) {
  * Parcourt tout le catalogue Netflix.
  * opts : { from, to, types: ['movie','series'], delayMs, dry, onProgress, shouldStop }
  */
-async function harvest({ from, to, types = ['movie', 'series'], delayMs = 400, dry = false, onProgress, shouldStop } = {}) {
+async function harvest({ from, to, types = ['movie', 'series'], countries, delayMs = 400, dry = false, onProgress, shouldStop } = {}) {
   const seen = new Map();                                    // netflixId -> item (sert aussi à l'export en mode --dry)
   const stats = { seen: 0, added: 0, linked: 0, known: 0, skipped: 0, pages: 0, errors: [] };
   const slices = yearSlices({ from, to });
-  const sliceTotal = slices.length * types.length;
+  const list = countryList(countries);
+  const sliceTotal = list.length * slices.length * types.length;
   let sliceDone = 0;
-  log.info('harvest', 'Début du moissonnage du catalogue Netflix', { region: config.region, from, to, types });
+  log.info('harvest', 'Début du moissonnage du catalogue Netflix', { countries: list, from, to, types });
 
   outer:
-  for (const slice of slices) {
-    for (const type of types) {
-      if (shouldStop && shouldStop()) break outer;
-      let after = null;
-      for (let guard = 0; guard < 200; guard++) {
+  for (const country of list) {
+    for (const slice of slices) {
+      for (const type of types) {
         if (shouldStop && shouldStop()) break outer;
-        let page;
-        try {
-          page = await pageWithRetry({ objectType: type === 'movie' ? 'MOVIE' : 'SHOW', after, ...slice });
-        } catch (e) {
-          stats.errors.push(`${type} ${slice.minYear}-${slice.maxYear} : ${e.message}`);
-          log.error('harvest', `${type} ${slice.minYear}-${slice.maxYear} : ${e.message}`);
-          break;
+        let after = null;
+        for (let guard = 0; guard < 200; guard++) {
+          if (shouldStop && shouldStop()) break outer;
+          let page;
+          try {
+            page = await pageWithRetry({ country, objectType: type === 'movie' ? 'MOVIE' : 'SHOW', after, ...slice });
+          } catch (e) {
+            stats.errors.push(`${country} ${type} ${slice.minYear}-${slice.maxYear} : ${e.message}`);
+            log.error('harvest', `${country} ${type} ${slice.minYear}-${slice.maxYear} : ${e.message}`);
+            break;
+          }
+          stats.pages++;
+          for (const it of page.items) {
+            if (seen.has(it.netflixId)) continue;               // déjà vu (autre pays / autre page)
+            seen.set(it.netflixId, it);
+            stats.seen++;
+            if (!dry) stats[saveItem(it)]++;
+          }
+          if (onProgress) { try { onProgress({ ...stats, country, slice, type, total: page.total, sliceDone, sliceTotal }); } catch { /* ignore */ } }
+          if (!page.hasNext || !page.endCursor) break;
+          after = page.endCursor;
+          if (delayMs) await sleep(delayMs);
         }
-        stats.pages++;
-        for (const it of page.items) {
-          if (seen.has(it.netflixId)) continue;
-          seen.set(it.netflixId, it);
-          stats.seen++;
-          if (!dry) stats[saveItem(it)]++;
-        }
-        if (onProgress) { try { onProgress({ ...stats, slice, type, total: page.total, sliceDone, sliceTotal }); } catch { /* ignore */ } }
-        if (!page.hasNext || !page.endCursor) break;
-        after = page.endCursor;
+        sliceDone++;
+        if (onProgress) { try { onProgress({ ...stats, country, slice, type, total: null, sliceDone, sliceTotal }); } catch { /* ignore */ } }
         if (delayMs) await sleep(delayMs);
       }
-      sliceDone++;
-      if (onProgress) { try { onProgress({ ...stats, slice, type, total: null, sliceDone, sliceTotal }); } catch { /* ignore */ } }
-      if (delayMs) await sleep(delayMs);
     }
   }
   const stopped = !!(shouldStop && shouldStop());
@@ -164,7 +174,8 @@ async function run({ recent = false } = {}) {
       onProgress(st) {
         Object.assign(state, { seen: st.seen, added: st.added, linked: st.linked, known: st.known, pages: st.pages,
           sliceDone: st.sliceDone, sliceTotal: st.sliceTotal, errors: st.errors });
-        state.current = { type: st.type, label: st.slice.minYear === st.slice.maxYear ? String(st.slice.minYear) : `${st.slice.minYear}-${st.slice.maxYear}` };
+        state.current = { type: st.type, country: st.country,
+          label: st.slice.minYear === st.slice.maxYear ? String(st.slice.minYear) : `${st.slice.minYear}-${st.slice.maxYear}` };
       },
     });
     state.stopped = res.stopped;
@@ -194,4 +205,4 @@ function stop() {
   return status();
 }
 
-module.exports = { harvest, exportIds, saveItem, yearSlices, run, start, stop, status };
+module.exports = { harvest, exportIds, saveItem, yearSlices, countryList, run, start, stop, status };
