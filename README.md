@@ -1,4 +1,7 @@
-# Netflix Catalogue — addon Stremio
+# W stockage bande annonce — addon Stremio
+
+> Le nom affiché est **W stockage bande annonce**. Le nom technique du dépôt, de l'image Docker et l'identifiant
+> de l'addon (`community.wallacecleaver.netflix-catalogue`) restent inchangés pour ne pas casser les installations existantes.
 
 Addon Stremio **métadonnées + bande-annonce en flux** (aucun film/épisode) : catalogue Netflix avec, pour chaque titre,
 synopsis, année, classification (16+), genres, casting, **bande-annonce**, **épisodes avec synopsis, durée et images**.

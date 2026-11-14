@@ -167,7 +167,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   // Dashboard admin : page HTML + API protégées par ADMIN_TOKEN
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
-  assert.ok((await page.text()).includes('Netflix Catalogue'));
+  assert.ok((await page.text()).includes('W stockage bande annonce'));
   const root = await fetch(`${base}/`, { redirect: 'manual' });
   assert.equal(root.status, 302); assert.equal(root.headers.get('location'), '/admin');
   assert.equal((await fetch(`${base}/admin/api/summary`)).status, 401);

@@ -14,7 +14,7 @@ const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: '
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
   version: '1.3.0',
-  name: 'Netflix Catalogue',
+  name: 'W stockage bande annonce',
   description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Le seul flux proposé est la bande-annonce Netflix.',
   resources: ['catalog', 'meta', 'stream'],
   types: ['series', 'movie'],

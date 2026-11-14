@@ -4,100 +4,128 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Netflix Catalogue — dashboard</title>
+<title>W stockage bande annonce — dashboard</title>
 <style>
   :root{
-    --bg:#0a0a0d; --card:#131318; --card2:#17171e; --line:#26262f; --line2:#32323d;
-    --txt:#f2f2f5; --muted:#8f8f9c; --red:#e50914; --red2:#ff2b36;
-    --green:#3ddc84; --amber:#ffb020; --radius:16px;
+    --bg:#08080b; --bg-soft:#0c0c11;
+    --card:#111117; --card2:#15151c; --line:#23232c; --line2:#30303c;
+    --txt:#f4f4f7; --muted:#9494a2; --faint:#60606d;
+    --red:#e50914; --red2:#ff3341;
+    --green:#43d98b; --amber:#f5b544;
+    --radius:18px; --radius-sm:12px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0; color:var(--txt); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     background:
-      radial-gradient(1100px 560px at 8% -12%, rgba(229,9,20,.20), transparent 62%),
-      radial-gradient(900px 520px at 102% -6%, rgba(229,9,20,.10), transparent 58%),
+      radial-gradient(900px 480px at 6% -12%, rgba(229,9,20,.17), transparent 60%),
+      radial-gradient(760px 440px at 102% -10%, rgba(229,9,20,.08), transparent 58%),
       var(--bg);
     -webkit-font-smoothing:antialiased;
   }
   a{color:var(--red2);text-decoration:none}
   a:hover{text-decoration:underline}
   .hidden{display:none !important}
-  .wrap{max-width:1120px;margin:0 auto;padding:26px 20px 64px}
+  .wrap{max-width:1120px;margin:0 auto;padding:24px 20px 72px}
 
   /* ---------- login ---------- */
   .login{min-height:100vh;display:grid;place-items:center;padding:24px}
-  .login .card{width:min(410px,100%);padding:30px 28px;text-align:center}
-  .login .logo{margin:0 auto 16px}
-  .login h1{font-size:20px;margin:0 0 4px}
-  .login p{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+  .login-card{width:min(410px,100%);padding:34px 30px 28px;text-align:center}
+  .login .logo{margin:0 auto 18px}
+  .login h1{font-size:19px;margin:0 0 4px;letter-spacing:-.2px}
+  .login p{color:var(--muted);font-size:13.5px;margin:0 0 24px}
   .login .inp{text-align:center;letter-spacing:2px}
   .login .btn{width:100%;margin-top:12px;padding:11px}
   .login .err{color:var(--red2);font-size:13px;min-height:20px;margin-top:12px}
 
-  /* ---------- header ---------- */
-  header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  /* ---------- topbar ---------- */
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(8,8,11,.82);
+    backdrop-filter:blur(16px) saturate(140%);border-bottom:1px solid var(--line)}
+  .topbar-inner{max-width:1120px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:13px;min-width:0}
   .logo{width:44px;height:44px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;
-    background:linear-gradient(150deg,var(--red),#8c0009);font-weight:800;font-size:22px;color:#fff;
-    box-shadow:0 10px 28px rgba(229,9,20,.35), inset 0 1px 0 rgba(255,255,255,.25)}
-  h1{font-size:19px;margin:0;letter-spacing:.2px;font-weight:700}
-  .sub{color:var(--muted);font-size:12.5px}
+    background:linear-gradient(150deg,var(--red2),#8c0009 85%);font-weight:800;font-size:21px;color:#fff;
+    box-shadow:0 10px 26px rgba(229,9,20,.32), inset 0 1px 0 rgba(255,255,255,.22);letter-spacing:-.5px}
+  .brand-txt{min-width:0}
+  h1{font-size:18px;margin:0;letter-spacing:-.2px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
+  .sub .sep-dot{margin:0 6px;color:var(--faint)}
   .spacer{flex:1}
-  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);
-    color:var(--muted);border-radius:999px;padding:5px 11px;font-size:12px;white-space:nowrap}
+  .pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--card);
+    color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12px;white-space:nowrap;transition:.16s}
   .pill:hover{color:var(--txt);border-color:var(--line2);text-decoration:none}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(61,220,132,.8)}
+  .pill.live{color:var(--txt)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(67,217,139,.8)}
 
   /* ---------- tabs ---------- */
-  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);background:var(--bg-soft);
+    border-radius:999px;margin-bottom:24px;max-width:100%;overflow:auto}
   .tab{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:0;
-    padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s}
+    padding:8px 15px;border-radius:999px;cursor:pointer;transition:.16s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
   .tab:hover{color:var(--txt)}
-  .tab.active{color:var(--txt);border-bottom-color:var(--red)}
-  .tab .count{font-size:11px;color:var(--muted);background:var(--card);border:1px solid var(--line);
-    border-radius:999px;padding:0 7px;margin-left:7px}
+  .tab.active{color:var(--txt);background:var(--card2);box-shadow:inset 0 0 0 1px var(--line2)}
+  .tab .count{font-size:11px;font-weight:600;color:var(--muted);background:var(--bg-soft);border:1px solid var(--line);
+    border-radius:999px;padding:0 7px;line-height:1.6}
+  .tab.active .count{color:var(--txt)}
+
+  /* ---------- section headings ---------- */
+  .section-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+  .section-head h2{font-size:16px;margin:0;font-weight:700;letter-spacing:-.2px}
+  .section-head p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
 
   /* ---------- cards ---------- */
   .card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
     border-radius:var(--radius);padding:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
-  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 14px;font-weight:600}
-  .card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-  .card-head h2{margin:0}
-  .cols{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
+  .card h2{font-size:13.5px;font-weight:700;color:var(--txt);margin:0 0 2px;letter-spacing:-.1px}
+  .card h3{font-size:13.5px;font-weight:700;color:var(--txt);margin:0}
+  .card-sub{color:var(--muted);font-size:12.5px;margin:0}
+  .card-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+  .split{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:16px;align-items:start;margin-bottom:26px}
   .stack{display:grid;gap:16px}
-  @media(max-width:880px){.cols{grid-template-columns:1fr}}
+  @media(max-width:880px){.split{grid-template-columns:1fr}}
 
   /* ---------- stats ---------- */
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px}
-  .stat{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
-  .stat::after{content:"";position:absolute;inset:auto auto 0 0;height:2px;width:100%;
-    background:linear-gradient(90deg,transparent,rgba(229,9,20,.55),transparent);opacity:0;transition:.2s}
-  .stat:hover::after{opacity:1}
-  .stat .l{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600}
-  .stat .v{font-size:27px;font-weight:750;letter-spacing:-.6px;margin:4px 0 2px;font-variant-numeric:tabular-nums}
-  .stat .s{font-size:12px;color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .stat{position:relative;padding:15px 16px 14px;border-radius:16px;border:1px solid var(--line);
+    background:linear-gradient(160deg,var(--card2),var(--card));overflow:hidden;transition:border-color .16s,transform .16s}
+  .stat:hover{border-color:var(--line2);transform:translateY(-1px)}
+  .stat::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;
+    background:var(--red2);opacity:0;transition:.2s}
+  .stat.accent::before{opacity:1}
+  .stat .l{font-size:10.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .stat .v{font-size:clamp(25px,2.6vw,31px);font-weight:750;letter-spacing:-.8px;margin:5px 0 2px;
+    font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat .s{font-size:12px;color:var(--muted);min-height:1.5em}
   .stat.accent .v{color:var(--red2)}
 
   /* ---------- config (lecture seule) ---------- */
-  .cfg-group + .cfg-group{margin-top:18px}
-  .cfg-title{font-size:11px;font-weight:700;color:var(--red2);letter-spacing:.9px;text-transform:uppercase;margin-bottom:6px}
-  .row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:8px 0;
+  .cfg-group + .cfg-group{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .cfg-title{font-size:10.5px;font-weight:700;color:var(--red2);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px}
+  .row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 0;
     border-bottom:1px dashed rgba(255,255,255,.06);font-size:13.5px}
   .cfg-group .row:last-child{border-bottom:0;padding-bottom:0}
   .row .k{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);font-size:12.5px;white-space:nowrap}
-  .row .val{font-weight:600;text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
-  .row .val .ph{color:var(--muted);font-weight:500}
+  .row .val{font-weight:600;text-align:right;word-break:break-word;font-variant-numeric:tabular-nums}
   .tag{display:inline-block;font-size:10px;line-height:1.4;padding:1px 6px;margin-left:8px;border-radius:6px;
     border:1px solid var(--line2);color:var(--muted);vertical-align:1px;font-family:inherit;font-weight:600;letter-spacing:.3px;white-space:nowrap}
-  .tag.env{color:var(--green);border-color:rgba(61,220,132,.35);background:rgba(61,220,132,.08)}
-  .tag.def{color:var(--amber);border-color:rgba(255,176,32,.35);background:rgba(255,176,32,.08)}
+  .tag.env{color:var(--green);border-color:rgba(67,217,139,.35);background:rgba(67,217,139,.08)}
+  .tag.def{color:var(--amber);border-color:rgba(245,181,68,.35);background:rgba(245,181,68,.08)}
   .tag.dash{color:var(--red2);border-color:rgba(229,9,20,.4);background:rgba(229,9,20,.1)}
-  .tag.warn{color:var(--amber);border-color:rgba(255,176,32,.3);background:rgba(255,176,32,.06);margin-left:6px}
+  .tag.warn{color:var(--amber);border-color:rgba(245,181,68,.3);background:rgba(245,181,68,.06);margin-left:6px}
   .tag.off{color:var(--red2);border-color:rgba(229,9,20,.4);background:rgba(229,9,20,.1)}
   .missing{color:var(--amber);font-weight:600}
+
+  /* ---------- liens Stremio ---------- */
+  .link-list{display:grid;gap:8px}
+  .link-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;
+    border:1px solid var(--line);border-radius:10px;background:var(--bg-soft);color:var(--txt);transition:.16s}
+  .link-row:hover{border-color:var(--line2);text-decoration:none;background:#121219}
+  .link-row .k{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);
+    font-size:11px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+  .link-row .val{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+  .link-row:hover .val{color:var(--txt)}
 
   /* ---------- settings ---------- */
   .settings-groups{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
@@ -125,34 +153,54 @@
   .restart-note{width:100%;font-size:12.5px;color:var(--amber);border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
 
   /* ---------- forms ---------- */
-  .btn{font:inherit;font-weight:600;border-radius:10px;border:1px solid var(--line2);background:#1c1c24;
-    color:var(--txt);padding:9px 14px;cursor:pointer;transition:.16s;white-space:nowrap}
-  .btn:hover:not(:disabled){background:#24242e;border-color:#40404d}
-  .btn:disabled{opacity:.5;cursor:default}
+  .btn{font:inherit;font-size:13.5px;font-weight:600;border-radius:10px;border:1px solid var(--line2);
+    background:#1b1b23;color:var(--txt);padding:9px 14px;cursor:pointer;transition:.16s;white-space:nowrap;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .btn:hover:not(:disabled){background:#23232d;border-color:#3b3b48}
+  .btn:focus-visible{outline:2px solid rgba(255,51,65,.55);outline-offset:2px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
   .btn.primary{background:linear-gradient(180deg,var(--red2),var(--red));border-color:#b30710;
-    box-shadow:0 6px 18px rgba(229,9,20,.28)}
-  .btn.primary:hover:not(:disabled){filter:brightness(1.08);background:linear-gradient(180deg,var(--red2),var(--red))}
+    box-shadow:0 6px 18px rgba(229,9,20,.26)}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.07);background:linear-gradient(180deg,var(--red2),var(--red))}
+  .btn.ghost{background:transparent;border-color:var(--line)}
   .btn.wide{width:100%}
-  .btn.small{padding:5px 10px;font-size:12px;font-weight:500;border-radius:8px}
-  .btn.icon{width:34px;height:34px;padding:0;font-size:15px;display:grid;place-items:center;color:var(--muted)}
+  .btn.small{padding:6px 11px;font-size:12px;font-weight:600;border-radius:8px}
+  .btn.icon{width:34px;height:34px;padding:0;font-size:15px;color:var(--muted)}
   .btn.icon:hover:not(:disabled){color:var(--txt)}
-  .inp{width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);
-    background:#0d0d12;color:var(--txt);outline:none;transition:.16s}
-  .inp::placeholder{color:#5f5f6b}
-  .inp:focus{border-color:rgba(229,9,20,.65);box-shadow:0 0 0 3px rgba(229,9,20,.14)}
+  .btn.danger{border-color:rgba(229,9,20,.35);color:var(--red2);background:rgba(229,9,20,.08)}
+  .btn.danger:hover:not(:disabled){background:rgba(229,9,20,.14);border-color:rgba(229,9,20,.55)}
+  .inp{width:100%;font:inherit;font-size:13.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);
+    background:var(--bg-soft);color:var(--txt);outline:none;transition:.16s}
+  .inp::placeholder{color:#5c5c68}
+  .inp:focus{border-color:rgba(255,51,65,.6);box-shadow:0 0 0 3px rgba(229,9,20,.15)}
+  #add-form{display:grid;gap:10px}
   .field{display:flex;gap:10px;margin-top:10px}
   .field .inp{min-width:0}
-  .hint{color:var(--muted);font-size:12.5px;margin:14px 0 0}
-  .hint code{background:#0d0d12;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+  .hint{color:var(--muted);font-size:12.5px;margin:14px 0 0;line-height:1.5}
+  .hint code{background:var(--bg-soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
   .out{font-size:12.5px;color:var(--muted);min-height:18px;margin-top:10px;word-break:break-word}
   .out.ok{color:var(--green)}
   .out.err{color:var(--red2)}
   .sep{height:1px;background:var(--line);margin:18px 0}
-  .progress{height:8px;border-radius:999px;background:#0d0d12;border:1px solid var(--line);overflow:hidden;margin:10px 0}
+  .progress{height:8px;border-radius:999px;background:var(--bg-soft);border:1px solid var(--line);overflow:hidden;margin:2px 0}
   .progress .bar{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .3s}
 
+  /* ---------- maintenance ---------- */
+  .sync-out{margin:-8px 0 14px;min-height:0}
+  .jobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+  .job{display:flex;flex-direction:column;gap:10px}
+  .job-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .chip{font-size:11.5px;font-weight:600;color:var(--muted);background:var(--bg-soft);border:1px solid var(--line);
+    border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .job-desc{font-size:12.5px;color:var(--muted);margin:0;line-height:1.5}
+  .job .hint{margin:0}
+  .job .out{margin-top:0}
+  .job-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:2px}
+  .job-actions .btn{flex:1 1 auto}
+
   /* ---------- journal ---------- */
-  .log-inp{max-width:170px}
+  .log-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .log-inp{max-width:190px}
   #logs{max-height:min(62vh,640px);overflow:auto;display:grid;gap:8px;padding-right:4px}
   .log-row{display:grid;grid-template-columns:128px 60px 96px minmax(0,1fr);gap:10px;align-items:start;
     padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#0f0f14;
@@ -165,8 +213,8 @@
   .lv{font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;
     border-radius:6px;justify-self:start;white-space:nowrap}
   .lv-error{background:rgba(229,9,20,.14);color:var(--red2);border:1px solid rgba(229,9,20,.4)}
-  .lv-warn{background:rgba(255,176,32,.12);color:var(--amber);border:1px solid rgba(255,176,32,.35)}
-  .lv-info{background:rgba(61,220,132,.1);color:var(--green);border:1px solid rgba(61,220,132,.3)}
+  .lv-warn{background:rgba(245,181,68,.12);color:var(--amber);border:1px solid rgba(245,181,68,.35)}
+  .lv-info{background:rgba(67,217,139,.1);color:var(--green);border:1px solid rgba(67,217,139,.3)}
   .lv-debug{background:#1a1a22;color:var(--muted);border:1px solid var(--line2)}
   .log-empty{color:var(--muted);text-align:center;padding:28px 10px}
   @media(max-width:720px){.log-row{grid-template-columns:96px 54px}.log-src,.log-msg{grid-column:1 / -1}}
@@ -176,17 +224,26 @@
     border-radius:12px;border:1px solid var(--line2);background:#17171e;color:var(--txt);font-size:13.5px;
     box-shadow:0 18px 45px rgba(0,0,0,.55);opacity:0;transform:translateY(12px);pointer-events:none;transition:.22s;z-index:9}
   .toast.show{opacity:1;transform:none}
-  .toast.ok{border-color:rgba(61,220,132,.45)}
+  .toast.ok{border-color:rgba(67,217,139,.45)}
   .toast.err{border-color:rgba(229,9,20,.55)}
+
+  @media(max-width:640px){
+    .wrap{padding:18px 14px 60px}
+    .topbar-inner{padding:12px 14px}
+    .card{padding:15px}
+    .topbar .pill:not(.live){display:none}
+    .logo{width:40px;height:40px;font-size:19px}
+    h1{font-size:16px}
+    .job-actions .btn{flex:1 1 100%}
+  }
 </style>
 </head>
 <body>
-
 <!-- Connexion -->
 <div id="login" class="login hidden">
-  <div class="card">
-    <div class="logo">N</div>
-    <h1>Netflix Catalogue</h1>
+  <div class="card login-card">
+    <div class="logo">W</div>
+    <h1>W stockage bande annonce</h1>
     <p>Dashboard d'administration</p>
     <form id="login-form" autocomplete="on">
       <input id="login-pass" class="inp" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
@@ -198,21 +255,23 @@
 
 <!-- Dashboard -->
 <div id="app" class="hidden">
-  <div class="wrap">
-    <header class="top">
+  <header class="topbar">
+    <div class="topbar-inner">
       <div class="brand">
-        <div class="logo">N</div>
-        <div>
-          <h1>Netflix Catalogue</h1>
-          <div class="sub"><span id="version">v—</span> · dashboard</div>
+        <div class="logo">W</div>
+        <div class="brand-txt">
+          <h1>W stockage bande annonce</h1>
+          <div class="sub"><span id="version">v—</span><span class="sep-dot">·</span>dashboard d'administration</div>
         </div>
       </div>
       <div class="spacer"></div>
-      <span class="pill"><span class="dot"></span>Addon en ligne</span>
+      <span class="pill live"><span class="dot"></span>Addon en ligne</span>
       <a class="pill" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
-      <button id="logout" class="btn">Déconnexion</button>
-    </header>
+      <button id="logout" class="btn ghost" type="button">Déconnexion</button>
+    </div>
+  </header>
 
+  <div class="wrap">
     <nav class="tabs" role="tablist">
       <button class="tab active" type="button" data-tab="overview" role="tab">Vue d'ensemble</button>
       <button class="tab" type="button" data-tab="settings" role="tab">Paramètres<span class="count" id="settings-count">—</span></button>
@@ -221,6 +280,15 @@
 
     <!-- Vue d'ensemble -->
     <section id="tab-overview" role="tabpanel">
+      <div class="section-head">
+        <div>
+          <h2>Vue d'ensemble</h2>
+          <p>État du catalogue, de la base et des tâches de maintenance.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="refresh-btn" class="btn small" type="button">↻ Rafraîchir</button>
+      </div>
+
       <section class="stats" aria-label="Statistiques">
         <div class="stat"><div class="l">Titres</div><div class="v" id="stat-total">—</div><div class="s" id="sub-total">&nbsp;</div></div>
         <div class="stat"><div class="l">Films</div><div class="v" id="stat-movies">—</div><div class="s" id="sub-movies">&nbsp;</div></div>
@@ -231,10 +299,13 @@
         <div class="stat"><div class="l">En ligne depuis</div><div class="v" id="stat-uptime">—</div><div class="s" id="sub-uptime">&nbsp;</div></div>
       </section>
 
-      <div class="cols">
+      <div class="split">
         <section class="card">
           <div class="card-head">
-            <h2>Configuration actuelle</h2>
+            <div>
+              <h2>Configuration actuelle</h2>
+              <p class="card-sub">Valeurs actives et provenance.</p>
+            </div>
             <div class="spacer"></div>
             <button class="btn small" type="button" data-goto="settings">Modifier</button>
           </div>
@@ -244,73 +315,104 @@
 
         <div class="stack">
           <section class="card">
-            <h2>Actions</h2>
-            <button id="sync-btn" class="btn primary wide" type="button">Synchroniser le catalogue</button>
-            <div id="sync-out" class="out"></div>
-
-            <div class="sep"></div>
-
-            <h2>Ajouter un titre Netflix</h2>
-            <form id="add-form">
-              <input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880" required>
-              <div class="field">
-                <button id="add-btn" class="btn wide" type="submit">Ajouter / rafraîchir</button>
+            <div class="card-head">
+              <div>
+                <h2>Connexion Stremio</h2>
+                <p class="card-sub">URLs publiques de l'addon.</p>
               </div>
-            </form>
-            <div id="add-out" class="out"></div>
-            <p class="hint">L'ID seul fonctionne aussi (ex. <code>81944880</code>).</p>
-
-            <div class="sep"></div>
-
-            <h2>Moissonnage du catalogue Netflix</h2>
-            <div class="row"><span class="k">IDS EN BASE</span><span class="val" id="harvest-count">—</span></div>
-            <div class="progress"><div class="bar" id="harvest-bar"></div></div>
-            <div id="harvest-out" class="out"></div>
-            <div class="field">
-              <button id="harvest-all" class="btn primary wide" type="button">Moissonner tout le catalogue</button>
-              <button id="harvest-recent" class="btn" type="button">Dernières sorties</button>
-              <button id="harvest-stop" class="btn" type="button" disabled>Arrêter</button>
             </div>
-            <p class="hint">Liste tous les titres Netflix des pays choisis (Paramètres → <em>Pays moissonnés</em>, FR, US, GB, CA par défaut) via JustWatch, année par année, et enregistre leur ID Netflix (le même dans tous les pays : l'union est dédoublonnée). Résultat aussi dans <code>data/netflix-ids.json</code> et <code>.csv</code>. Le détail des erreurs est dans l'onglet Journal (source <code>harvest</code>).</p>
-
-            <div class="sep"></div>
-
-            <h2>Bandes-annonces VF (TMDB)</h2>
-            <div class="row"><span class="k">AVEC VF</span><span class="val" id="vf-count">—</span></div>
-            <div class="progress"><div class="bar" id="vf-bar"></div></div>
-            <div id="vf-out" class="out"></div>
-            <div class="field">
-              <button id="vf-btn" class="btn primary wide" type="button">Chercher les bandes-annonces VF</button>
-              <button id="vf-stop" class="btn" type="button" disabled>Arrêter</button>
+            <div class="link-list">
+              <a id="manifest-url" class="link-row" href="/manifest.json" target="_blank" rel="noreferrer"><span class="k">Manifest</span><span class="val">/manifest.json</span></a>
+              <a id="health-url" class="link-row" href="/health" target="_blank" rel="noreferrer"><span class="k">Santé</span><span class="val">/health</span></a>
+              <a id="trailer-url" class="link-row" href="/trailer/81944880/0.mp4" target="_blank" rel="noreferrer"><span class="k">Bande-annonce</span><span class="val">/trailer/…</span></a>
             </div>
-            <p class="hint">Pour chaque titre (américains compris), cherche sur TMDB une bande-annonce en français et complète au passage affiche, synopsis et genres. Les titres trouvés apparaissent dans les catalogues <strong>« avec bande-annonce VF »</strong> de Stremio. Nécessite la clé TMDB.</p>
-
-            <div class="sep"></div>
-
-            <h2>IDs Netflix &amp; bandes-annonces</h2>
-            <div class="row"><span class="k">LIÉS</span><span class="val" id="link-count">—</span></div>
-            <div class="progress"><div class="bar" id="link-bar"></div></div>
-            <div id="link-out" class="out"></div>
-            <div class="field">
-              <button id="link-btn" class="btn primary wide" type="button">Lier les titres manquants</button>
-              <button id="link-stop" class="btn" type="button" disabled>Arrêter</button>
-            </div>
-            <p class="hint">Recherche chaque titre sur JustWatch, associe l'ID Netflix, récupère la bande-annonce et complète TMDB/IMDb. <a href="#" id="link-export">Exporter les IDs</a></p>
+            <p class="hint">Dans Stremio : <strong>Addons → Install from URL</strong>, puis colle l'URL du manifest.</p>
           </section>
 
           <section class="card">
-            <h2>Stremio</h2>
-            <div class="row"><span class="k">MANIFEST</span><a id="manifest-url" class="val" href="/manifest.json" target="_blank" rel="noreferrer">/manifest.json</a></div>
-            <div class="row"><span class="k">SANTÉ</span><a id="health-url" class="val" href="/health" target="_blank" rel="noreferrer">/health</a></div>
-            <div class="row"><span class="k">BANDE-ANNONCE</span><a id="trailer-url" class="val" href="/trailer/81944880/0.mp4" target="_blank" rel="noreferrer">/trailer/…</a></div>
-            <p class="hint">Dans Stremio : <strong>Addons → Install from URL</strong>, puis colle l'URL du manifest.</p>
+            <div class="card-head">
+              <div>
+                <h2>Ajouter un titre</h2>
+                <p class="card-sub">Depuis une URL Netflix ou un ID.</p>
+              </div>
+            </div>
+            <form id="add-form">
+              <input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880" required>
+              <button id="add-btn" class="btn primary wide" type="submit">Ajouter / rafraîchir</button>
+            </form>
+            <div id="add-out" class="out"></div>
+            <p class="hint">L'ID seul fonctionne aussi (ex. <code>81944880</code>).</p>
           </section>
         </div>
+      </div>
+
+      <div class="section-head">
+        <div>
+          <h2>Maintenance du catalogue</h2>
+          <p>Tâches longues en arrière-plan, progression en direct.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="sync-btn" class="btn primary" type="button">Synchroniser le catalogue</button>
+      </div>
+      <div id="sync-out" class="out sync-out"></div>
+
+      <div class="jobs">
+        <section class="card job">
+          <div class="job-head">
+            <h3>Moissonnage Netflix</h3>
+            <span class="chip" id="harvest-count">—</span>
+          </div>
+          <p class="job-desc">Liste les titres Netflix des pays choisis via JustWatch, année par année, et enregistre leur ID.</p>
+          <div class="progress"><div class="bar" id="harvest-bar"></div></div>
+          <div id="harvest-out" class="out"></div>
+          <div class="job-actions">
+            <button id="harvest-all" class="btn primary" type="button">Moissonner tout</button>
+            <button id="harvest-recent" class="btn" type="button">Dernières sorties</button>
+            <button id="harvest-stop" class="btn danger" type="button" disabled>Arrêter</button>
+          </div>
+          <p class="hint">Résultat dans <code>data/netflix-ids.json</code> et <code>.csv</code>. Erreurs dans l'onglet Journal (source <code>harvest</code>).</p>
+        </section>
+
+        <section class="card job">
+          <div class="job-head">
+            <h3>Bandes-annonces VF</h3>
+            <span class="chip" id="vf-count">—</span>
+          </div>
+          <p class="job-desc">Cherche sur TMDB une bande-annonce française et complète affiche, synopsis et genres.</p>
+          <div class="progress"><div class="bar" id="vf-bar"></div></div>
+          <div id="vf-out" class="out"></div>
+          <div class="job-actions">
+            <button id="vf-btn" class="btn primary" type="button">Chercher les VF</button>
+            <button id="vf-stop" class="btn danger" type="button" disabled>Arrêter</button>
+          </div>
+          <p class="hint">Les titres trouvés apparaissent dans les catalogues <strong>« avec bande-annonce VF »</strong>. Nécessite la clé TMDB.</p>
+        </section>
+
+        <section class="card job">
+          <div class="job-head">
+            <h3>IDs Netflix</h3>
+            <span class="chip" id="link-count">—</span>
+          </div>
+          <p class="job-desc">Recherche chaque titre sur JustWatch, associe l'ID Netflix et complète TMDB/IMDb.</p>
+          <div class="progress"><div class="bar" id="link-bar"></div></div>
+          <div id="link-out" class="out"></div>
+          <div class="job-actions">
+            <button id="link-btn" class="btn primary" type="button">Lier les titres manquants</button>
+            <button id="link-stop" class="btn danger" type="button" disabled>Arrêter</button>
+          </div>
+          <p class="hint"><a href="#" id="link-export">Exporter les IDs</a></p>
+        </section>
       </div>
     </section>
 
     <!-- Paramètres -->
     <section id="tab-settings" class="hidden" role="tabpanel">
+      <div class="section-head">
+        <div>
+          <h2>Paramètres</h2>
+          <p>Réglages de l'addon, prioritaires sur le <code>.env</code>.</p>
+        </div>
+      </div>
       <form id="settings-form" autocomplete="off">
         <div id="settings-groups" class="settings-groups"></div>
 
@@ -328,10 +430,14 @@
 
     <!-- Journal -->
     <section id="tab-journal" class="hidden" role="tabpanel">
-      <section class="card">
-        <div class="card-head">
+      <div class="section-head">
+        <div>
           <h2>Journal</h2>
-          <div class="spacer"></div>
+          <p>Dernières entrées, erreurs et événements de maintenance.</p>
+        </div>
+      </div>
+      <section class="card">
+        <div class="log-toolbar">
           <select id="log-level" class="inp log-inp">
             <option value="">Tous les niveaux</option>
             <option value="error">Erreurs</option>
@@ -339,8 +445,9 @@
             <option value="info">Infos</option>
           </select>
           <input id="log-search" class="inp log-inp" placeholder="Rechercher…" autocomplete="off">
+          <div class="spacer"></div>
           <button id="log-refresh" class="btn small" type="button">Rafraîchir</button>
-          <button id="log-clear" class="btn small" type="button">Effacer</button>
+          <button id="log-clear" class="btn small danger" type="button">Effacer</button>
         </div>
         <div id="logs"><div class="log-empty">Chargement…</div></div>
       </section>
@@ -514,6 +621,14 @@
   function refresh() {
     return api('/admin/api/summary').then(render);
   }
+
+  $('refresh-btn').addEventListener('click', function () {
+    var btn = $('refresh-btn');
+    btn.disabled = true;
+    refresh().then(function () { toast('Dashboard actualisé'); })
+      .catch(function (e) { if (e.message !== 'Non autorisé') toast(e.message, 'err'); })
+      .finally(function () { btn.disabled = false; });
+  });
 
   function boot() {
     return refresh().then(showApp).then(function () { pollLink(); pollHarvest(); pollVf(); }).catch(function (e) {
@@ -904,11 +1019,16 @@
 
   // ---- liens absolus ----
   var origin = location.origin;
-  $('manifest-url').textContent = origin + '/manifest.json';
+  function linkLabel(id, text) {
+    var el = $(id);
+    var val = el.querySelector('.val');
+    if (val) val.textContent = text; else el.textContent = text;
+  }
   $('manifest-url').href = origin + '/manifest.json';
-  $('health-url').textContent = origin + '/health';
+  linkLabel('manifest-url', origin + '/manifest.json');
   $('health-url').href = origin + '/health';
-  $('trailer-url').textContent = origin + '/trailer/…';
+  linkLabel('health-url', origin + '/health');
+  linkLabel('trailer-url', origin + '/trailer/…');
 
   if (token) boot(); else showLogin('');
 })();
