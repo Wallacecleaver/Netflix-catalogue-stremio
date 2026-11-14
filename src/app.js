@@ -48,8 +48,10 @@ function auth(req, res, next) {
 }
 
 // ---- API de fédération : clé API (en-tête x-api-key ou ?key=) ----
+// API_KEY vide = API ouverte : une autre instance peut alors utiliser l'URL seule
+// (sécurité par obscurité de l'adresse). Dès qu'une clé est configurée, elle redevient obligatoire.
 function apiAuth(req, res, next) {
-  if (!config.apiKey) return res.status(503).json({ error: 'API_KEY non configuré dans le .env' });
+  if (!config.apiKey) return next();
   if (!federation.keyOk(req.get('x-api-key') || req.query.key)) {
     return res.status(401).json({ error: 'Clé API invalide' });
   }

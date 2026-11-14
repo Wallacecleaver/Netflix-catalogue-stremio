@@ -215,6 +215,14 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const apiStatus = await (await fetch(`${base}/api/status`, { headers: apiKey })).json();
   assert.equal(apiStatus.ok, true); assert.ok(apiStatus.stats.total >= 1);
 
+  // API_KEY vide = API ouverte : une autre instance n'a besoin que de l'URL (aucune clé).
+  const cfg = require('../src/config');
+  cfg.apiKey = '';
+  const openApi = await (await fetch(`${base}/api/trailers?imdb=tt7777777`)).json();
+  assert.equal(openApi.found, true); assert.equal(openApi.title.netflix_id, '77777777');
+  assert.equal((await fetch(`${base}/api/status`)).status, 200);
+  cfg.apiKey = 'test-api-key';
+
   // Client amont : récupère les trailers d'une autre instance (avec sa clé)
   const federation = require('../src/federation');
   const config = require('../src/config');

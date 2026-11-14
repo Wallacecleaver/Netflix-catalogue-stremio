@@ -110,10 +110,12 @@ Une instance peut **exposer** ses bandes-annonces, et une autre peut les **récu
 ### Instance source
 Dans le `.env` (ou l'onglet Paramètres) :
 ```env
-API_KEY=une-longue-cle-secrete
+# Facultatif : sans API_KEY, l'API est ouverte (seule l'URL sert de secret)
+API_KEY=
 PUBLIC_URL=https://netflix.mondomaine.fr
 ```
-L'API est alors disponible (clé en en-tête `x-api-key`, ou `?key=` en dépannage) :
+Si `API_KEY` est vide, l'API répond **sans clé** : une autre instance n'a besoin que de l'URL.
+Si `API_KEY` est renseignée, la clé est exigée en en-tête `x-api-key` (ou `?key=` en dépannage) :
 ```bash
 # Par IMDb
 curl -H "x-api-key: une-longue-cle-secrete" \
@@ -146,6 +148,8 @@ Réponse :
 }
 ```
 Si aucune fiche ne correspond : `{ "found": false, "trailers": [] }`.
+
+> Sans `API_KEY`, les exemples `curl` ci-dessus fonctionnent sans l'en-tête `x-api-key`.
 
 ### Instance qui récupère
 Dans son `.env` (ou l'onglet Paramètres) :
