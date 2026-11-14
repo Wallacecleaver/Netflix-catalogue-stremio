@@ -262,6 +262,19 @@
 
             <div class="sep"></div>
 
+            <h2>Moissonnage du catalogue Netflix</h2>
+            <div class="row"><span class="k">IDS EN BASE</span><span class="val" id="harvest-count">—</span></div>
+            <div class="progress"><div class="bar" id="harvest-bar"></div></div>
+            <div id="harvest-out" class="out"></div>
+            <div class="field">
+              <button id="harvest-all" class="btn primary wide" type="button">Moissonner tout le catalogue</button>
+              <button id="harvest-recent" class="btn" type="button">Dernières sorties</button>
+              <button id="harvest-stop" class="btn" type="button" disabled>Arrêter</button>
+            </div>
+            <p class="hint">Liste tous les titres Netflix de la région via JustWatch (année par année) et enregistre leur ID Netflix. Résultat aussi dans <code>data/netflix-ids.json</code> et <code>.csv</code>. Le détail des erreurs est dans l'onglet Journal (source <code>harvest</code>).</p>
+
+            <div class="sep"></div>
+
             <h2>IDs Netflix &amp; bandes-annonces</h2>
             <div class="row"><span class="k">LIÉS</span><span class="val" id="link-count">—</span></div>
             <div class="progress"><div class="bar" id="link-bar"></div></div>
@@ -332,6 +345,7 @@
   var toastTimer = null;
   var dirty = {};
   var linkTimer = null;
+  var harvestTimer = null;
   var logTimer = null;
   var logSearchTimer = null;
 
@@ -418,6 +432,7 @@
     $('stat-netflix').textContent = fmtNum(linkedIds);
     $('sub-netflix').textContent = fmtNum(missingIds) + ' à lier';
     $('link-count').textContent = fmtNum(linkedIds) + ' / ' + fmtNum(s.total) + ' titres';
+    $('harvest-count').textContent = fmtNum(linkedIds) + ' ID Netflix';
     var logErrs = s.logErrors || 0;
     $('log-count').textContent = fmtNum(logErrs);
     $('log-count').title = logErrs ? fmtNum(logErrs) + ' erreur(s)' : 'Aucune erreur';
@@ -487,7 +502,7 @@
   }
 
   function boot() {
-    return refresh().then(showApp).then(function () { pollLink(); }).catch(function (e) {
+    return refresh().then(showApp).then(function () { pollLink(); pollHarvest(); }).catch(function (e) {
       if (e.message !== 'Non autorisé') showLogin(e.message);
     });
   }
@@ -502,7 +517,7 @@
     token = pass;
     api('/admin/api/summary').then(function (d) {
       sessionStorage.setItem('nflx_token', pass);
-      render(d); showApp(); toast('Bienvenue 👋'); pollLink();
+      render(d); showApp(); toast('Bienvenue 👋'); pollLink(); pollHarvest();
     }).catch(function (e) {
       token = ''; sessionStorage.removeItem('nflx_token');
       $('login-err').textContent = e.message === 'Non autorisé' ? 'Mot de passe incorrect.' : e.message;
@@ -615,6 +630,70 @@
         toast('Export téléchargé');
       })
       .catch(function (e) { toast(e.message, 'err'); });
+  });
+
+  // ---- moissonnage du catalogue ----
+  function fmtDuration(ms) {
+    var s = Math.max(0, Math.round(ms / 1000));
+    return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s';
+  }
+
+  function renderHarvest(st) {
+    st = st || {};
+    var running = !!st.running;
+    $('harvest-all').disabled = running;
+    $('harvest-recent').disabled = running;
+    $('harvest-all').textContent = running && st.mode === 'all' ? 'Moissonnage en cours…' : 'Moissonner tout le catalogue';
+    $('harvest-stop').disabled = !running;
+    $('harvest-bar').style.width = (st.percent || 0) + '%';
+    var out = $('harvest-out');
+    var counts = (st.seen || 0) + ' IDs vus · ' + (st.added || 0) + ' nouveaux · ' + (st.linked || 0) + ' liés à une fiche · ' + (st.known || 0) + ' déjà connus';
+    if (running) {
+      out.className = 'out';
+      out.textContent = (st.percent || 0) + '% — ' + (st.current ? (st.current.type === 'movie' ? 'films ' : 'séries ') + st.current.label + ' — ' : '') + counts;
+    } else if (st.finishedAt) {
+      var errs = (st.errors || []).length;
+      out.className = errs ? 'out err' : 'out ok';
+      out.textContent = (st.stopped ? 'Arrêté : ' : 'Terminé en ' + fmtDuration(st.finishedAt - st.startedAt) + ' : ') + counts +
+        (st.exported ? ' · export de ' + st.exported.count + ' IDs' : '') +
+        (errs ? ' · ' + errs + ' erreur(s) : ' + st.errors[errs - 1] : '');
+    }
+    return running;
+  }
+
+  function pollHarvest() {
+    clearTimeout(harvestTimer); harvestTimer = null;
+    return api('/admin/api/harvest').then(function (st) {
+      if (renderHarvest(st)) {
+        harvestTimer = setTimeout(pollHarvest, 2000);
+      } else {
+        api('/admin/api/summary').then(renderOverview).catch(function () {});
+      }
+      return st;
+    }).catch(function (e) {
+      if (e.message !== 'Non autorisé') toast(e.message, 'err');
+    });
+  }
+
+  function startHarvest(recent) {
+    $('harvest-all').disabled = true; $('harvest-recent').disabled = true;
+    api('/admin/harvest', { recent: recent }).then(function (st) {
+      toast(recent ? 'Moissonnage des dernières sorties lancé' : 'Moissonnage du catalogue lancé');
+      renderHarvest(st);
+      clearTimeout(harvestTimer); harvestTimer = setTimeout(pollHarvest, 1200);
+    }).catch(function (e) {
+      toast(e.message, 'err');
+      $('harvest-all').disabled = false; $('harvest-recent').disabled = false;
+    });
+  }
+
+  $('harvest-all').addEventListener('click', function () { startHarvest(false); });
+  $('harvest-recent').addEventListener('click', function () { startHarvest(true); });
+  $('harvest-stop').addEventListener('click', function () {
+    api('/admin/harvest/stop', {}).then(function (st) {
+      toast('Arrêt demandé — la page en cours se termine');
+      renderHarvest(st);
+    }).catch(function (e) { toast(e.message, 'err'); });
   });
 
   // ---- journal ----

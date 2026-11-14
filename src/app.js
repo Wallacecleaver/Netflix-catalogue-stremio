@@ -10,6 +10,7 @@ const settings = require('./settings');
 const log = require('./log');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
+const harvest = require('./harvest');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
@@ -97,6 +98,27 @@ app.post('/admin/netflix-ids', auth, (_req, res) => {
 app.post('/admin/netflix-ids/stop', auth, (_req, res) => {
   const st = link.stop();
   log.warn('link', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
+  res.json(st);
+});
+// Moissonnage complet du catalogue Netflix (JustWatch) : statut, lancement (tout / dernières sorties), arrêt.
+app.get('/admin/api/harvest', auth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(harvest.status());
+});
+app.post('/admin/harvest', auth, (req, res) => {
+  try {
+    const recent = !!(req.body && req.body.recent);
+    const st = harvest.start({ recent });
+    log.info('harvest', `Moissonnage lancé depuis le dashboard (${recent ? 'dernières sorties' : 'catalogue complet'})`);
+    res.json(st);
+  } catch (e) {
+    log.error('harvest', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/admin/harvest/stop', auth, (_req, res) => {
+  const st = harvest.stop();
+  log.warn('harvest', 'Arrêt demandé depuis le dashboard', { seen: st.seen });
   res.json(st);
 });
 app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {

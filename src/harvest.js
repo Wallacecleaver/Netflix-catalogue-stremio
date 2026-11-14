@@ -69,18 +69,23 @@ function saveItem(it) {
 
 /**
  * Parcourt tout le catalogue Netflix.
- * opts : { from, to, types: ['movie','series'], delayMs, dry, onProgress }
+ * opts : { from, to, types: ['movie','series'], delayMs, dry, onProgress, shouldStop }
  */
-async function harvest({ from, to, types = ['movie', 'series'], delayMs = 400, dry = false, onProgress } = {}) {
+async function harvest({ from, to, types = ['movie', 'series'], delayMs = 400, dry = false, onProgress, shouldStop } = {}) {
   const seen = new Map();                                    // netflixId -> item (sert aussi à l'export en mode --dry)
   const stats = { seen: 0, added: 0, linked: 0, known: 0, skipped: 0, pages: 0, errors: [] };
   const slices = yearSlices({ from, to });
+  const sliceTotal = slices.length * types.length;
+  let sliceDone = 0;
   log.info('harvest', 'Début du moissonnage du catalogue Netflix', { region: config.region, from, to, types });
 
+  outer:
   for (const slice of slices) {
     for (const type of types) {
+      if (shouldStop && shouldStop()) break outer;
       let after = null;
       for (let guard = 0; guard < 200; guard++) {
+        if (shouldStop && shouldStop()) break outer;
         let page;
         try {
           page = await pageWithRetry({ objectType: type === 'movie' ? 'MOVIE' : 'SHOW', after, ...slice });
@@ -96,16 +101,19 @@ async function harvest({ from, to, types = ['movie', 'series'], delayMs = 400, d
           stats.seen++;
           if (!dry) stats[saveItem(it)]++;
         }
-        if (onProgress) { try { onProgress({ ...stats, slice, type, total: page.total }); } catch { /* ignore */ } }
+        if (onProgress) { try { onProgress({ ...stats, slice, type, total: page.total, sliceDone, sliceTotal }); } catch { /* ignore */ } }
         if (!page.hasNext || !page.endCursor) break;
         after = page.endCursor;
         if (delayMs) await sleep(delayMs);
       }
+      sliceDone++;
+      if (onProgress) { try { onProgress({ ...stats, slice, type, total: null, sliceDone, sliceTotal }); } catch { /* ignore */ } }
       if (delayMs) await sleep(delayMs);
     }
   }
-  log.info('harvest', `Moissonnage terminé : ${stats.seen} IDs Netflix`, { ...stats, errors: stats.errors.length });
-  return { stats, items: [...seen.values()] };
+  const stopped = !!(shouldStop && shouldStop());
+  log.info('harvest', `Moissonnage ${stopped ? 'arrêté' : 'terminé'} : ${stats.seen} IDs Netflix`, { ...stats, errors: stats.errors.length });
+  return { stats, items: [...seen.values()], stopped };
 }
 
 /** Écrit data/netflix-ids.json et data/netflix-ids.csv (ID Netflix, nom, type, année, TMDB, IMDb). */
@@ -124,4 +132,66 @@ function exportIds(items) {
   return { jsonPath, csvPath, count: rows.length };
 }
 
-module.exports = { harvest, exportIds, saveItem, yearSlices };
+// ---- Job de fond piloté depuis le dashboard (/admin) ----
+const state = {
+  running: false, stopRequested: false, mode: null,
+  seen: 0, added: 0, linked: 0, known: 0, pages: 0, sliceDone: 0, sliceTotal: 0,
+  current: null, startedAt: null, finishedAt: null, stopped: false, exported: null, errors: [],
+};
+
+function status() {
+  return {
+    running: state.running, mode: state.mode, stopped: state.stopped,
+    seen: state.seen, added: state.added, linked: state.linked, known: state.known, pages: state.pages,
+    percent: state.sliceTotal ? Math.round((state.sliceDone / state.sliceTotal) * 100) : 0,
+    current: state.current, startedAt: state.startedAt, finishedAt: state.finishedAt,
+    exported: state.exported, errors: state.errors.slice(-8),
+  };
+}
+
+/** `recent` : seulement l'année précédente, en cours et suivante. Sinon tout le catalogue. */
+async function run({ recent = false } = {}) {
+  if (state.running) throw new Error('Moissonnage déjà en cours');
+  Object.assign(state, {
+    running: true, stopRequested: false, mode: recent ? 'recent' : 'all',
+    seen: 0, added: 0, linked: 0, known: 0, pages: 0, sliceDone: 0, sliceTotal: 0,
+    current: null, startedAt: Date.now(), finishedAt: null, stopped: false, exported: null, errors: [],
+  });
+  try {
+    const res = await harvest({
+      from: recent ? new Date().getFullYear() - 1 : undefined,
+      shouldStop: () => state.stopRequested,
+      onProgress(st) {
+        Object.assign(state, { seen: st.seen, added: st.added, linked: st.linked, known: st.known, pages: st.pages,
+          sliceDone: st.sliceDone, sliceTotal: st.sliceTotal, errors: st.errors });
+        state.current = { type: st.type, label: st.slice.minYear === st.slice.maxYear ? String(st.slice.minYear) : `${st.slice.minYear}-${st.slice.maxYear}` };
+      },
+    });
+    state.stopped = res.stopped;
+    state.errors = res.stats.errors;
+    state.exported = exportIds();
+  } catch (e) {
+    state.errors.push(e.message);
+    log.error('harvest', e.message);
+    throw e;
+  } finally {
+    state.running = false;
+    state.current = null;
+    state.finishedAt = Date.now();
+  }
+  return status();
+}
+
+/** Démarre sans attendre (le job continue en arrière-plan). */
+function start(opts = {}) {
+  if (state.running) return status();
+  run(opts).catch((e) => console.warn('[harvest]', e.message));   // la partie synchrone de run() passe déjà running à true
+  return status();
+}
+
+function stop() {
+  state.stopRequested = true;
+  return status();
+}
+
+module.exports = { harvest, exportIds, saveItem, yearSlices, run, start, stop, status };

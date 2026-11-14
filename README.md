@@ -81,6 +81,9 @@ npm run harvest -- --from 2020 --to 2026 # plage d'années
 npm run harvest -- --type series         # movie | series
 npm run harvest -- --dry                 # ne touche pas à la base, exporte seulement
 ```
+Dans le dashboard (`/admin`), la carte **Moissonnage du catalogue Netflix** lance la même chose en un clic (tout le catalogue ou seulement les dernières sorties),
+avec barre de progression (année en cours, IDs vus / nouveaux / liés / déjà connus), bouton d'arrêt et résumé final. Les erreurs vont dans le **Journal** (source `harvest`).
+
 Sortie : `data/netflix-ids.json` et `data/netflix-ids.csv` (`netflix_id, name, type, year, tmdb_id, imdb_id`).
 Ensuite `npm run netflix-ids` complète TMDB/IMDb, bandes-annonces et épisodes. Pour garder les « Dernières sorties » à jour,
 planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.

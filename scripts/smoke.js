@@ -184,6 +184,17 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const linkedRow = exported.find((r) => r.netflix_id === '77777777');
   assert.ok(linkedRow); assert.equal(linkedRow.name, 'Film lié');
 
+  // Moissonnage du catalogue : statut protégé par le token, aucun job au repos, arrêt sans effet quand rien ne tourne
+  assert.equal((await fetch(`${base}/admin/api/harvest`)).status, 401);
+  const hStatus = await (await fetch(`${base}/admin/api/harvest`, { headers: auth })).json();
+  assert.equal(hStatus.running, false); assert.equal(hStatus.percent, 0); assert.equal(typeof hStatus.seen, 'number');
+  assert.equal((await fetch(`${base}/admin/harvest/stop`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })).status, 200);
+  const hs = require('../src/harvest').yearSlices({ from: 2025, to: 2026 });
+  assert.deepEqual(hs.map((s) => s.minYear), [2026, 2025]);                           // récent d'abord, année par année
+  const saved = require('../src/harvest').saveItem({ netflixId: '99990001', type: 'movie', name: 'Moissonné', year: 2026, tmdbId: null, imdbId: null, releaseDate: '2026-11-01' });
+  assert.equal(saved, 'added'); assert.equal(store.findByNetflixId('99990001').id, 'nflx:99990001');
+  assert.equal(require('../src/harvest').saveItem({ netflixId: '99990001', type: 'movie', name: 'Moissonné' }), 'known');
+
   // Journal : écriture, API filtrée par niveau, protection, effacement
   const log = require('../src/log');
   log.info('test', 'Entrée de test info');
