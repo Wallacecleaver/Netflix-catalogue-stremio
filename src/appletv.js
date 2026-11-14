@@ -74,6 +74,7 @@ function extractTrailers(json, debug = false) {
   const out = [];
   const isM3u8 = (v) => typeof v === 'string' && /^https?:\/\/\S+\.m3u8(\?\S*)?$/i.test(v);
   walk(json, (o, parent) => {
+    if (Object.keys(o).some((k) => /^fps/i.test(k))) return;          // flux FairPlay (DRM) : injouable hors app Apple
     const raw = Object.values(o).find(isM3u8);
     if (!raw) return;
     const url = decode(raw);
@@ -86,20 +87,21 @@ function extractTrailers(json, debug = false) {
   return out;
 }
 
-/** Page tv.apple.com/<pays>/<movie|show>/<id> : JSON embarqué (serialized-server-data) puis, à défaut, flux .m3u8 repérés dans le HTML. */
+/**
+ * Page tv.apple.com/<pays>/<movie|show>/<id>. La bande-annonce de la page est déclarée dans la balise <meta property="og:video">.
+ * Tous les autres .m3u8 de la page sont des flux d'épisodes protégés par FairPlay (DRM) : on les ignore.
+ */
 async function fetchTrailers(match, debug = false) {
   const kind = match.type === 'series' ? 'show' : 'movie';
   const html = await http(`https://tv.apple.com/${config.appletvCountry}/${kind}/${match.id}`, 'text/html');
-  const m = html.match(/<script[^>]*id="serialized-server-data"[^>]*>([\s\S]*?)<\/script>/);
-  if (m) { try { const t = extractTrailers(JSON.parse(m[1]), debug); if (t.length) return t; } catch { /* JSON illisible : repli ci-dessous */ } }
-  // Repli : tous les .m3u8 du HTML, dans l'ordre d'apparition (le premier est en général celui de la vedette de la page).
   const out = [];
-  const re = /https?:\/\/[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*/g;
+  const m = html.match(/<script[^>]*id="serialized-server-data"[^>]*>([\s\S]*?)<\/script>/);
+  if (m) { try { out.push(...extractTrailers(JSON.parse(m[1]), debug)); } catch { /* JSON illisible : on se rabat sur og:video */ } }
+  const re = /<meta[^>]+property="og:video(?::url|:secure_url)?"[^>]+content="([^"]+\.m3u8[^"]*)"/gi;
   let r;
   while ((r = re.exec(html))) {
-    const url = decode(r[0]);
-    if (out.some((t) => mediaKey(t.url) === mediaKey(url))) continue;
-    out.push({ title: 'Bande-annonce', url, ...(debug ? { ctx: html.slice(Math.max(0, r.index - 160), r.index).replace(/\s+/g, ' ') } : {}) });
+    const url = decode(r[1]);
+    if (!out.some((t) => mediaKey(t.url) === mediaKey(url))) out.unshift({ title: 'Bande-annonce', url, ...(debug ? { ctx: 'og:video' } : {}) });
   }
   return out;
 }
@@ -130,6 +132,50 @@ async function ensure(row) {
   return (await inflight.get(row.id)) || row;
 }
 
+// ---- Job de fond (dashboard) : cherche les bandes-annonces Apple TV des titres jamais vérifiés ----
+const job = { running: false, stopRequested: false, total: 0, done: 0, found: 0, failed: 0, current: null, startedAt: null, finishedAt: null, errors: [] };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function status() {
+  return { running: job.running, total: job.total, done: job.done, found: job.found, failed: job.failed,
+    percent: job.total ? Math.round((job.done / job.total) * 100) : 0, current: job.current,
+    startedAt: job.startedAt, finishedAt: job.finishedAt, errors: job.errors.slice(-8) };
+}
+
+async function runBatch({ limit = 0, delayMs = 700 } = {}) {
+  if (job.running) throw new Error('Recherche Apple TV déjà en cours');
+  const rows = store.listAppletvPending({ limit });
+  Object.assign(job, { running: true, stopRequested: false, total: rows.length, done: 0, found: 0, failed: 0, current: null, startedAt: Date.now(), finishedAt: null, errors: [] });
+  log.info('appletv', `Début de la recherche Apple TV : ${rows.length} titre(s)`);
+  let streak = 0;
+  try {
+    for (const row of rows) {
+      if (job.stopRequested) break;
+      job.current = { id: row.id, name: row.name, type: row.type };
+      const res = await ensure(row);
+      if (!res || res.appletv_checked === row.appletv_checked) {          // erreur réseau / API : rien n'a été enregistré
+        job.failed++; streak++;
+        job.errors.push(`${row.name} : requête Apple TV échouée (voir le journal)`);
+        if (streak >= 5) { log.error('appletv', 'Arrêt : 5 échecs consécutifs (Apple bloque ou ses paramètres ont changé, voir APPLETV_UTSK / APPLETV_API_VERSION)'); break; }
+      } else { streak = 0; if (res.appletv && res.appletv.length) job.found++; }
+      job.done++;
+      await sleep(delayMs);
+    }
+  } finally {
+    job.running = false; job.current = null; job.finishedAt = Date.now();
+    log.info('appletv', `Recherche Apple TV terminée : ${job.found} bande(s)-annonce(s) trouvée(s), ${job.failed} erreur(s)`, { done: job.done, total: job.total });
+  }
+  return status();
+}
+
+function start(opts = {}) {
+  if (job.running) return status();
+  if (!config.appletvEnabled) throw new Error('Apple TV désactivé (APPLETV_ENABLED=0)');
+  runBatch(opts).catch((e) => { job.errors.push(e.message); });
+  return status();
+}
+const stop = () => { job.stopRequested = true; return status(); };
+
 const urls = (row) => (Array.isArray(row?.appletv) ? row.appletv : []).filter((t) => t && t.url).map((t) => ({ title: t.title ? `Apple TV — ${t.title}` : 'Bande-annonce Apple TV', url: t.url }));
 
-module.exports = { ensure, urls, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };
+module.exports = { ensure, urls, start, stop, status, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };

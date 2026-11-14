@@ -1,7 +1,7 @@
 {
   "name": "netflix-catalogue-stremio",
   "version": "1.0.0",
-  "description": "Addon Stremio : catalogue Netflix (métadonnées uniquement, aucun flux)",
+  "description": "Addon Stremio : stockage de bandes-annonces (VF, Netflix, Apple TV), sans catalogue",
   "private": true,
   "main": "src/index.js",
   "scripts": {

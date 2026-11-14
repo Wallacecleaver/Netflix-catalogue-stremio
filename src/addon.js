@@ -6,49 +6,25 @@ const federation = require('./federation');
 const appletv = require('./appletv');
 const { enrichTitle } = require('./enrich');
 
-const GENRES = ['Action', 'Animation', 'Aventure', 'Comédie', 'Crime', 'Documentaire', 'Drame', 'Familial', 'Fantastique',
-  'Guerre', 'Histoire', 'Horreur', 'Musique', 'Mystère', 'Romance', 'Science-Fiction', 'Thriller', 'Western',
-  'Action & Aventure', 'Kids', 'Reality', 'Sci-Fi & Fantastique'];
+const TYPES = ['movie', 'series'];
 
-const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: 'skip' }];
-
+// Plus de catalogue : l'addon ne fait que fournir des bandes-annonces.
+//  - stream : sur n'importe quelle fiche Stremio (ID IMDb `tt…`, y compris épisodes) ET sur les anciennes fiches `nflx:`
+//  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '1.3.0',
+  version: '2.0.0',
   name: 'W stockage bande annonce',
-  description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Le seul flux proposé est la bande-annonce Netflix.',
-  resources: ['catalog', 'meta', 'stream'],
-  types: ['series', 'movie'],
-  idPrefixes: ['nflx:'],
-  catalogs: [
-    { type: 'movie', id: 'netflix-new-movies', name: 'Netflix — Dernières sorties (films)', extra },
-    { type: 'series', id: 'netflix-new-series', name: 'Netflix — Dernières sorties (séries)', extra },
-    { type: 'series', id: 'netflix-series', name: 'Netflix — Séries', extra },
-    { type: 'movie', id: 'netflix-movies', name: 'Netflix — Films', extra },
-    { type: 'movie', id: 'netflix-vf-movies', name: 'Netflix — Films avec bande-annonce VF', extra },
-    { type: 'series', id: 'netflix-vf-series', name: 'Netflix — Séries avec bande-annonce VF', extra },
+  description: 'Bandes-annonces sur tes fiches Stremio : VF (TMDB/YouTube), Netflix et Apple TV. Aucun catalogue, aucun film ni épisode : uniquement des bandes-annonces.',
+  resources: [
+    { name: 'meta', types: TYPES, idPrefixes: ['nflx:'] },
+    { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'tt'] },
   ],
+  types: TYPES,
+  catalogs: [],
 };
 
 const builder = new addonBuilder(manifest);
-
-// Catalogues « dernières sorties » : triés par date de sortie, fenêtre config.recentDays.
-const RECENT_CATALOGS = new Set(['netflix-new-movies', 'netflix-new-series']);
-// Catalogues « bande-annonce VF » : uniquement les titres pour lesquels TMDB a une bande-annonce en français.
-const VF_CATALOGS = new Set(['netflix-vf-movies', 'netflix-vf-series']);
-
-builder.defineCatalogHandler(async ({ type, id, extra }) => {
-  const rows = RECENT_CATALOGS.has(id)
-    ? store.listRecent({ type, genre: extra.genre, skip: Number(extra.skip) || 0, limit: 100 })
-    : store.listCatalog({ type, genre: extra.genre, search: extra.search, vf: VF_CATALOGS.has(id), skip: Number(extra.skip) || 0, limit: 100 });
-  return {
-    metas: rows.map((r) => ({
-      id: r.id, type: r.type, name: r.name, poster: r.poster, posterShape: 'poster',
-      releaseInfo: r.year ? String(r.year) : undefined, genres: r.genres, description: r.synopsis || undefined,
-    })),
-    cacheMaxAge: config.metaCacheSeconds,
-  };
-});
 
 function buildMeta(row, eps) {
   const description = [row.synopsis, row.certification ? `Classification : ${row.certification}` : null]
@@ -100,10 +76,20 @@ builder.defineMetaHandler(async ({ id }) => {
 /** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`). */
 const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
 
-// Flux : la bande-annonce VF (via TMDB) en premier si elle existe, puis la/les bande(s)-annonce(s) de la page Netflix
-// ou de l'instance amont, relayée(s) par /trailer/... quand un ID Netflix est connu. Proposées aussi sur chaque épisode.
+/** Fiche stockée pour un ID Stremio : `nflx:…` (direct) ou `tt1234567` / `tt1234567:1:2` (via l'ID IMDb). */
+function resolveRow(id) {
+  const sid = String(id);
+  if (sid.startsWith('nflx:')) return store.getTitle(baseId(sid));
+  const imdb = sid.split(':')[0];
+  if (!/^tt\d+$/.test(imdb)) return null;
+  const hit = federation.lookup({ imdb });
+  return hit ? store.getTitle(hit.id) : null;
+}
+
+// Flux, dans l'ordre : bande-annonce VF (TMDB/YouTube), puis Netflix (ou instance amont, relayée par /trailer/... quand un ID
+// Netflix est connu), puis Apple TV (HLS). Proposés aussi sur chaque épisode d'une série.
 builder.defineStreamHandler(async ({ type, id }) => {
-  let row = store.getTitle(baseId(id));
+  let row = resolveRow(id);
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);
   row = await appletv.ensure(row);

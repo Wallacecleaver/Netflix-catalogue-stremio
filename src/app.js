@@ -13,6 +13,7 @@ const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
 const harvest = require('./harvest');
 const vf = require('./vf');
+const appletv = require('./appletv');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
@@ -61,7 +62,10 @@ function apiAuth(req, res, next) {
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
 app.get('/admin/api/summary', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
-  res.json({ version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view() });
+  res.json({
+    version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view(),
+    addon: { publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: !config.apiKey },
+  });
 });
 app.post('/admin/api/settings', auth, (req, res) => {
   try {
@@ -153,6 +157,40 @@ app.post('/admin/vf/stop', auth, (_req, res) => {
   const st = vf.stop();
   log.warn('vf', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
+});
+// Bandes-annonces Apple TV : statut, lancement, arrêt.
+app.get('/admin/api/appletv', auth, (_req, res) => { res.set('cache-control', 'no-store'); res.json(appletv.status()); });
+app.post('/admin/appletv', auth, (_req, res) => {
+  try {
+    const st = appletv.start({});
+    log.info('appletv', 'Recherche Apple TV lancée depuis le dashboard', { total: st.total });
+    res.json(st);
+  } catch (e) {
+    log.error('appletv', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/admin/appletv/stop', auth, (_req, res) => {
+  const st = appletv.stop();
+  log.warn('appletv', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
+  res.json(st);
+});
+// Titres stockés + bandes-annonces disponibles par source (onglet « Titres »).
+app.get('/admin/api/titles', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const { total, rows } = store.listTitles({
+    search: String(req.query.search || '').trim(), filter: String(req.query.filter || ''),
+    limit: Math.min(Number(req.query.limit) || 50, 200), offset: Number(req.query.offset) || 0,
+  });
+  res.json({
+    total,
+    rows: rows.map((r) => ({
+      id: r.id, name: r.name, type: r.type, year: r.year,
+      netflix: r.trailers.filter((t) => t && t.source !== 'upstream').length,
+      upstream: r.trailers.filter((t) => t && t.source === 'upstream').length,
+      vf: !!r.vf_trailer, apple: r.appletv.length,
+    })),
+  });
 });
 app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {
   res.set('content-disposition', 'attachment; filename="netflix-ids.json"');

@@ -28,7 +28,7 @@ const DEFS = [
   { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties (jours)', group: 'Synchronisation', type: 'number', min: 1, max: 365 },
   { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
   { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés (ex. FR,US,GB,CA)', group: 'Synchronisation', type: 'text', normalize: countryList },
-  { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache fiches/catalogues (s)', group: 'Stremio', type: 'number', min: 0, max: 86400 },
+  { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache des fiches (s)', group: 'Stremio', type: 'number', min: 0, max: 86400 },
   { key: 'API_KEY', prop: 'apiKey', label: 'Clé API (sortie, vide = API ouverte)', group: 'API & fédération', type: 'password', secret: true, minLength: 6 },
   { key: 'UPSTREAM_URL', prop: 'upstreamUrl', label: 'Instance amont (URL)', group: 'API & fédération', type: 'text', normalize: stripSlash },
   { key: 'UPSTREAM_API_KEY', prop: 'upstreamApiKey', label: 'Clé API amont', group: 'API & fédération', type: 'password', secret: true },

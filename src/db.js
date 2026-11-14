@@ -151,39 +151,40 @@ function deleteDuplicates(tmdbType, tmdbId, keepId) {
   db.prepare('DELETE FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').run(tmdbType, tmdbId, keepId);
 }
 
-function listCatalog({ type, genre, search, vf = false, skip = 0, limit = 100 }) {
-  const where = ['type = @type'];
-  const p = { type, skip, limit };
-  if (vf) where.push('vf_trailer IS NOT NULL');
-  if (genre) { where.push('genres_json LIKE @genre'); p.genre = `%"${genre}"%`; }
-  if (search) { where.push('name LIKE @search'); p.search = `%${search}%`; }
-  return db.prepare(`SELECT * FROM titles WHERE ${where.join(' AND ')}
-    ORDER BY (netflix_id IS NOT NULL) DESC, COALESCE(release_date, year || '-01-01', '') DESC, added_at DESC
-    LIMIT @limit OFFSET @skip`).all(p).map(parse);
+// Conditions SQL « ce titre a une bande-annonce de telle source ».
+const TR = {
+  netflix: "(trailers_json IS NOT NULL AND trailers_json NOT IN ('', '[]'))",
+  vf: 'vf_trailer IS NOT NULL',
+  apple: "(appletv_json IS NOT NULL AND appletv_json NOT IN ('', '[]'))",
+};
+TR.any = `(${TR.netflix} OR ${TR.vf} OR ${TR.apple})`;
+
+// Titres dont les bandes-annonces Apple TV n'ont pas encore été cherchées (ou sans résultat depuis plus de `retryDays` jours).
+const appletvPendingWhere = '(appletv_checked IS NULL OR (appletv_json IS NULL AND appletv_checked < @before))';
+function listAppletvPending({ limit = 0, retryDays = 7 } = {}) {
+  const p = { before: Date.now() - retryDays * 86400000 };
+  if (limit > 0) p.limit = limit;
+  return db.prepare(`SELECT * FROM titles WHERE ${appletvPendingWhere}
+    ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT @limit' : ''}`).all(p).map(parse);
 }
 
-// Sorties récentes : déjà sorties (date <= aujourd'hui) et pas plus vieilles que `days`.
-function listRecent({ type, genre, skip = 0, limit = 100, days = config.recentDays }) {
-  const day = 86400000;
-  const now = Date.now();
-  const today = new Date(now).toISOString().slice(0, 10);
-  const since = new Date(now - days * day).toISOString().slice(0, 10);
-  const where = ['type = @type', 'release_date IS NOT NULL', 'release_date <= @today', 'release_date >= @since'];
-  const p = { type, today, since, skip, limit };
-  if (genre) { where.push('genres_json LIKE @genre'); p.genre = `%"${genre}"%`; }
-  return db.prepare(`SELECT * FROM titles WHERE ${where.join(' AND ')}
-    ORDER BY release_date DESC, added_at DESC
-    LIMIT @limit OFFSET @skip`).all(p).map(parse);
+/** Liste paginée pour l'onglet « Titres » : filtre par source de bande-annonce (none = aucune) et recherche par nom. */
+function listTitles({ search = '', filter = '', limit = 50, offset = 0 } = {}) {
+  const where = ['1 = 1'];
+  const p = {};
+  if (search) { where.push('name LIKE @search'); p.search = `%${search}%`; }
+  if (filter === 'none') where.push(`NOT ${TR.any}`);
+  else if (TR[filter]) where.push(TR[filter]);
+  const w = where.join(' AND ');
+  const total = db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${w}`).get(p).c;
+  const rows = db.prepare(`SELECT * FROM titles WHERE ${w} ORDER BY added_at DESC, name LIMIT @limit OFFSET @offset`)
+    .all({ ...p, limit, offset }).map(parse);
+  return { total, rows };
 }
 
 // Chiffres affichés dans le dashboard (aucune donnée sensible).
-function stats({ days = config.recentDays } = {}) {
-  const now = Date.now();
-  const today = new Date(now).toISOString().slice(0, 10);
-  const since = new Date(now - days * 86400000).toISOString().slice(0, 10);
+function stats() {
   const byType = Object.fromEntries(db.prepare('SELECT type, COUNT(*) c FROM titles GROUP BY type').all().map((r) => [r.type, r.c]));
-  const recent = Object.fromEntries(db.prepare(`SELECT type, COUNT(*) c FROM titles
-    WHERE release_date IS NOT NULL AND release_date BETWEEN @since AND @today GROUP BY type`).all({ since, today }).map((r) => [r.type, r.c]));
   const dbBytes = db.pragma('page_count', { simple: true }) * db.pragma('page_size', { simple: true });
   return {
     total: (byType.movie || 0) + (byType.series || 0),
@@ -199,7 +200,11 @@ function stats({ days = config.recentDays } = {}) {
     logs: db.prepare('SELECT COUNT(*) c FROM logs').get().c,
     logErrors: db.prepare("SELECT COUNT(*) c FROM logs WHERE level = 'error'").get().c,
     episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
-    recent: { days, movies: recent.movie || 0, series: recent.series || 0 },
+    withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
+    withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
+    withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
+    appletvChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE appletv_checked IS NOT NULL').get().c,
+    appletvPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${appletvPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
     dbBytes,
   };
 }
@@ -235,5 +240,5 @@ function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
 const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, listUnlinked, listLinked, listVfPending,
-  deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats,
+  deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
   allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };

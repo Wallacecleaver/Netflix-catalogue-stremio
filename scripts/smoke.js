@@ -1,6 +1,7 @@
 // Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL et handlers Stremio. Aucun appel réseau.
 process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-${Date.now()}.db`);
 process.env.ADMIN_TOKEN = 'test-token';
+process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
 process.env.API_KEY = 'test-api-key';
 const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
@@ -77,22 +78,10 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
 
 (async () => {
   const iface = builder.getInterface();
-  const cat = await iface.get('catalog', 'series', 'netflix-series', {});
-  assert.equal(cat.metas[0].id, 'nflx:81944880');
-  assert.equal((await iface.get('catalog', 'series', 'netflix-series', { genre: 'Drame' })).metas.length, 1);
-  assert.equal((await iface.get('catalog', 'series', 'netflix-series', { search: 'zzz' })).metas.length, 0);
-
-  // Catalogues « dernières sorties » : fenêtre récente + tri par date de sortie décroissante
-  const today = new Date().toISOString().slice(0, 10);
-  store.upsertTitle({ id: 'nflx:new-mv', type: 'movie', name: 'Film tout neuf', year: +today.slice(0, 4), release_date: today });
-  store.upsertTitle({ id: 'nflx:new-tv', type: 'series', name: 'Série toute neuve', year: +today.slice(0, 4), release_date: today });
-  store.upsertTitle({ id: 'nflx:old-mv', type: 'movie', name: 'Film ancien', year: 2019, release_date: '2019-05-01' });
-  const newMv = await iface.get('catalog', 'movie', 'netflix-new-movies', {});
-  assert.equal(newMv.metas[0].id, 'nflx:new-mv');
-  assert.ok(!newMv.metas.some((m) => m.id === 'nflx:old-mv'));        // hors fenêtre RECENT_DAYS
-  const newTv = await iface.get('catalog', 'series', 'netflix-new-series', {});
-  assert.ok(newTv.metas.some((m) => m.id === 'nflx:new-tv'));         // visible dans le catalogue nouveautés
-  assert.equal((await iface.get('catalog', 'series', 'netflix-new-series', { genre: 'zzz' })).metas.length, 0);
+  // Plus de catalogue : manifest sans catalogue, flux sur les IDs IMDb (tt…) et sur les anciennes fiches nflx:, meta seulement nflx:
+  assert.deepEqual(iface.manifest.catalogs, []);
+  assert.ok(!iface.manifest.resources.some((r) => r.name === 'catalog'));
+  assert.deepEqual(iface.manifest.resources.find((r) => r.name === 'stream').idPrefixes, ['nflx:', 'tt']);
   const { meta } = await iface.get('meta', 'series', 'nflx:81944880');
   assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
   assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"
@@ -100,7 +89,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(meta.trailerStreams.length, 1); assert.equal(meta.trailers, undefined); // pas de YouTube quand Netflix est dispo
   assert.equal(meta.posterShape, 'landscape'); assert.deepEqual(meta.director, ['Kasper Barfoed']);
   // Flux : la bande-annonce Netflix est proposée dans le panneau « flux » (fiche et épisodes)
-  assert.ok(iface.manifest.resources.includes('stream'));
+  assert.ok(iface.manifest.resources.some((r) => r.name === 'stream'));
   const sEp = await iface.get('stream', 'series', 'nflx:81944880:1:1');
   assert.equal(sEp.streams.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(sEp.streams[0].url));
   assert.deepEqual((await iface.get('stream', 'series', 'nflx:inconnu:1:1')).streams, []);
@@ -118,10 +107,21 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const vfStreams = (await iface.get('stream', 'series', 'nflx:81944880:1:1')).streams;
   assert.equal(vfStreams.length, 2); assert.equal(vfStreams[0].ytId, 'abcDEF12345'); assert.ok(vfStreams[1].url);
   assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams[0].ytId, 'abcDEF12345');
-  assert.ok(iface.manifest.catalogs.some((c) => c.id === 'netflix-vf-series'));
-  const vfCat = await iface.get('catalog', 'series', 'netflix-vf-series', {});
-  assert.deepEqual(vfCat.metas.map((m) => m.id), ['nflx:81944880']);                // seuls les titres avec VF
-  assert.equal((await iface.get('catalog', 'movie', 'netflix-vf-movies', {})).metas.length, 0);
+  // Flux via l'ID IMDb : n'importe quelle fiche Stremio (film, série, épisode) dont l'IMDb est stocké
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', imdb_id: 'tt9999999' });
+  const streamsImdb = (await iface.get('stream', 'series', 'tt9999999:1:2')).streams;
+  assert.equal(streamsImdb.length, 2); assert.equal(streamsImdb[0].ytId, 'abcDEF12345');
+  assert.deepEqual((await iface.get('stream', 'movie', 'tt0000001')).streams, []);   // IMDb inconnu
+  assert.deepEqual((await iface.get('stream', 'movie', 'kitsu:1')).streams, []);       // ID non géré
+  // Apple TV : flux HLS ajoutés en dernier, jamais relayés
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.m3u8', source: 'appletv' }], appletv_checked: Date.now() });
+  const withApple = (await iface.get('stream', 'series', 'tt9999999')).streams;
+  assert.equal(withApple.length, 3); assert.equal(withApple[2].name, 'Apple TV'); assert.equal(withApple[2].url, 'https://apple.test/a.m3u8');
+  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, 'https://apple.test/a.m3u8');
+  assert.equal(store.listAppletvPending().some((r) => r.id === 'nflx:81944880'), false);
+  const ap = require('../src/appletv');
+  assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] }), []);   // DRM FairPlay ignoré
+  assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/t.m3u8?a=1&amp;id=5' }] })[0].url, 'https://x/t.m3u8?a=1&id=5');
   const hv = require('../src/harvest');
   assert.deepEqual(hv.countryList('fr, us;gb  CA fr'), ['FR', 'US', 'GB', 'CA']);   // dédoublonné, majuscules
   assert.deepEqual(hv.countryList('xx1,'), ['FR']);                                   // invalide → repli
@@ -174,8 +174,12 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal((await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'mauvais' } })).status, 401);
   const summary = await (await fetch(`${base}/admin/api/summary`, { headers: { 'x-admin-token': 'test-token' } })).json();
   assert.ok(summary.stats.total >= 1); assert.ok(summary.stats.movies >= 1);
-  assert.equal(summary.stats.recent.days > 0, true);
-  assert.ok(summary.stats.unlinked >= 2); assert.ok(typeof summary.stats.withImdb === 'number');
+  assert.ok(typeof summary.stats.withTrailer === 'number'); assert.ok(summary.stats.withNetflixTrailer >= 1);
+  assert.ok(summary.addon && typeof summary.addon.appletv === 'boolean');
+  const titles = await (await fetch(`${base}/admin/api/titles?filter=vf`, { headers: { 'x-admin-token': 'test-token' } })).json();
+  assert.ok(titles.total >= 1); assert.equal(titles.rows[0].vf, true);
+  assert.equal((await fetch(`${base}/admin/api/appletv`, { headers: { 'x-admin-token': 'test-token' } })).status, 200);
+  assert.ok(typeof summary.stats.unlinked === 'number'); assert.ok(typeof summary.stats.withImdb === 'number');
   const items = summary.settings.flatMap((g) => g.items);
   assert.ok(summary.settings.some((g) => g.title === 'Sécurité'));
   const adminItem = items.find((i) => i.key === 'ADMIN_TOKEN');
@@ -190,13 +194,13 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   let sum = await (await fetch(`${base}/admin/api/summary`, { headers: auth })).json();
   let item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
   assert.equal(item.value, '30'); assert.equal(item.source, 'dashboard');
-  assert.equal(sum.stats.recent.days, 30);                                           // effet immédiat
+  assert.equal(require('../src/config').recentDays, 30);                             // effet immédiat
   assert.equal((await post({ values: { RECENT_DAYS: 'abc' } })).status, 400);         // nombre invalide
   assert.equal((await post({ values: { INCONNU: 'x' } })).status, 400);               // clé inconnue
   assert.equal((await post({ values: { RECENT_DAYS: null } })).status, 200);          // retour au .env
   sum = await (await fetch(`${base}/admin/api/summary`, { headers: auth })).json();
   item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
-  assert.equal(item.source, 'default'); assert.equal(sum.stats.recent.days, 90);
+  assert.equal(item.source, 'default'); assert.equal(require('../src/config').recentDays, 90);
   assert.equal((await post({ values: { ADMIN_TOKEN: null } })).status, 200);          // secours .env présent
 
   // API de fédération : clé API, lookup IMDb/TMDB, statut
