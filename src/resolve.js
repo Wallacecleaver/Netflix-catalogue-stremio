@@ -14,7 +14,9 @@ const { ingestNetflix } = require('./enrich');
 const HIT_TTL = 30 * 24 * 3600 * 1000;    // titre résolu : on ne recherche plus avant 30 j
 const MISS_TTL = 7 * 24 * 3600 * 1000;    // rien trouvé : nouvelle tentative au bout de 7 j
 const TOTAL_TIMEOUT = 15000;              // Stremio n'attend pas indéfiniment : au-delà, la recherche continue en arrière-plan
+const MAX_PER_MIN = 20;                    // garde-fou : l'API publique ne doit pas pouvoir déclencher des centaines de recherches web
 const inflight = new Map();
+let starts = [];
 let ddgBlockedUntil = 0;
 let queue = Promise.resolve();
 let lastAt = 0;
@@ -82,18 +84,33 @@ async function work(imdb, type, existing) {
   return row;
 }
 
-/** Renvoie la fiche (créée / complétée si besoin) pour un ID IMDb. N'échoue jamais : au pire, renvoie `existing`. */
-async function ensure(imdb, type, existing) {
+function allowStart() {
+  const now = Date.now();
+  starts = starts.filter((t) => now - t < 60000);
+  if (starts.length >= MAX_PER_MIN) return false;
+  starts.push(now);
+  return true;
+}
+
+/** Une recherche est-elle en cours pour cet IMDb ? (l'API le signale à l'appelant : « réessaie dans quelques secondes ») */
+const isPending = (imdb) => inflight.has(imdb);
+
+/**
+ * Renvoie la fiche (créée / complétée si besoin) pour un ID IMDb. N'échoue jamais : au pire, renvoie `existing`.
+ * `timeoutMs` : durée maximale d'attente de l'appelant ; la recherche, elle, continue en arrière-plan.
+ */
+async function ensure(imdb, type, existing, { timeoutMs = TOTAL_TIMEOUT } = {}) {
   if (!config.resolveEnabled || !config.tmdbKey || !/^tt\d+$/.test(String(imdb))) return existing;
   if (existing && (existing.trailers.length || existing.appletv.length)) return existing;      // déjà une bande-annonce Netflix / Apple TV
   const chk = store.getLookup(imdb);
   if (chk && Date.now() - chk.checked_at < (chk.found ? HIT_TTL : MISS_TTL)) return existing;
   if (!inflight.has(imdb)) {
+    if (!allowStart()) { log.warn('resolve', `Limite de ${MAX_PER_MIN} recherches/minute atteinte : ${imdb} sera cherché plus tard`); return existing; }
     inflight.set(imdb, work(imdb, type, existing).catch((e) => { log.warn('resolve', `${imdb} : ${e.message}`); return existing; })
       .finally(() => inflight.delete(imdb)));
   }
-  const res = await Promise.race([inflight.get(imdb), sleep(TOTAL_TIMEOUT).then(() => undefined)]);
+  const res = await Promise.race([inflight.get(imdb), sleep(timeoutMs).then(() => undefined)]);
   return res === undefined ? (store.findByImdbId(imdb) || existing) : res;     // délai dépassé : la recherche finit en arrière-plan
 }
 
-module.exports = { ensure, findNetflix };
+module.exports = { ensure, isPending, findNetflix };

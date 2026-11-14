@@ -179,6 +179,8 @@ Quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) que l'addon ne conn
 4. **Apple TV** : recherche par titre.
 Chaque titre n'est cherché qu'une fois (cache SQLite : 30 jours si trouvé, 7 jours sinon). DuckDuckGo est interrogé au plus une fois par seconde et mis en pause 10 min s'il bloque.
 Si la recherche dépasse 15 s, elle continue en arrière-plan : la bande-annonce apparaîtra à la prochaine ouverture de la fiche.
+La même résolution est déclenchée par l'API `GET /api/trailers?imdb=tt…&type=movie|series` (utilisée par vf-trailer-wallace) : attente de 5 s au plus,
+puis `pending: true` dans la réponse si la recherche continue en arrière-plan. Garde-fou : 20 nouvelles recherches par minute au maximum.
 Nécessite `TMDB_API_KEY` ; `RESOLVE_ENABLED=0` désactive. Code : `src/resolve.js`. Les onglets Recherche / Titres du dashboard restent utiles pour ajouter ou vérifier à la main.
 
 ## Bandes-annonces Apple TV

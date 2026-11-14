@@ -236,6 +236,14 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const apiKey = { 'x-api-key': 'test-api-key' };
   assert.equal((await fetch(`${base}/api/trailers?imdb=tt7777777`)).status, 401);
   assert.equal((await fetch(`${base}/api/trailers?imdb=tt7777777`, { headers: { 'x-api-key': 'mauvaise' } })).status, 401);
+  // /api/trailers : titre inconnu → résolution à la demande (c'est ce qu'appelle vf-trailer-wallace)
+  cfgR.tmdbKey = 'test';
+  tmdbMod.findByImdb = async () => ({ tmdbType: 'tv', tmdbId: 9, type: 'series', name: 'Trouble échange', originalName: 'Utbyte', year: 2026, release_date: '2026-10-30' });
+  searchMod.netflix = async () => [{ id: '81944997', title: 'Trouble échange' }];
+  const viaApi = await (await fetch(`${base}/api/trailers?imdb=tt5550003&type=series`, { headers: apiKey })).json();
+  assert.equal(viaApi.found, true); assert.equal(viaApi.pending, false);
+  assert.ok(/\/trailer\/81944997\/0\.mp4$/.test(viaApi.trailers[0].url)); assert.equal(viaApi.title.imdb_id, 'tt5550003');
+  cfgR.tmdbKey = oldTmdbKey;
   assert.equal((await fetch(`${base}/api/trailers`)).status, 401);
   const byImdb = await (await fetch(`${base}/api/trailers?imdb=tt7777777`, { headers: apiKey })).json();
   assert.equal(byImdb.found, true); assert.equal(byImdb.title.netflix_id, '77777777');

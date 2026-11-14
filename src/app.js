@@ -14,6 +14,7 @@ const link = require('./link');
 const harvest = require('./harvest');
 const vf = require('./vf');
 const search = require('./search');
+const resolve = require('./resolve');
 const appletv = require('./appletv');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
@@ -249,7 +250,7 @@ app.get('/api/status', apiAuth, (_req, res) => {
   res.json({ ok: true, version: manifest.version, stats: store.stats() });
 });
 
-app.get('/api/trailers', apiAuth, (req, res) => {
+app.get('/api/trailers', apiAuth, async (req, res) => {
   res.set('cache-control', 'no-store');
   const imdb = String(req.query.imdb || '').trim();
   const tmdb = String(req.query.tmdb || '').trim();
@@ -258,11 +259,16 @@ app.get('/api/trailers', apiAuth, (req, res) => {
   if (!imdb && !tmdb && !netflix) {
     return res.status(400).json({ error: 'paramètre imdb, tmdb ou netflix requis' });
   }
-  const row = federation.lookup({ imdb, tmdb, type, netflix });
-  if (!row) return res.json({ found: false, trailers: [] });
+  let row = federation.lookup({ imdb, tmdb, type, netflix });
+  // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
+  // Attente bornée à 5 s (le client vf-trailer-wallace abandonne à 6 s) ; au-delà, `pending: true` et la recherche continue.
+  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 5000 })) || row;
+  const pending = !!imdb && resolve.isPending(imdb);
+  if (!row) return res.json({ found: false, pending, trailers: [] });
   const trailers = federation.trailerUrls(row);
   res.json({
     found: trailers.length > 0,
+    pending: pending && !trailers.length,
     title: {
       id: row.id, name: row.name, type: row.type, year: row.year,
       netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
