@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "add": "node scripts/add.js",
     "inspect": "node scripts/inspect.js",
+    "inspect-appletv": "node scripts/inspect-appletv.js",
     "sync": "node scripts/sync.js",
     "netflix-ids": "node scripts/netflix-ids.js",
     "harvest": "node scripts/harvest-all.js",

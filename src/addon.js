@@ -3,6 +3,7 @@ const config = require('./config');
 const store = require('./db');
 const log = require('./log');
 const federation = require('./federation');
+const appletv = require('./appletv');
 const { enrichTitle } = require('./enrich');
 
 const GENRES = ['Action', 'Animation', 'Aventure', 'Comédie', 'Crime', 'Documentaire', 'Drame', 'Familial', 'Fantastique',
@@ -67,6 +68,7 @@ function buildMeta(row, eps) {
   const trailerStreams = [
     ...(row.vf_trailer ? [{ title: 'Bande-annonce VF', ytId: row.vf_trailer }] : []),
     ...federation.trailerUrls(row).map(({ title, url }) => ({ title, url })),
+    ...appletv.urls(row),
   ];
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
   if (row.type === 'series') {
@@ -91,6 +93,7 @@ builder.defineMetaHandler(async ({ id }) => {
     catch (e) { log.warn('enrich', `${id} : ${e.message}`); console.warn('[enrich]', id, e.message); }
   }
   row = await federation.ensureUpstreamTrailers(row);
+  row = await appletv.ensure(row);
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });
 
@@ -103,6 +106,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
   let row = store.getTitle(baseId(id));
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);
+  row = await appletv.ensure(row);
   const isEpisode = type === 'series' && String(id).split(':').length > 2;
   const suffix = isEpisode ? ' (série)' : '';
   const streams = [];
@@ -113,6 +117,12 @@ builder.defineStreamHandler(async ({ type, id }) => {
       title: `▶ ${t.title}${suffix}`,
       url: t.url,
       behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id || row.id}` },
+    });
+  }
+  for (const t of appletv.urls(row)) {
+    streams.push({
+      name: 'Apple TV', title: `▶ ${t.title}${suffix}`, url: t.url,
+      behaviorHints: { notWebReady: true, bingeGroup: `appletv-trailer-${row.id}` },   // flux HLS (.m3u8)
     });
   }
   return { streams, cacheMaxAge: 60 };

@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC);
 `);
 
-for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER']) {
+for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER', 'appletv_json TEXT', 'appletv_checked INTEGER']) {
   try { db.exec(`ALTER TABLE titles ADD COLUMN ${col}`); } catch { /* déjà présente */ }
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
@@ -70,7 +70,7 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
 // vf_trailer = clé YouTube de la bande-annonce en français (TMDB) ; vf_checked = date de la dernière vérification.
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
   'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json',
-  'vf_trailer', 'vf_checked'];
+  'vf_trailer', 'vf_checked', 'appletv_json', 'appletv_checked'];
 
 const upsertSql = db.prepare(`
 INSERT INTO titles (id, ${FIELDS.join(',')}, enriched, added_at, updated_at)
@@ -88,6 +88,7 @@ function upsertTitle(t) {
     if (k === 'genres') row.genres_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'cast') row.cast_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'extra') row.extra_json = v ? JSON.stringify(v) : null;
+    else if (k === 'appletv') row.appletv_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'trailers') row.trailers_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (FIELDS.includes(k)) row[k] = v === undefined ? null : v;
   }
@@ -95,7 +96,7 @@ function upsertTitle(t) {
 }
 
 const parse = (r) => r && ({ ...r, genres: JSON.parse(r.genres_json || '[]'), cast: JSON.parse(r.cast_json || '[]'),
-  extra: JSON.parse(r.extra_json || '{}'), trailers: JSON.parse(r.trailers_json || '[]') });
+  extra: JSON.parse(r.extra_json || '{}'), trailers: JSON.parse(r.trailers_json || '[]'), appletv: JSON.parse(r.appletv_json || '[]') });
 
 const getTitle = (id) => parse(db.prepare('SELECT * FROM titles WHERE id = ?').get(id));
 const getEpisodes = (id) => db.prepare('SELECT * FROM episodes WHERE title_id = ? ORDER BY season, episode').all(id);

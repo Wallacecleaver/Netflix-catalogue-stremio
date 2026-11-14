@@ -18,5 +18,12 @@ module.exports = {
   recentDays: num(process.env.RECENT_DAYS, 90),
   recentPages: num(process.env.RECENT_PAGES, 3),
   // Pays dont on moissonne le catalogue Netflix (l'ID Netflix est le même partout : on fait l'union, dédoublonnée).
+  // Bandes-annonces Apple TV (API web non documentée ; sf 143442 = France).
+  appletvEnabled: process.env.APPLETV_ENABLED !== '0',
+  appletvStorefront: num(process.env.APPLETV_STOREFRONT, 143442),
+  appletvLocale: process.env.APPLETV_LOCALE || 'fr-FR',
+  appletvCountry: (process.env.APPLETV_COUNTRY || 'fr').toLowerCase(),
+  appletvApiVersion: num(process.env.APPLETV_API_VERSION, 58),
+  appletvTimeoutMs: num(process.env.APPLETV_TIMEOUT_MS, 6000),
   harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
 };
