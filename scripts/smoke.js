@@ -119,6 +119,13 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(withApple.length, 3); assert.equal(withApple[2].name, 'Apple TV'); assert.equal(withApple[2].url, 'https://apple.test/a.m3u8');
   assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, 'https://apple.test/a.m3u8');
   assert.equal(store.listAppletvPending().some((r) => r.id === 'nflx:81944880'), false);
+  const ddg = require('../src/search').parse(`<div class="result"><h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.netflix.com%2Ffr%2Ftitle%2F81944880&amp;rut=x">Watch Trouble échange | Netflix Official Site</a></h2><a class="result__snippet" href="x">Un échange de maisons &amp; <b>plus</b></a></div>
+    <div class="result"><a rel="nofollow" class="result__a" href="https://www.netflix.com/title/81727408">Autre &#x27;série&#x27;</a></div>
+    <div class="result"><a rel="nofollow" class="result__a" href="https://www.netflix.com/fr/title/81944880">Doublon</a></div>`);
+  assert.deepEqual(ddg.map((r) => r.id), ['81944880', '81727408']);                      // dédoublonné
+  assert.equal(ddg[0].title, 'Trouble échange'); assert.equal(ddg[0].snippet, 'Un échange de maisons & plus'); assert.equal(ddg[1].title, "Autre 'série'");
+  assert.deepEqual(require('../src/search').parse('x netflix.com%2Ftitle%2F123 y').map((r) => r.id), ['123']);   // repli : IDs seuls
+  assert.equal(store.findByName('TROUBLE ÉCHANGE'.toLowerCase().replace('é', 'é'), 'series')?.id, 'nflx:81944880');   // insensible à la casse
   const ap = require('../src/appletv');
   assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] }), []);   // DRM FairPlay ignoré
   assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/t.m3u8?a=1&amp;id=5' }] })[0].url, 'https://x/t.m3u8?a=1&id=5');

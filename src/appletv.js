@@ -113,6 +113,19 @@ async function lookupTrailers(row) {
   return (await fetchTrailers(match)).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId: match.id }));
 }
 
+/** Rattache la bande-annonce d'un titre Apple TV choisi à la main : à la fiche du même nom si elle existe, sinon nouvelle fiche `apple:<id>`. */
+async function attach({ appleId, type, name, year }) {
+  if (!/^umc\.cmc\.[a-z0-9]+$/i.test(String(appleId || ''))) throw new Error('ID Apple TV invalide');
+  const kind = type === 'series' ? 'series' : 'movie';
+  const trailers = (await fetchTrailers({ id: appleId, type: kind })).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId }));
+  if (!trailers.length) throw new Error('Aucune bande-annonce lisible sur la page Apple TV de ce titre');
+  const row = store.findByName(name, kind);
+  const id = row ? row.id : `apple:${appleId}`;
+  store.upsertTitle({ id, type: kind, name: row ? row.name : name, year: row?.year || year || null, appletv: trailers, appletv_checked: Date.now() });
+  log.info('appletv', `Bande-annonce Apple TV ajoutée à la main : ${name}`, { id });
+  return store.getTitle(id);
+}
+
 /** Si la fiche n'a pas encore été vérifiée (ou TTL dépassé), cherche les trailers Apple TV. Ne bloque jamais la fiche en cas d'erreur. */
 async function ensure(row) {
   if (!row || !config.appletvEnabled || !row.name) return row;
@@ -178,4 +191,4 @@ const stop = () => { job.stopRequested = true; return status(); };
 
 const urls = (row) => (Array.isArray(row?.appletv) ? row.appletv : []).filter((t) => t && t.url).map((t) => ({ title: t.title ? `Apple TV — ${t.title}` : 'Bande-annonce Apple TV', url: t.url }));
 
-module.exports = { ensure, urls, start, stop, status, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };
+module.exports = { ensure, attach, urls, start, stop, status, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };

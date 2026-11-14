@@ -31,7 +31,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
 <header class="top"><div class="in"><div class="logo">W</div><div><h1>W stockage bande annonce</h1><div class="muted"><span id="version">v—</span> · bandes-annonces VF, Netflix, Apple TV</div></div><div class="sp"></div>
 <a class="btn" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a><button id="logout" class="btn" type="button">Déconnexion</button></div></header>
 <div class="wrap">
-<nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
+<nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="search">Recherche</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
 
 <section id="tab-home">
   <div id="kpis" class="grid g5"></div>
@@ -49,6 +49,12 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
     <div class="card"><h2>Ajouter un titre</h2><p class="muted" style="margin:0 0 10px">Colle une URL <code>netflix.com/…/title/&lt;id&gt;</code> ou l'ID.</p><div style="display:flex;gap:8px"><input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880"><button id="add-btn" class="btn primary" type="button">Ajouter</button></div></div>
     <div class="card"><h2>Synchronisation TMDB</h2><p class="muted" style="margin:0 0 10px">Récupère les titres Netflix de la région puis lance le liage des IDs.</p><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div>
   </div>
+</section>
+
+<section id="tab-search" class="hidden">
+  <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:0 0 10px">Tape un titre : les liens Netflix et Apple TV trouvés s'affichent. Vérifie que c'est le bon, puis clique sur « Ajouter » pour stocker sa bande-annonce.</p>
+    <div style="display:flex;gap:8px"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
+  <div id="s-res" class="grid g2" style="margin-top:12px"></div>
 </section>
 
 <section id="tab-titles" class="hidden">
@@ -220,12 +226,37 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
   $('log-search').addEventListener('input', function () { clearTimeout(tTimer); tTimer = setTimeout(loadLogs, 300); });
   $('log-clear').addEventListener('click', function () { api('/admin/api/logs/clear', {}).then(function () { toast('Journal effacé'); loadLogs(); }).catch(fail); });
 
+  /* ---- Recherche ---- */
+  var lastApple = [];
+  function sBtn(stored, attr, i) { return stored ? '<button class="btn" disabled>Stocké ✓</button>' : '<button class="btn primary" ' + attr + '="' + i + '" type="button">Ajouter</button>'; }
+  function renderSearch(d) {
+    lastApple = d.apple;
+    var nf = d.netflixError ? '<p class="muted">' + esc(d.netflixError) + '</p>' : d.netflix.length ? d.netflix.map(function (r, i) {
+      return '<div class="flux"><div class="t"><b>' + esc(r.title || 'Titre Netflix ' + r.id) + '</b><div class="muted">' + esc(r.snippet) + '</div><a class="muted" href="' + esc(r.url) + '" target="_blank" rel="noreferrer">netflix.com/title/' + r.id + ' ↗</a></div>' + sBtn(r.stored, 'data-nf', r.id) + '</div>'; }).join('') : '<p class="muted">Aucun lien Netflix trouvé.</p>';
+    var ap = d.appleError ? '<p class="muted">' + esc(d.appleError) + '</p>' : d.apple.length ? d.apple.map(function (r, i) {
+      return '<div class="flux"><div class="t"><b>' + esc(r.title) + '</b><div class="muted">' + (r.type === 'series' ? 'Série' : 'Film') + (r.year ? ' · ' + r.year : '') + '</div></div>' + sBtn(r.stored, 'data-ap', i) + '</div>'; }).join('') : '<p class="muted">Rien sur Apple TV (son catalogue se limite à Apple Originals et chaînes).</p>';
+    $('s-res').innerHTML = '<div class="card"><h2><span class="badge b-nf">Netflix</span> Liens trouvés</h2>' + nf + '</div><div class="card"><h2><span class="badge b-ap">Apple TV</span> Résultats</h2>' + ap + '</div>';
+  }
+  function doSearch() {
+    var q = $('s-q').value.trim(); if (q.length < 2) return; $('s-go').disabled = true; $('s-res').innerHTML = '<p class="muted">Recherche…</p>';
+    api('/admin/api/search?q=' + encodeURIComponent(q)).then(renderSearch).catch(function (e) { $('s-res').innerHTML = ''; fail(e); }).then(function () { $('s-go').disabled = false; });
+  }
+  $('s-go').addEventListener('click', doSearch);
+  $('s-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
+  $('s-res').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-nf],button[data-ap]'); if (!b) return; b.disabled = true; b.textContent = 'Ajout…';
+    var req = b.dataset.nf ? api('/admin/add', { id: b.dataset.nf }) : api('/admin/api/search/apple', lastApple[+b.dataset.ap]);
+    req.then(function (r) { toast('Ajouté : ' + (r.name || 'titre')); b.textContent = 'Stocké ✓'; refresh(); })
+      .catch(function (err) { b.disabled = false; b.textContent = 'Ajouter'; fail(err); });
+  });
+
   /* ---- Onglets, session ---- */
   function showTab(n) {
     tab = n; clearInterval(logTimer); clearTimeout(jobTimer);
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) { b.classList.toggle('active', b.dataset.tab === n); });
-    ['home', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
+    ['home', 'search', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
     if (n === 'home') { jobTimer = null; pollJobs(); }
+    if (n === 'search') setTimeout(function () { $('s-q').focus(); }, 50);
     if (n === 'titles') loadTitles(false);
     if (n === 'journal') { loadLogs(); logTimer = setInterval(loadLogs, 4000); }
   }

@@ -13,6 +13,7 @@ const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
 const harvest = require('./harvest');
 const vf = require('./vf');
+const search = require('./search');
 const appletv = require('./appletv');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
@@ -174,6 +175,37 @@ app.post('/admin/appletv/stop', auth, (_req, res) => {
   const st = appletv.stop();
   log.warn('appletv', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
+});
+// Recherche manuelle : liens Netflix (DuckDuckGo) + titres Apple TV. Chaque source échoue indépendamment des autres.
+const normName = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+app.get('/admin/api/search', auth, async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.status(400).json({ error: 'Saisis au moins 2 caractères' });
+  const [nf, ap] = await Promise.allSettled([search.netflix(q), appletv.search(q)]);
+  const want = normName(q);
+  const apple = ap.status === 'fulfilled'
+    ? ap.value.map((r) => ({ ...r, score: normName(r.title) === want ? 2 : normName(r.title).includes(want) ? 1 : 0 }))
+        .sort((a, b) => b.score - a.score).slice(0, 6).map((r) => ({ ...r, stored: !!(store.findByName(r.title, r.type)?.appletv || []).length }))
+    : [];
+  if (nf.status === 'rejected') log.warn('search', `Netflix : ${nf.reason.message}`);
+  if (ap.status === 'rejected') log.warn('search', `Apple TV : ${ap.reason.message}`);
+  res.json({
+    netflix: nf.status === 'fulfilled' ? nf.value.map((r) => ({ ...r, stored: !!store.findByNetflixId(r.id) })) : [],
+    netflixError: nf.status === 'rejected' ? nf.reason.message : null,
+    apple, appleError: ap.status === 'rejected' ? ap.reason.message : null,
+  });
+});
+app.post('/admin/api/search/apple', auth, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const row = await appletv.attach({ appleId: b.id, type: b.type, name: String(b.title || '').slice(0, 200), year: Number(b.year) || null });
+    if (!row.imdb_id && config.tmdbKey) { try { await vf.checkOne(row); } catch (e) { log.warn('search', `TMDB : ${e.message}`); } }   // IMDb + VF pour qu'il apparaisse sur les fiches Stremio
+    res.json({ id: row.id, name: row.name, trailers: row.appletv.length });
+  } catch (e) {
+    log.error('appletv', `Ajout manuel échoué : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
 });
 // Titres stockés + bandes-annonces disponibles par source (onglet « Titres »).
 app.get('/admin/api/titles', auth, (req, res) => {
