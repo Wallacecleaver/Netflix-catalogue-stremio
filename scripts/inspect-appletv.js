@@ -9,5 +9,5 @@ const { search, pickMatch, fetchTrailers } = require('../src/appletv');
   console.log('Résultats :', items);
   const match = pickMatch(items, { name, type });
   console.log('Retenu :', match);
-  if (match) console.log('Trailers :', await fetchTrailers(match));
+  if (match) console.log('Trailers (tous ceux trouvés ; seuls les premiers sont gardés par l\'addon) :', await fetchTrailers(match, true));
 })().catch((e) => { console.error(e.message); process.exit(1); });

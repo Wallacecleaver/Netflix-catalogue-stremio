@@ -66,35 +66,49 @@ function pickMatch(items, row) {
   return c[0] || null;
 }
 
-/** Extrait les flux .m3u8 marqués trailer/preview/bande-annonce d'un JSON (page ou API). */
-function extractTrailers(json) {
+const decode = (u) => u.replace(/&amp;/g, '&');
+const mediaKey = (u) => { try { return new URL(u).searchParams.get('id') || u; } catch { return u; } };
+
+/** Extrait les flux .m3u8 marqués trailer/preview/bande-annonce d'un JSON (page ou API). Dédoublonne par id de média. */
+function extractTrailers(json, debug = false) {
   const out = [];
   const isM3u8 = (v) => typeof v === 'string' && /^https?:\/\/\S+\.m3u8(\?\S*)?$/i.test(v);
   walk(json, (o, parent) => {
-    const url = Object.values(o).find(isM3u8);
-    if (!url || out.some((t) => t.url === url)) return;
+    const raw = Object.values(o).find(isM3u8);
+    if (!raw) return;
+    const url = decode(raw);
+    if (out.some((t) => mediaKey(t.url) === mediaKey(url))) return;
     const label = [o.type, o.kind, o.contentType, o.assetType, o.title, o.name].filter((x) => typeof x === 'string').join(' ');
     const ctx = label + ' ' + (parent && !Array.isArray(parent) ? [parent.type, parent.kind, parent.contentType].filter((x) => typeof x === 'string').join(' ') : '');
     if (!/trailer|preview|teaser|bande[- ]?annonce/i.test(ctx)) return;
-    out.push({ title: (typeof o.title === 'string' && o.title) || (typeof o.name === 'string' && o.name) || 'Bande-annonce', url });
+    out.push({ title: (typeof o.title === 'string' && o.title) || (typeof o.name === 'string' && o.name) || 'Bande-annonce', url, ...(debug ? { ctx: ctx.trim() } : {}) });
   });
   return out;
 }
 
 /** Page tv.apple.com/<pays>/<movie|show>/<id> : JSON embarqué (serialized-server-data) puis, à défaut, flux .m3u8 repérés dans le HTML. */
-async function fetchTrailers(match) {
+async function fetchTrailers(match, debug = false) {
   const kind = match.type === 'series' ? 'show' : 'movie';
   const html = await http(`https://tv.apple.com/${config.appletvCountry}/${kind}/${match.id}`, 'text/html');
   const m = html.match(/<script[^>]*id="serialized-server-data"[^>]*>([\s\S]*?)<\/script>/);
-  if (m) { try { const t = extractTrailers(JSON.parse(m[1])); if (t.length) return t; } catch { /* JSON illisible : repli ci-dessous */ } }
-  return extractTrailers(JSON.parse(`{"a":${JSON.stringify([...new Set(html.match(/https?:\/\/[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*/g) || [])].map((u) => ({ type: 'trailer', url: u })))}}`));
+  if (m) { try { const t = extractTrailers(JSON.parse(m[1]), debug); if (t.length) return t; } catch { /* JSON illisible : repli ci-dessous */ } }
+  // Repli : tous les .m3u8 du HTML, dans l'ordre d'apparition (le premier est en général celui de la vedette de la page).
+  const out = [];
+  const re = /https?:\/\/[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*/g;
+  let r;
+  while ((r = re.exec(html))) {
+    const url = decode(r[0]);
+    if (out.some((t) => mediaKey(t.url) === mediaKey(url))) continue;
+    out.push({ title: 'Bande-annonce', url, ...(debug ? { ctx: html.slice(Math.max(0, r.index - 160), r.index).replace(/\s+/g, ' ') } : {}) });
+  }
+  return out;
 }
 
 async function lookupTrailers(row) {
   const items = await search(row.name);
   const match = pickMatch(items, row);
   if (!match) return [];
-  return (await fetchTrailers(match)).map((t) => ({ ...t, source: 'appletv', appleId: match.id }));
+  return (await fetchTrailers(match)).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId: match.id }));
 }
 
 /** Si la fiche n'a pas encore été vérifiée (ou TTL dépassé), cherche les trailers Apple TV. Ne bloque jamais la fiche en cas d'erreur. */

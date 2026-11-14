@@ -27,6 +27,7 @@ module.exports = {
   // Paramètres du client web tv.apple.com (relevés dans le trafic du site ; Apple peut les faire évoluer).
   appletvUtscf: process.env.APPLETV_UTSCF || 'OjAAAAEAAAAAAAAAEAAAACMA',
   appletvUtsk: process.env.APPLETV_UTSK || '6e3013c6d6fae3c2::::::235656c069bb0efb',
+  appletvMaxTrailers: num(process.env.APPLETV_MAX_TRAILERS, 2),
   appletvTimeoutMs: num(process.env.APPLETV_TIMEOUT_MS, 6000),
   harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
 };
