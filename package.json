@@ -10,6 +10,8 @@
     "inspect": "node scripts/inspect.js",
     "sync": "node scripts/sync.js",
     "netflix-ids": "node scripts/netflix-ids.js",
+    "harvest": "node scripts/harvest-all.js",
+    "harvest:recent": "node scripts/harvest-all.js --recent",
     "test": "node scripts/smoke.js",
     "seed": "node scripts/seed.js"
   },

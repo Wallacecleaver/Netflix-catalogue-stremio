@@ -70,6 +70,21 @@ Chaque titre est stocké avec `netflix_id`, `name`, `tmdb_id`, `tmdb_type`, `imd
 Export JSON depuis le dashboard (**Exporter les IDs**) ; le relais `/trailer/<id>/...` recherche la fiche par `netflix_id`
 (et non par ID Stremio), donc les fiches venues des catalogues TMDB diffusent aussi la bande-annonce Netflix.
 
+## Moissonnage complet des IDs Netflix
+`npm run harvest` liste **tout** le catalogue Netflix de la région `REGION` (films + séries) via les offres JustWatch :
+l'ID Netflix est lu directement dans l'URL de l'offre, sans appariement par nom. Le catalogue est découpé par type et par année
+de sortie (plus de limite de pagination), puis chaque titre est enregistré (nouvelle fiche, ou lié à la fiche TMDB existante).
+```bash
+npm run harvest                          # tout le catalogue
+npm run harvest:recent                   # dernières sorties (année précédente, en cours et suivante)
+npm run harvest -- --from 2020 --to 2026 # plage d'années
+npm run harvest -- --type series         # movie | series
+npm run harvest -- --dry                 # ne touche pas à la base, exporte seulement
+```
+Sortie : `data/netflix-ids.json` et `data/netflix-ids.csv` (`netflix_id, name, type, year, tmdb_id, imdb_id`).
+Ensuite `npm run netflix-ids` complète TMDB/IMDb, bandes-annonces et épisodes. Pour garder les « Dernières sorties » à jour,
+planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.
+
 ## Journal d'événements
 Un journal persistant capture les actions clés (liage, synchronisation, erreurs de bande-annonce, etc.).
 - Accessible depuis le dashboard via l'onglet **Journal**.

@@ -102,4 +102,84 @@ function pickBest(candidates, { name, year, type } = {}) {
   return tied.length ? null : best;
 }
 
-module.exports = { searchNetflix, pickBest, netflixIdOf };
+// ---- Moissonnage du catalogue Netflix complet (pagination par curseur) ----
+const CATALOG_FIELDS = (withIds) => `
+      objectId objectType
+      content(country: $country, language: $language) {
+        title originalTitle originalReleaseYear originalReleaseDate
+        ${withIds ? 'externalIds { imdbId tmdbId }' : ''}
+      }
+      offers(country: $country, platform: WEB) { standardWebURL package { shortName clearName } }`;
+
+const catalogQuery = (withIds) => `query GetNetflixCatalog($country: Country!, $language: Language!, $first: Int!, $after: String, $filter: TitleFilter) {
+  popularTitles(country: $country, first: $first, after: $after, filter: $filter, sortBy: RELEASE_YEAR) {
+    totalCount
+    pageInfo { endCursor hasNextPage }
+    edges { node { ... on MovieOrShow { ${CATALOG_FIELDS(withIds)} } } }
+  }
+}`;
+
+let useExternalIds = true;   // désactivé automatiquement si le schéma JustWatch change
+
+async function gql(query, variables) {
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json', 'user-agent': UA },
+    body: JSON.stringify({ operationName: 'GetNetflixCatalog', variables, query }),
+  });
+  if (res.status === 429) { const e = new Error('JustWatch 429'); e.rateLimited = true; throw e; }
+  if (!res.ok) throw new Error(`JustWatch ${res.status}`);
+  const data = await res.json();
+  if (Array.isArray(data.errors) && data.errors.length && !data?.data?.popularTitles) {
+    throw new Error(`JustWatch : ${data.errors[0].message}`);
+  }
+  return data;
+}
+
+/**
+ * Une page du catalogue Netflix d'un pays, filtrée par type (MOVIE | SHOW) et plage d'années.
+ * Renvoie { items, endCursor, hasNext, total } ; chaque item contient l'ID Netflix extrait de l'offre.
+ */
+async function listNetflixPage({ country = config.region, language = String(config.lang || 'fr-FR').slice(0, 2),
+  objectType, minYear, maxYear, after = null, first = 100 } = {}) {
+  const filter = { packages: ['nfx'] };
+  if (objectType) filter.objectTypes = [objectType];
+  if (minYear || maxYear) filter.releaseYear = { ...(minYear ? { min: minYear } : {}), ...(maxYear ? { max: maxYear } : {}) };
+  const variables = { country, language, first, after, filter };
+
+  let data;
+  try { data = await gql(catalogQuery(useExternalIds), variables); }
+  catch (e) {
+    if (e.rateLimited || !useExternalIds) throw e;
+    useExternalIds = false;                       // on retente sans externalIds (TMDB/IMDb) au cas où le champ n'existe plus
+    data = await gql(catalogQuery(false), variables);
+  }
+
+  const conn = data?.data?.popularTitles;
+  const items = [];
+  for (const edge of conn?.edges || []) {
+    const node = edge?.node;
+    if (!node) continue;
+    const offer = (node.offers || []).find((o) =>
+      (o?.package?.shortName === 'nfx' || /netflix/i.test(o?.package?.clearName || '')) && netflixIdOf(o.standardWebURL));
+    if (!offer) continue;
+    items.push({
+      netflixId: netflixIdOf(offer.standardWebURL),
+      type: node.objectType === 'MOVIE' ? 'movie' : 'series',
+      name: node.content?.title || node.content?.originalTitle || null,
+      originalTitle: node.content?.originalTitle || null,
+      year: node.content?.originalReleaseYear || null,
+      releaseDate: node.content?.originalReleaseDate || null,
+      tmdbId: node.content?.externalIds?.tmdbId ? Number(node.content.externalIds.tmdbId) : null,
+      imdbId: node.content?.externalIds?.imdbId || null,
+    });
+  }
+  return {
+    items,
+    endCursor: conn?.pageInfo?.endCursor || null,
+    hasNext: !!conn?.pageInfo?.hasNextPage,
+    total: conn?.totalCount ?? null,
+  };
+}
+
+module.exports = { searchNetflix, pickBest, netflixIdOf, listNetflixPage };
