@@ -2,8 +2,8 @@ const config = require('./config');
 const store = require('./db');
 const log = require('./log');
 
-// Bandes-annonces Apple TV (tv.apple.com) via l'API web NON documentée (uts-api.itunes.apple.com).
-// Apple peut changer les paramètres sans prévenir : `APPLETV_API_VERSION` est réglable dans .env.
+// Bandes-annonces Apple TV (tv.apple.com) via l'API web NON documentée (tv.apple.com/api/uts/v3).
+// Apple peut changer les paramètres sans prévenir : `APPLETV_API_VERSION`, `APPLETV_UTSCF` et `APPLETV_UTSK` sont réglables dans .env.
 // Les trailers sont des flux HLS (.m3u8) directs, stockés dans la colonne `appletv_json` (séparée de `trailers`,
 // pour ne pas interférer avec le relais Netflix /trailer/<id>/<n>.mp4 qui indexe `trailers`).
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -14,8 +14,14 @@ const inflight = new Map();
 const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 async function http(url, accept) {
-  const res = await fetch(url, { headers: { 'user-agent': UA, accept, 'accept-language': config.lang }, signal: AbortSignal.timeout(config.appletvTimeoutMs) });
-  if (!res.ok) throw new Error(`Apple TV HTTP ${res.status}`);
+  const res = await fetch(url, {
+    headers: { 'user-agent': UA, accept, 'accept-language': config.lang, origin: 'https://tv.apple.com', referer: 'https://tv.apple.com/' },
+    signal: AbortSignal.timeout(config.appletvTimeoutMs),
+  });
+  if (!res.ok) {
+    const body = (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200);
+    throw new Error(`Apple TV HTTP ${res.status} sur ${new URL(url).pathname}${body ? ` — ${body}` : ''}`);
+  }
   return res.text();
 }
 
@@ -27,13 +33,14 @@ function walk(node, fn, parent = null, depth = 0) {
 
 function apiQuery(extra = {}) {
   return new URLSearchParams({
-    caller: 'js', locale: config.appletvLocale, pfm: 'desktop', sf: String(config.appletvStorefront), v: String(config.appletvApiVersion), ...extra,
+    caller: 'web', locale: config.appletvLocale, pfm: 'web', sf: String(config.appletvStorefront),
+    utscf: config.appletvUtscf, utsk: config.appletvUtsk, v: String(config.appletvApiVersion), ...extra,
   }).toString();
 }
 
 /** Recherche dans le catalogue Apple TV → [{ id, title, type: 'movie'|'series', year }] */
 async function search(term) {
-  const json = JSON.parse(await http(`https://uts-api.itunes.apple.com/uts/v3/search?${apiQuery({ searchTerm: term })}`, 'application/json'));
+  const json = JSON.parse(await http(`https://tv.apple.com/api/uts/v3/search?${apiQuery({ searchTerm: term })}`, 'application/json'));
   const seen = new Map();
   walk(json, (o) => {
     if (typeof o.id !== 'string' || !/^umc\.cmc\./.test(o.id) || seen.has(o.id)) return;
