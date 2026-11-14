@@ -12,10 +12,10 @@ const extra = [{ name: 'search' }, { name: 'genre', options: GENRES }, { name: '
 
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '1.1.0',
+  version: '1.2.0',
   name: 'Netflix Catalogue',
-  description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Métadonnées uniquement, aucun flux.',
-  resources: ['catalog', 'meta'],
+  description: 'Catalogue Netflix avec fiches complètes : synopsis, casting, bande-annonce, épisodes et images. Le seul flux proposé est la bande-annonce Netflix.',
+  resources: ['catalog', 'meta', 'stream'],
   types: ['series', 'movie'],
   idPrefixes: ['nflx:'],
   catalogs: [
@@ -90,4 +90,22 @@ builder.defineMetaHandler(async ({ id }) => {
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });
 
-module.exports = { builder, manifest, buildMeta };
+/** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`). */
+const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
+
+// Flux : uniquement la/les bande(s)-annonce(s) Netflix, relayée(s) par /trailer/... (lien Netflix renouvelé à chaque lecture).
+// Pour une série, la même bande-annonce est proposée sur chaque épisode.
+builder.defineStreamHandler(async ({ type, id }) => {
+  const row = store.getTitle(baseId(id));
+  if (!row || !row.netflix_id) return { streams: [], cacheMaxAge: 60 };
+  const isEpisode = type === 'series' && String(id).split(':').length > 2;
+  const streams = (row.trailers || []).map((t, i) => ({
+    name: 'Netflix',
+    title: `▶ ${t.title || 'Bande-annonce'}${isEpisode ? ' (série)' : ''}`,
+    url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`,
+    behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id}` },
+  }));
+  return { streams, cacheMaxAge: 60 };
+});
+
+module.exports = { builder, manifest, buildMeta, baseId };

@@ -1,6 +1,6 @@
 # Netflix Catalogue — addon Stremio
 
-Addon Stremio **métadonnées uniquement** (aucun flux) : catalogue Netflix avec, pour chaque titre,
+Addon Stremio **métadonnées + bande-annonce en flux** (aucun film/épisode) : catalogue Netflix avec, pour chaque titre,
 synopsis, année, classification (16+), genres, casting, **bande-annonce**, **épisodes avec synopsis, durée et images**.
 
 Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3`) · Docker.

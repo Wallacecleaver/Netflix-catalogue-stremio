@@ -98,6 +98,11 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(meta.trailerStreams[0].url));   // bande-annonce Netflix d'abord (relayée)
   assert.equal(meta.trailerStreams.length, 1); assert.equal(meta.trailers, undefined); // pas de YouTube quand Netflix est dispo
   assert.equal(meta.posterShape, 'landscape'); assert.deepEqual(meta.director, ['Kasper Barfoed']);
+  // Flux : la bande-annonce Netflix est proposée dans le panneau « flux » (fiche et épisodes)
+  assert.ok(iface.manifest.resources.includes('stream'));
+  const sEp = await iface.get('stream', 'series', 'nflx:81944880:1:1');
+  assert.equal(sEp.streams.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(sEp.streams[0].url));
+  assert.deepEqual((await iface.get('stream', 'series', 'nflx:inconnu:1:1')).streams, []);
   // Relais vidéo : faux serveur Netflix avec support des Range
   const http = require('http');
   const BODY = Buffer.from('0123456789abcdef');
