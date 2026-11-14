@@ -1,6 +1,7 @@
 // Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL et handlers Stremio. Aucun appel réseau.
 process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-${Date.now()}.db`);
 process.env.ADMIN_TOKEN = 'test-token';
+process.env.API_KEY = 'test-api-key';
 const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
@@ -139,6 +140,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
     trailers: [{ title: 'ba', url: `http://127.0.0.1:${upstream.address().port}/v.mp4`, expires: Date.now() + 3600000 }] });
   // Fiche liée dont l'ID Stremio n'est PAS `nflx:<id>` : le relais doit la retrouver par netflix_id.
   store.upsertTitle({ id: 'nflx:mv-777', netflix_id: '77777777', type: 'movie', name: 'Film lié',
+    tmdb_id: 777, tmdb_type: 'movie', imdb_id: 'tt7777777',
     trailers: [{ title: 'ba', url: `http://127.0.0.1:${upstream.address().port}/v.mp4`, expires: Date.now() + 3600000 }] });
   assert.equal(store.findByNetflixId('77777777').id, 'nflx:mv-777');
   assert.ok(!store.listUnlinked().some((r) => r.id === 'nflx:mv-777'));
@@ -190,13 +192,53 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(item.value, '30'); assert.equal(item.source, 'dashboard');
   assert.equal(sum.stats.recent.days, 30);                                           // effet immédiat
   assert.equal((await post({ values: { RECENT_DAYS: 'abc' } })).status, 400);         // nombre invalide
-  assert.equal((await post({ values: { TRAILER_PREFER: 'nimporte' } })).status, 400); // hors liste
   assert.equal((await post({ values: { INCONNU: 'x' } })).status, 400);               // clé inconnue
   assert.equal((await post({ values: { RECENT_DAYS: null } })).status, 200);          // retour au .env
   sum = await (await fetch(`${base}/admin/api/summary`, { headers: auth })).json();
   item = sum.settings.flatMap((g) => g.items).find((i) => i.key === 'RECENT_DAYS');
   assert.equal(item.source, 'default'); assert.equal(sum.stats.recent.days, 90);
   assert.equal((await post({ values: { ADMIN_TOKEN: null } })).status, 200);          // secours .env présent
+
+  // API de fédération : clé API, lookup IMDb/TMDB, statut
+  const apiKey = { 'x-api-key': 'test-api-key' };
+  assert.equal((await fetch(`${base}/api/trailers?imdb=tt7777777`)).status, 401);
+  assert.equal((await fetch(`${base}/api/trailers?imdb=tt7777777`, { headers: { 'x-api-key': 'mauvaise' } })).status, 401);
+  assert.equal((await fetch(`${base}/api/trailers`)).status, 401);
+  const byImdb = await (await fetch(`${base}/api/trailers?imdb=tt7777777`, { headers: apiKey })).json();
+  assert.equal(byImdb.found, true); assert.equal(byImdb.title.netflix_id, '77777777');
+  assert.ok(/\/trailer\/77777777\/0\.mp4$/.test(byImdb.trailers[0].url));
+  const byTmdb = await (await fetch(`${base}/api/trailers?tmdb=777&type=movie`, { headers: apiKey })).json();
+  assert.equal(byTmdb.found, true); assert.equal(byTmdb.title.name, 'Film lié');
+  const missing = await (await fetch(`${base}/api/trailers?imdb=tt0000000`, { headers: apiKey })).json();
+  assert.equal(missing.found, false); assert.deepEqual(missing.trailers, []);
+  assert.equal((await fetch(`${base}/api/trailers`, { headers: apiKey })).status, 400);
+  const apiStatus = await (await fetch(`${base}/api/status`, { headers: apiKey })).json();
+  assert.equal(apiStatus.ok, true); assert.ok(apiStatus.stats.total >= 1);
+
+  // Client amont : récupère les trailers d'une autre instance (avec sa clé)
+  const federation = require('../src/federation');
+  const config = require('../src/config');
+  const remoteUpstream = http.createServer((rq, rs) => {
+    if (!rq.url.startsWith('/api/trailers') || rq.headers['x-api-key'] !== 'amont-key') {
+      rs.writeHead(401); return rs.end();
+    }
+    rs.writeHead(200, { 'content-type': 'application/json' });
+    rs.end(JSON.stringify({ found: true, trailers: [{ title: 'BA amont', url: 'https://amont.example/trailer/9/0.mp4', runtime: 88 }] }));
+  }).listen(0);
+  remoteUpstream.unref();
+  await new Promise((r) => remoteUpstream.once('listening', r));
+  config.upstreamUrl = `http://127.0.0.1:${remoteUpstream.address().port}`;
+  config.upstreamApiKey = 'amont-key';
+  store.upsertTitle({ id: 'nflx:remote', type: 'movie', name: 'Film amont', tmdb_id: 888, tmdb_type: 'movie', imdb_id: 'tt8888888' });
+  const remoteRow = await federation.ensureUpstreamTrailers(store.getTitle('nflx:remote'));
+  assert.equal(remoteRow.trailers.length, 1);
+  assert.equal(remoteRow.trailers[0].source, 'upstream');
+  assert.equal(federation.trailerUrls(remoteRow)[0].url, 'https://amont.example/trailer/9/0.mp4');
+  const remoteMeta = await iface.get('meta', 'movie', 'nflx:remote');
+  assert.equal(remoteMeta.meta.trailerStreams[0].url, 'https://amont.example/trailer/9/0.mp4');
+  const remoteStreams = await iface.get('stream', 'movie', 'nflx:remote');
+  assert.equal(remoteStreams.streams[0].url, 'https://amont.example/trailer/9/0.mp4');
+  remoteUpstream.close();
 
   // IDs Netflix : statut du liage + export des IDs stockés (nom + TMDB/IMDb)
   const linkStatus = await (await fetch(`${base}/admin/api/netflix-ids`, { headers: auth })).json();

@@ -2,6 +2,7 @@ const { addonBuilder } = require('stremio-addon-sdk');
 const config = require('./config');
 const store = require('./db');
 const log = require('./log');
+const federation = require('./federation');
 const { enrichTitle } = require('./enrich');
 
 const GENRES = ['Action', 'Animation', 'Aventure', 'Comédie', 'Crime', 'Documentaire', 'Drame', 'Familial', 'Fantastique',
@@ -62,14 +63,12 @@ function buildMeta(row, eps) {
     runtime: row.runtime ? `${row.runtime} min` : undefined,
     imdbId: row.imdb_id || undefined,
   };
-  // Bande-annonce de la page Netflix : servie par NOTRE serveur (/trailer/...), qui renouvelle le lien signé à chaque lecture.
-  const netflixTrailers = row.netflix_id
-    ? (row.trailers || []).map((t, i) => ({ title: t.title || 'Bande-annonce', url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4` }))
-    : [];
-  // Bande-annonce VF (YouTube, via TMDB) d'abord, puis celles de la page Netflix.
-  const trailerStreams = [...(row.vf_trailer ? [{ title: 'Bande-annonce VF', ytId: row.vf_trailer }] : []), ...netflixTrailers];
+  // Bande-annonce VF (via TMDB) d'abord, puis celles de la page Netflix / de l'instance amont.
+  const trailerStreams = [
+    ...(row.vf_trailer ? [{ title: 'Bande-annonce VF', ytId: row.vf_trailer }] : []),
+    ...federation.trailerUrls(row).map(({ title, url }) => ({ title, url })),
+  ];
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
-  // YouTube trailer support removed
   if (row.type === 'series') {
     meta.videos = eps.map((e) => ({
       id: `${row.id}:${e.season}:${e.episode}`,
@@ -91,28 +90,30 @@ builder.defineMetaHandler(async ({ id }) => {
     try { row = (await enrichTitle(id)) || row; }
     catch (e) { log.warn('enrich', `${id} : ${e.message}`); console.warn('[enrich]', id, e.message); }
   }
+  row = await federation.ensureUpstreamTrailers(row);
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });
 
 /** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`). */
 const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
 
-// Flux : la bande-annonce VF (YouTube) en premier si elle existe, puis la/les bande(s)-annonce(s) de la page Netflix,
-// relayée(s) par /trailer/... (lien Netflix renouvelé à chaque lecture). Pour une série, elles sont proposées sur chaque épisode.
+// Flux : la bande-annonce VF (via TMDB) en premier si elle existe, puis la/les bande(s)-annonce(s) de la page Netflix
+// ou de l'instance amont, relayée(s) par /trailer/... quand un ID Netflix est connu. Proposées aussi sur chaque épisode.
 builder.defineStreamHandler(async ({ type, id }) => {
-  const row = store.getTitle(baseId(id));
+  let row = store.getTitle(baseId(id));
   if (!row) return { streams: [], cacheMaxAge: 60 };
+  row = await federation.ensureUpstreamTrailers(row);
   const isEpisode = type === 'series' && String(id).split(':').length > 2;
   const suffix = isEpisode ? ' (série)' : '';
   const streams = [];
   if (row.vf_trailer) streams.push({ name: 'Netflix VF', title: `▶ Bande-annonce VF${suffix}`, ytId: row.vf_trailer });
-  if (row.netflix_id) {
-    (row.trailers || []).forEach((t, i) => streams.push({
-      name: 'Netflix',
-      title: `▶ ${t.title || 'Bande-annonce'}${suffix}`,
-      url: `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`,
-      behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id}` },
-    }));
+  for (const t of federation.trailerUrls(row)) {
+    streams.push({
+      name: t.source === 'upstream' ? 'Amont' : 'Netflix',
+      title: `▶ ${t.title}${suffix}`,
+      url: t.url,
+      behaviorHints: { notWebReady: false, bingeGroup: `netflix-trailer-${row.netflix_id || row.id}` },
+    });
   }
   return { streams, cacheMaxAge: 60 };
 });

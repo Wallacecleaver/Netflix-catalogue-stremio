@@ -100,6 +100,8 @@ const parse = (r) => r && ({ ...r, genres: JSON.parse(r.genres_json || '[]'), ca
 const getTitle = (id) => parse(db.prepare('SELECT * FROM titles WHERE id = ?').get(id));
 const getEpisodes = (id) => db.prepare('SELECT * FROM episodes WHERE title_id = ? ORDER BY season, episode').all(id);
 const findByTmdb = (tmdbType, tmdbId) => db.prepare('SELECT id FROM titles WHERE tmdb_type = ? AND tmdb_id = ?').get(tmdbType, tmdbId);
+const findByImdbId = (imdbId) => parse(db.prepare(
+  'SELECT * FROM titles WHERE imdb_id = ? ORDER BY enriched DESC, added_at ASC LIMIT 1').get(String(imdbId)));
 const count = () => db.prepare('SELECT COUNT(*) c FROM titles').get().c;
 
 // L'ID Netflix n'est pas toujours l'ID Stremio (`nflx:tv-123`) : on retrouve la fiche par `netflix_id`.
@@ -231,6 +233,6 @@ function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
 }
 const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByNetflixId, listUnlinked, listLinked, listVfPending,
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, listUnlinked, listLinked, listVfPending,
   deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listCatalog, listRecent, stats,
   allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };

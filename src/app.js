@@ -8,6 +8,7 @@ const { builder, manifest } = require('./addon');
 const { HTML: ADMIN_HTML } = require('./admin');
 const settings = require('./settings');
 const log = require('./log');
+const federation = require('./federation');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
 const harvest = require('./harvest');
@@ -43,6 +44,15 @@ function auth(req, res, next) {
     return res.status(401).json({ error: 'Mot de passe incorrect' });
   }
   attempts.delete(key);
+  next();
+}
+
+// ---- API de fédération : clé API (en-tête x-api-key ou ?key=) ----
+function apiAuth(req, res, next) {
+  if (!config.apiKey) return res.status(503).json({ error: 'API_KEY non configuré dans le .env' });
+  if (!federation.keyOk(req.get('x-api-key') || req.query.key)) {
+    return res.status(401).json({ error: 'Clé API invalide' });
+  }
   next();
 }
 
@@ -160,6 +170,34 @@ app.post('/admin/api/logs/clear', auth, (_req, res) => {
   res.json({ ok: true, removed });
 });
 app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
+
+// ---- API de fédération : exposer les bandes-annonces à une autre instance ----
+app.get('/api/status', apiAuth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json({ ok: true, version: manifest.version, stats: store.stats() });
+});
+
+app.get('/api/trailers', apiAuth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const imdb = String(req.query.imdb || '').trim();
+  const tmdb = String(req.query.tmdb || '').trim();
+  const netflix = String(req.query.netflix || '').trim();
+  const type = String(req.query.type || '').trim();
+  if (!imdb && !tmdb && !netflix) {
+    return res.status(400).json({ error: 'paramètre imdb, tmdb ou netflix requis' });
+  }
+  const row = federation.lookup({ imdb, tmdb, type, netflix });
+  if (!row) return res.json({ found: false, trailers: [] });
+  const trailers = federation.trailerUrls(row);
+  res.json({
+    found: trailers.length > 0,
+    title: {
+      id: row.id, name: row.name, type: row.type, year: row.year,
+      netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
+    },
+    trailers,
+  });
+});
 
 // Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).
 app.get('/', (_req, res) => res.redirect('/admin'));

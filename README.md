@@ -7,9 +7,9 @@ Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3
 
 ## Sources de données
 1. **Page Netflix** (`netflix.com/fr/title/<id>`) : titre, synopsis, casting, classification, épisodes (JSON-LD + `netflix.reactContext`).
-2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours, trailers YouTube, et **catalogue automatique** des titres Netflix France.
+2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours et **catalogue automatique** des titres Netflix France.
 3. **JustWatch** (API GraphQL publique) : correspondance nom → **ID Netflix** (la recherche netflix.com redirige vers `/login`, elle ne permet pas de découvrir les IDs).
-4. **YouTube** (recherche) : filet de sécurité pour la bande-annonce.
+4. **Autre instance** (optionnel) : API de fédération pour récupérer les bandes-annonces par TMDB/IMDb.
 
 > La bande-annonce de la page Netflix est relayée par ton addon (`PUBLIC_URL/trailer/<id>/<n>.mp4`) : Stremio reçoit une URL
 > stable, et le lien signé Netflix est renouvelé à chaque lecture.
@@ -39,7 +39,7 @@ Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 ## Dashboard d'administration
 `https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
 
-Deux onglets :
+Trois onglets :
 
 **Vue d'ensemble**
 - Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
@@ -48,7 +48,7 @@ Deux onglets :
 - Liens Stremio : manifest, `/health`, relais bande-annonce.
 
 **Paramètres**
-- Toutes les variables du `.env` sont **modifiables** : port, URL publique, clé TMDB, région/langue/pays, pages et fréquences de synchro, fenêtre des nouveautés, cache, préférence de bande-annonce, mot de passe admin.
+- Toutes les variables du `.env` sont **modifiables** : port, URL publique, clé TMDB, région/langue/pays, pages et fréquences de synchro, fenêtre des nouveautés, cache, clé API et instance amont, mot de passe admin.
 - Les valeurs sont validées (nombres, listes) et enregistrées dans la table `settings` de SQLite, donc **persistées dans le volume `./data`** et conservées à chaque redéploiement. Le conteneur ne voyant pas le `.env` de l'hôte, c'est la base qui porte les surcharges.
 - Priorité : **dashboard > `.env` > valeur par défaut**. Le bouton ↺ d'un champ restaure la valeur du `.env` ; la provenance est affichée pour chaque paramètre.
 - `PORT`, `DB_PATH` et `SYNC_EVERY_HOURS` sont marqués **⟳ redémarrage** : ils ne s'appliquent qu'après `docker compose restart`.
@@ -104,6 +104,64 @@ Un journal persistant capture les actions clés (liage, synchronisation, erreurs
 - API : `GET /admin/api/logs`, `POST /admin/api/logs/clear`.
 - Historique conservé en base SQLite (`logs`), limité à 2000 entrées.
 
+## API de fédération (partage de bandes-annonces)
+Une instance peut **exposer** ses bandes-annonces, et une autre peut les **récupérer automatiquement** par TMDB/IMDb.
+
+### Instance source
+Dans le `.env` (ou l'onglet Paramètres) :
+```env
+API_KEY=une-longue-cle-secrete
+PUBLIC_URL=https://netflix.mondomaine.fr
+```
+L'API est alors disponible (clé en en-tête `x-api-key`, ou `?key=` en dépannage) :
+```bash
+# Par IMDb
+curl -H "x-api-key: une-longue-cle-secrete" \
+  "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
+
+# Par TMDB (type facultatif : movie ou series)
+curl -H "x-api-key: une-longue-cle-secrete" \
+  "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
+
+# Par ID Netflix
+curl -H "x-api-key: une-longue-cle-secrete" \
+  "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
+
+# État de l'instance
+curl -H "x-api-key: une-longue-cle-secrete" \
+  "https://netflix.mondomaine.fr/api/status"
+```
+Réponse :
+```json
+{
+  "found": true,
+  "title": {
+    "id": "nflx:mv-777", "name": "Film lié", "type": "movie", "year": 2024,
+    "netflix_id": "77777777", "tmdb_id": 777, "tmdb_type": "movie", "imdb_id": "tt7777777"
+  },
+  "trailers": [
+    { "title": "Bande-annonce", "url": "https://netflix.mondomaine.fr/trailer/77777777/0.mp4",
+      "runtime": 120, "source": "netflix" }
+  ]
+}
+```
+Si aucune fiche ne correspond : `{ "found": false, "trailers": [] }`.
+
+### Instance qui récupère
+Dans son `.env` (ou l'onglet Paramètres) :
+```env
+UPSTREAM_URL=https://netflix.mondomaine.fr
+UPSTREAM_API_KEY=une-longue-cle-secrete
+```
+Quand une fiche possède un `imdb_id` ou un `tmdb_id` mais **aucune bande-annonce**, l'addon interroge l'instance amont
+au moment de l'ouverture de la fiche (et lors d'une demande de flux), puis stocke les URLs reçues.
+- Si la fiche a un `netflix_id`, les URLs sont relayées par **son propre** `/trailer/...`.
+- Sinon, l'URL de l'instance amont est utilisée directement.
+- Nouvelle tentative au bout de 6 h en cas d'échec.
+
+> L'API ne renvoie que les bandes-annonces Netflix déjà associées dans la base.
+> `PUBLIC_URL` doit être l'URL publique réellement accessible par l'autre instance.
+
 ## Dernières sorties
 Deux catalogues dédiés dans Stremio : **Netflix — Dernières sorties (films)** et **Netflix — Dernières sorties (séries)**.
 Ils listent les titres sortis sur Netflix dans les `RECENT_DAYS` derniers jours (90 par défaut), du plus récent au plus ancien,
@@ -121,7 +179,7 @@ Sans épisodes Netflix, ceux de TMDB sont utilisés.
 `npm test` : parseur + SQL + handlers Stremio, sans réseau.
 
 ## Structure
-`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
+`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/federation.js` API/partage des bandes-annonces · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
 
 ## Test en local (Windows / PC)
 ```powershell
@@ -145,6 +203,6 @@ npm run add -- 81944880 --file page.html
 ## Bande-annonce de la page Netflix
 La vidéo de la page (≈1 min 40) est enregistrée avec le titre. Ses liens Netflix expirent en quelques heures, donc Stremio reçoit une URL
 stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'addon renouvelle le lien Netflix si besoin et relaie la vidéo
-(avec support des `Range`). Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`) et
-*(Le choix de bande-annonce est désormais limité à Netflix uniquement.)*
+(avec support des `Range`). La bande-annonce est aussi exposée comme ressource `stream`, donc elle apparaît également dans la liste des flux.
+Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`).
 Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
