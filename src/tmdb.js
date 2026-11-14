@@ -123,6 +123,23 @@ function pickFrenchTrailer(videos) {
  * Une seule requête par titre : visuels, synopsis, genres, IMDb + bande-annonce VF.
  * Sert à compléter les fiches moissonnées (sans affiche) et à repérer celles qui ont une bande-annonce en français.
  */
+/** Retrouve un titre TMDB à partir de son ID IMDb. `type` (movie|series) départage si l'ID existe dans les deux listes. */
+async function findByImdb(imdbId, type) {
+  const r = await call(`/find/${imdbId}`, { external_source: 'imdb_id', language: config.lang });
+  const m = r.movie_results?.[0];
+  const t = r.tv_results?.[0];
+  const useTv = type === 'series' ? !!t : !m && !!t;
+  const hit = useTv ? t : (m || t);
+  if (!hit) return null;
+  const date = hit.release_date || hit.first_air_date || '';
+  return {
+    tmdbType: useTv || (!m && t) ? 'tv' : 'movie', tmdbId: hit.id, type: useTv || (!m && t) ? 'series' : 'movie',
+    name: hit.title || hit.name, originalName: hit.original_title || hit.original_name || null,
+    year: date ? +date.slice(0, 4) : null, release_date: date || null, synopsis: hit.overview || null,
+    poster: img(hit.poster_path, 'w500'), background: img(hit.backdrop_path, 'w1280'),
+  };
+}
+
 async function basics(tmdbType, id) {
   const d = await call(`/${tmdbType}/${id}`, {
     language: config.lang, append_to_response: 'videos,external_ids', include_video_language: 'fr',
@@ -150,4 +167,4 @@ async function externalIds(tmdbType, id) {
   return { imdb_id: d.imdb_id || null, tvdb_id: d.tvdb_id || null };
 }
 
-module.exports = { searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, basics, pickFrenchTrailer, img };
+module.exports = { findByImdb, searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, basics, pickFrenchTrailer, img };

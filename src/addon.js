@@ -4,6 +4,7 @@ const store = require('./db');
 const log = require('./log');
 const federation = require('./federation');
 const appletv = require('./appletv');
+const resolve = require('./resolve');
 const { enrichTitle } = require('./enrich');
 
 const TYPES = ['movie', 'series'];
@@ -13,9 +14,9 @@ const TYPES = ['movie', 'series'];
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '2.0.0',
+  version: '2.1.0',
   name: 'W stockage bande annonce',
-  description: 'Bandes-annonces sur tes fiches Stremio : VF (TMDB/YouTube), Netflix et Apple TV. Aucun catalogue, aucun film ni épisode : uniquement des bandes-annonces.',
+  description: 'Bandes-annonces sur tes fiches Stremio : VF (TMDB/YouTube), Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
     { name: 'meta', types: TYPES, idPrefixes: ['nflx:'] },
     { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'tt'] },
@@ -90,6 +91,8 @@ function resolveRow(id) {
 // Netflix est connu), puis Apple TV (HLS). Proposés aussi sur chaque épisode d'une série.
 builder.defineStreamHandler(async ({ type, id }) => {
   let row = resolveRow(id);
+  const imdb = String(id).split(':')[0];
+  if (/^tt\d+$/.test(imdb)) row = (await resolve.ensure(imdb, type, row)) || row;   // fiche inconnue : TMDB → web → bande-annonce
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);
   row = await appletv.ensure(row);

@@ -65,7 +65,7 @@ app.get('/admin/api/summary', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json({
     version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view(),
-    addon: { publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: !config.apiKey },
+    addon: { resolve: !!(config.resolveEnabled && config.tmdbKey), publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: !config.apiKey },
   });
 });
 app.post('/admin/api/settings', auth, (req, res) => {

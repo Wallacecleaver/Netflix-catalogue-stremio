@@ -126,6 +126,28 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(ddg[0].title, 'Trouble échange'); assert.equal(ddg[0].snippet, 'Un échange de maisons & plus'); assert.equal(ddg[1].title, "Autre 'série'");
   assert.deepEqual(require('../src/search').parse('x netflix.com%2Ftitle%2F123 y').map((r) => r.id), ['123']);   // repli : IDs seuls
   assert.equal(store.findByName('TROUBLE ÉCHANGE'.toLowerCase().replace('é', 'é'), 'series')?.id, 'nflx:81944880');   // insensible à la casse
+  // Résolution à la demande : TMDB → recherche web → page Netflix, avec réseau simulé (et cache)
+  const cfgR = require('../src/config'); const tmdbMod = require('../src/tmdb'); const searchMod = require('../src/search'); const nfMod = require('../src/netflix');
+  const rcalls = { tmdb: 0, ddg: 0, page: 0 };
+  Object.assign(tmdbMod, {
+    findByImdb: async (imdb) => { rcalls.tmdb++; return imdb === 'tt5550001' ? { tmdbType: 'tv', tmdbId: 5, type: 'series', name: 'Trouble échange', originalName: 'Utbyte', year: 2026, release_date: '2026-10-30' } : null; },
+    basics: async () => ({ vf: 'VFresolve1', genres: [] }), searchMatch: async () => null });
+  searchMod.netflix = async () => { rcalls.ddg++; return [{ id: '70000001', title: 'Autre série', snippet: '' }, { id: '81944999', title: 'Trouble échange', snippet: '' }]; };
+  nfMod.fetchNetflixPage = async (nid) => { rcalls.page++; return html; };
+  const oldTmdbKey = cfgR.tmdbKey; cfgR.tmdbKey = 'test';
+  const resolved1 = (await iface.get('stream', 'series', 'tt5550001:1:1')).streams;
+  assert.equal(resolved1[0].ytId, 'VFresolve1'); assert.ok(resolved1.some((x) => /\/trailer\/81944999\/0\.mp4$/.test(x.url)));     // VF + Netflix trouvés
+  assert.equal(rcalls.page, 1);                                                      // 'Autre série' écartée sans lire sa page
+  assert.equal(store.findByImdbId('tt5550001').id, 'nflx:81944999');
+  await iface.get('stream', 'series', 'tt5550001:1:2');
+  assert.deepEqual(rcalls, { tmdb: 1, ddg: 1, page: 1 });                            // 2e ouverture : aucune requête
+  assert.deepEqual((await iface.get('stream', 'movie', 'tt5550002')).streams, []);  // inconnu de TMDB
+  await iface.get('stream', 'movie', 'tt5550002'); assert.equal(rcalls.tmdb, 2);     // l'échec est mis en cache
+  assert.equal(store.stats().lookups, 2); assert.equal(store.stats().lookupsFound, 1);
+  searchMod.netflix = async () => [{ id: '81944998', title: 'Trouble échange' }];   // même nom, année trop ancienne → refusé
+  tmdbMod.findByImdb = async () => ({ tmdbType: 'tv', tmdbId: 6, type: 'series', name: 'Trouble échange', year: 2030 });
+  assert.equal((await require('../src/resolve').findNetflix({ name: 'Trouble échange', type: 'series', year: 2030 })).nid, null);
+  cfgR.tmdbKey = oldTmdbKey;
   const ap = require('../src/appletv');
   assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] }), []);   // DRM FairPlay ignoré
   assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/t.m3u8?a=1&amp;id=5' }] })[0].url, 'https://x/t.m3u8?a=1&id=5');

@@ -19,6 +19,8 @@ module.exports = {
   recentPages: num(process.env.RECENT_PAGES, 3),
   // Pays dont on moissonne le catalogue Netflix (l'ID Netflix est le même partout : on fait l'union, dédoublonnée).
   // Bandes-annonces Apple TV (API web non documentée ; sf 143442 = France).
+  // Résolution à la demande (TMDB → recherche web → page Netflix) quand Stremio ouvre une fiche inconnue. Nécessite TMDB_API_KEY.
+  resolveEnabled: process.env.RESOLVE_ENABLED !== '0',
   appletvEnabled: process.env.APPLETV_ENABLED !== '0',
   appletvStorefront: num(process.env.APPLETV_STOREFRONT, 143442),
   appletvLocale: process.env.APPLETV_LOCALE || 'fr-FR',

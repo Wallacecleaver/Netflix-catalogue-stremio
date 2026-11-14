@@ -37,7 +37,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
   <div id="kpis" class="grid g5"></div>
   <div class="sec">Ce que l'addon propose</div>
   <div class="grid g2">
-    <div class="card"><h2>Flux affichés dans Stremio</h2><p class="muted" style="margin:0 0 6px">Sur chaque fiche dont l'ID IMDb est stocké (film, série et épisodes), dans cet ordre. Il n'y a plus de catalogue : l'addon ne fait que fournir des bandes-annonces.</p><div id="flux"></div></div>
+    <div class="card"><h2>Flux affichés dans Stremio</h2><p class="muted" style="margin:0 0 6px">À l'ouverture d'une fiche Stremio (film, série, épisodes), l'addon retrouve le titre sur TMDB, le cherche sur le web, lit sa page Netflix et stocke la bande-annonce. Chaque titre n'est cherché qu'une fois. Flux proposés, dans cet ordre :</p><div id="flux"></div><p class="muted" id="lookup-line" style="margin:10px 0 0"></p></div>
     <div class="card"><h2>Installation et API</h2><p class="muted" style="margin:0">Ajoute l'addon dans Stremio avec cette adresse (HTTPS obligatoire) :</p>
       <div class="url"><code id="manifest-url">—</code><button class="btn" id="copy-manifest" type="button">Copier</button></div>
       <p class="muted" style="margin:14px 0 0">API pour les autres instances : <code id="api-url">—</code></p><p class="muted" id="api-note" style="margin:6px 0 0"></p></div>
@@ -108,6 +108,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
       ['Netflix', 'Bande-annonce de la page Netflix' + (d.addon.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
       ['Apple TV', d.addon.appletv ? 'Flux HLS de la page Apple TV. À lire sur Stremio PC ou mobile (pas Stremio Web).' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']];
     $('flux').innerHTML = fl.map(function (f, i) { return '<div class="flux"><div class="num">' + (i + 1) + '</div><div class="t"><b>' + f[0] + '</b><div class="muted">' + f[1] + '</div></div><span class="badge ' + f[3] + '">' + fmt(f[2]) + ' titres</span></div>'; }).join('');
+    $('lookup-line').textContent = d.addon.resolve ? 'Recherche automatique : ' + fmt(s.lookups) + ' titre(s) cherché(s), ' + fmt(s.lookupsFound) + ' avec bande-annonce.' : 'Recherche automatique désactivée (RESOLVE_ENABLED=0 ou TMDB_API_KEY manquant).';
     var base = (d.addon.publicUrl || location.origin).replace(/\/+$/, '');
     $('manifest-url').textContent = base + '/manifest.json';
     $('api-url').textContent = base + '/api/trailers?imdb=tt…';

@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS episodes (
   released TEXT,
   PRIMARY KEY (title_id, season, episode)
 );
+CREATE TABLE IF NOT EXISTS lookups (
+  imdb TEXT PRIMARY KEY,
+  checked_at INTEGER NOT NULL,
+  found INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -105,6 +110,10 @@ const findByImdbId = (imdbId) => parse(db.prepare(
   'SELECT * FROM titles WHERE imdb_id = ? ORDER BY enriched DESC, added_at ASC LIMIT 1').get(String(imdbId)));
 const findByName = (name, type) => parse(db.prepare(
   'SELECT * FROM titles WHERE type = ? AND name = ? COLLATE NOCASE ORDER BY enriched DESC, added_at ASC LIMIT 1').get(type, String(name)));
+// Cache des recherches automatiques (resolve.js) : quand un IMDb a été cherché, et si une bande-annonce a été trouvée.
+const getLookup = (imdb) => db.prepare('SELECT * FROM lookups WHERE imdb = ?').get(String(imdb));
+const setLookup = (imdb, found) => db.prepare(`INSERT INTO lookups (imdb, checked_at, found) VALUES (?, ?, ?)
+  ON CONFLICT(imdb) DO UPDATE SET checked_at = excluded.checked_at, found = excluded.found`).run(String(imdb), Date.now(), found ? 1 : 0);
 const count = () => db.prepare('SELECT COUNT(*) c FROM titles').get().c;
 
 // L'ID Netflix n'est pas toujours l'ID Stremio (`nflx:tv-123`) : on retrouve la fiche par `netflix_id`.
@@ -202,6 +211,8 @@ function stats() {
     logs: db.prepare('SELECT COUNT(*) c FROM logs').get().c,
     logErrors: db.prepare("SELECT COUNT(*) c FROM logs WHERE level = 'error'").get().c,
     episodes: db.prepare('SELECT COUNT(*) c FROM episodes').get().c,
+    lookups: db.prepare('SELECT COUNT(*) c FROM lookups').get().c,
+    lookupsFound: db.prepare('SELECT COUNT(*) c FROM lookups WHERE found = 1').get().c,
     withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
     withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
     withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
@@ -241,6 +252,6 @@ function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
 }
 const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
-module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, listUnlinked, listLinked, listVfPending,
+module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, getLookup, setLookup, listUnlinked, listLinked, listVfPending,
   deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
   allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };

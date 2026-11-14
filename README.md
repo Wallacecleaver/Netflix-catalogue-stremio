@@ -171,6 +171,16 @@ au moment de l'ouverture de la fiche (et lors d'une demande de flux), puis stock
 > L'API ne renvoie que les bandes-annonces Netflix déjà associées dans la base.
 > `PUBLIC_URL` doit être l'URL publique réellement accessible par l'autre instance.
 
+## Recherche automatique (à l'ouverture d'une fiche)
+Quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) que l'addon ne connaît pas encore, il la résout tout seul :
+1. **TMDB** : IMDb → titre, année, type (+ bande-annonce VF au passage) ;
+2. **Web** : recherche DuckDuckGo `site:netflix.com/title <titre>` ;
+3. **Page Netflix** : lecture de la page, vérification du nom, du type et de l'année (pour une série, l'année Netflix est celle de la dernière saison), puis stockage de sa bande-annonce ;
+4. **Apple TV** : recherche par titre.
+Chaque titre n'est cherché qu'une fois (cache SQLite : 30 jours si trouvé, 7 jours sinon). DuckDuckGo est interrogé au plus une fois par seconde et mis en pause 10 min s'il bloque.
+Si la recherche dépasse 15 s, elle continue en arrière-plan : la bande-annonce apparaîtra à la prochaine ouverture de la fiche.
+Nécessite `TMDB_API_KEY` ; `RESOLVE_ENABLED=0` désactive. Code : `src/resolve.js`. Les onglets Recherche / Titres du dashboard restent utiles pour ajouter ou vérifier à la main.
+
 ## Bandes-annonces Apple TV
 Pour chaque titre, l'addon cherche une bande-annonce sur **tv.apple.com** (API web non documentée) : recherche par titre exact (+ année et type), puis lecture
 de la balise `og:video` de la page. Les autres flux de la page sont des épisodes protégés par FairPlay (DRM) et sont ignorés.
