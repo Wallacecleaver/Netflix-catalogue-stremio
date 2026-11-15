@@ -228,13 +228,18 @@ function stats() {
     lookups: db.prepare('SELECT COUNT(*) c FROM lookups').get().c,
     lookupsFound: db.prepare('SELECT COUNT(*) c FROM lookups WHERE found = 1').get().c,
     withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
-    withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
-    withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
+    withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,    withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
     // Bandes-annonces YouTube (TMDB) réellement utilisées : celles des titres sans flux Netflix/Apple,
     // puisque c'est la seule source qui reste affichée dans ce cas.
     withYoutube: db.prepare(`SELECT COUNT(*) c FROM titles
       WHERE ((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))
         AND NOT ${TR.netflix} AND NOT ${TR.apple}`).get().c,
+    // Couverture réelle toutes sources confondues : Netflix/Apple d'un côté, YouTube de l'autre
+    // (ces deux ensembles sont disjoints : withYoutube exclut les titres déjà couverts).
+    withVideo: db.prepare(`SELECT COUNT(*) c FROM titles
+      WHERE (${TR.any})
+        OR (((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))
+          AND NOT ${TR.netflix} AND NOT ${TR.apple})`).get().c,
     appletvChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE appletv_checked IS NOT NULL').get().c,
     appletvPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${appletvPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
     netflixTrailerPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${netflixTrailerPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
