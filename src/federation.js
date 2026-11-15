@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const config = require('./config');
 const store = require('./db');
 const log = require('./log');
+const hls = require('./hls');
 
 // Petite couche « fédération » : une instance peut exposer ses bandes-annonces
 // (API /api/trailers) et/ou en récupérer depuis une instance amont configurée.
@@ -34,7 +35,10 @@ function trailerUrls(row, { includeApple = false, includeManual = false } = {}) 
   list.forEach((t, i) => {
     if (!t) return;
     let url = null;
-    if (row.netflix_id) url = `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`;
+    // Relay Netflix seulement pour NOS bandes-annonces : une entrée venue d'une instance amont garde son
+    // URL d'origine. Sinon, sur une fiche à la fois liée à Netflix et enrichie par l'amont, l'index
+    // pointait vers le relais Netflix et servait une autre vidéo (ou une 404).
+    if (row.netflix_id && t.source !== 'upstream') url = `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`;
     else if (t.url && /^https?:\/\//i.test(String(t.url))) url = t.url;
     if (!url) return;
     const item = {
@@ -49,7 +53,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false } = {}) 
 
   if (includeApple) {
     (Array.isArray(row.appletv) ? row.appletv : []).forEach((t, i) => {
-      if (!t || !t.url) return;
+      if (!t || !t.url || !hls.canServe(t.url)) return;
       out.push({
         title: t.title || 'Bande-annonce Apple TV',
         url: `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,

@@ -337,7 +337,8 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
   let row = federation.lookup({ imdb, tmdb, type, netflix });
   // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
   // Attente bornée à 5 s (le client vf-trailer-wallace abandonne à 6 s) ; au-delà, `pending: true` et la recherche continue.
-  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 5000 })) || row;
+  // Attente bornée : l'instance cliente abandonne souvent à 6 s, on lui laisse de la marge réseau.
+  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4000 })) || row;
   const pending = !!imdb && resolve.isPending(imdb);
   if (!row) return res.json({ found: false, pending, trailers: [] });
   // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels.

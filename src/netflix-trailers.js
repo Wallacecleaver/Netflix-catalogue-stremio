@@ -50,6 +50,9 @@ async function run({ limit = 0, delayMs = 1200, onProgress } = {}) {
         const res = await link.linkOne(row, { refresh: true });
         if (res.linked && res.trailers) state.found++;
         streak = 0;
+        // Marqué seulement quand la page a réellement été lue : un échec réseau ne doit pas coûter
+        // 7 jours d'attente (le garde-fou des 8 échecs consécutifs évite la boucle infinie).
+        store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers_checked: Date.now() });
       } catch (e) {
         state.failed++;
         streak++;
@@ -62,7 +65,6 @@ async function run({ limit = 0, delayMs = 1200, onProgress } = {}) {
         }
       }
       // Marqué dans tous les cas : une page sans bande-annonce ne sera pas relue avant RETRY_DAYS.
-      store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers_checked: Date.now() });
       state.done++;
       if (onProgress) { try { onProgress(status()); } catch { /* ignore */ } }
       if (delayMs) await sleep(delayMs);

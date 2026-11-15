@@ -295,4 +295,10 @@ function prefetch(url) {
   ensure(url).catch((e) => log.warn('hls', `conversion impossible : ${e.message}`));
 }
 
-module.exports = { isHls, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore, durationOf, keyOf, ffmpegAvailable: () => !!ffmpeg() };
+/**
+ * Cette URL est-elle servable ? Un HLS nécessite ffmpeg pour être converti en MP4 ; sans lui,
+ * mieux vaut ne rien annoncer à Stremio plutôt que d'envoyer un flux qui échouera à la lecture.
+ */
+const canServe = (url) => !isHls(url) || !!ffmpeg();
+
+module.exports = { isHls, canServe, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore, durationOf, keyOf, ffmpegAvailable: () => !!ffmpeg() };

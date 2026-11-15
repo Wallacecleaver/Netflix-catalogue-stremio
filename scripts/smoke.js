@@ -144,13 +144,21 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(streamsImdb.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(streamsImdb[0].url));
   assert.deepEqual((await iface.get('stream', 'movie', 'tt0000001')).streams, []);   // IMDb inconnu
   assert.deepEqual((await iface.get('stream', 'movie', 'kitsu:1')).streams, []);       // ID non géré
-  // Apple TV : flux HLS stockés, exposés via le relais /apple/<id>/<n>.mp4 (converti en MP4)
+  // Apple TV : flux stockés, exposés via le relais /apple/<id>/<n>.mp4.
+  // Un HLS n'est annoncé que si ffmpeg peut le convertir (sinon Stremio recevrait un flux mort) ;
+  // un MP4 direct l'est toujours.
+  const hasFfmpeg = require('../src/hls').ffmpegAvailable();
+  const appleRelayOf = (i) => `${require('../src/config').publicUrl}/apple/${encodeURIComponent('nflx:81944880')}/${i}.mp4`;
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.m3u8', source: 'appletv', ver: 2 }], appletv_checked: Date.now() });
-  const appleUrl = `${require('../src/config').publicUrl}/apple/${encodeURIComponent('nflx:81944880')}/0.mp4`;
+  const withHls = (await iface.get('stream', 'series', 'tt9999999')).streams;
+  assert.equal(withHls.length, hasFfmpeg ? 2 : 1);
+  if (hasFfmpeg) assert.equal(withHls[1].url, appleRelayOf(0));
+
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.mp4', source: 'appletv', ver: 2 }], appletv_checked: Date.now() });
   const withApple = (await iface.get('stream', 'series', 'tt9999999')).streams;
-  assert.equal(withApple.length, 2); assert.equal(withApple[1].name, 'Apple TV'); assert.equal(withApple[1].url, appleUrl);
+  assert.equal(withApple.length, 2); assert.equal(withApple[1].name, 'Apple TV'); assert.equal(withApple[1].url, appleRelayOf(0));
   assert.equal(withApple[1].behaviorHints.notWebReady, false);
-  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, appleUrl);
+  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, appleRelayOf(0));
   assert.equal(store.listAppletvPending().some((r) => r.id === 'nflx:81944880'), false);
   const ddg = require('../src/search').parse(`<div class="result"><h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.netflix.com%2Ffr%2Ftitle%2F81944880&amp;rut=x">Watch Trouble échange | Netflix Official Site</a></h2><a class="result__snippet" href="x">Un échange de maisons &amp; <b>plus</b></a></div>
     <div class="result"><a rel="nofollow" class="result__a" href="https://www.netflix.com/title/81727408">Autre &#x27;série&#x27;</a></div>

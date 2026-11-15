@@ -1,6 +1,7 @@
 const config = require('./config');
 const store = require('./db');
 const log = require('./log');
+const hls = require('./hls');
 
 // Bandes-annonces Apple TV (tv.apple.com) via l'API web NON documentée (tv.apple.com/api/uts/v3).
 // Apple peut changer les paramètres sans prévenir : `APPLETV_API_VERSION`, `APPLETV_UTSCF` et `APPLETV_UTSK` sont réglables dans .env.
@@ -207,7 +208,7 @@ const stop = () => { job.stopRequested = true; return status(); };
 
 const urls = (row) => (Array.isArray(row?.appletv) ? row.appletv : [])
   .map((t, index) => ({ t, index }))
-  .filter(({ t }) => t && t.url)
+  .filter(({ t }) => t && t.url && hls.canServe(t.url))   // pas de HLS annoncé si ffmpeg est absent
   .map(({ t, index }) => ({ title: t.title ? `Apple TV — ${t.title}` : 'Bande-annonce Apple TV', url: t.url, index }));
 
 module.exports = { ensure, attach, urls, start, stop, status, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };
