@@ -1,65 +1,213 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0b0e">
 <title>W stockage bande annonce</title>
 <style>
-:root{--bg:#0b0b0e;--card:#14141a;--card2:#1b1b23;--line:#262631;--txt:#ececf1;--muted:#9a9aab;--red:#e50914;--red2:#ff4d57;--green:#43d98b;--amber:#f5b942;--blue:#5aa9ff;--violet:#a78bfa;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-a{color:var(--red2);text-decoration:none}.hidden{display:none!important}.wrap{max-width:1080px;margin:0 auto;padding:20px 18px 70px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}h2{font-size:15px;margin:0 0 4px}h3{font-size:14px;margin:0}
-.muted{color:var(--muted);font-size:13px}.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(150deg,var(--red2),#8c0009);font-weight:800;color:#fff;flex:none}
-.login{min-height:100vh;display:grid;place-items:center;padding:20px}.login .card{width:min(380px,100%);text-align:center}.login .logo{margin:0 auto 14px;width:46px;height:46px}.err{color:var(--red2);font-size:13px;min-height:20px;margin-top:10px}
-.top{position:sticky;top:0;z-index:5;background:rgba(11,11,14,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.top .in{max-width:1080px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}.top h1{font-size:16px;margin:0}.sp{flex:1}
-.tabs{display:flex;gap:4px;margin:18px 0;border-bottom:1px solid var(--line);overflow-x:auto}.tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:9px 14px;font:inherit;cursor:pointer;white-space:nowrap}.tab.active{color:var(--txt);border-color:var(--red2)}
-.btn,.inp,select{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 13px}.btn{cursor:pointer}.btn:hover{border-color:#3a3a49}.btn.primary{background:var(--red);border-color:var(--red)}.btn:disabled{opacity:.45;cursor:default}.inp{width:100%}
-.grid{display:grid;gap:12px}.g5{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.kpi .v{font-size:28px;font-weight:700;letter-spacing:-.5px}.kpi .l{color:var(--muted);font-size:13px}.bar{height:6px;border-radius:9px;background:var(--card2);margin-top:10px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--c,var(--red2));transition:width .4s}
-.sec{margin:26px 0 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.flux{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}.flux:first-of-type{border:0}.num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--card2);font-size:12px;font-weight:700;flex:none}.flux .t{flex:1;min-width:0}.flux b{font-weight:600}
-.url{display:flex;gap:8px;margin-top:12px}.url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px}
-.job .row{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}.job .st{font-size:13px;color:var(--muted);flex:1;min-width:140px}
-.badge{display:inline-block;font-size:12px;border-radius:99px;padding:2px 9px;margin:0 4px 2px 0;border:1px solid var(--line);white-space:nowrap}.b-vf{color:var(--amber);border-color:#5a4720}.b-nf{color:var(--red2);border-color:#5a1f24}.b-up{color:var(--blue);border-color:#1f3d5a}.b-ap{color:var(--violet);border-color:#3d315e}.b-no{color:var(--muted)}
-table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12px;border-top:1px solid var(--line);vertical-align:top}th{font-size:12px;color:var(--muted);font-weight:500;border:0}
-.tools{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.tools .inp{flex:1;min-width:200px;width:auto}
-.set-row{display:grid;grid-template-columns:1fr minmax(160px,250px) 34px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}.set-row:first-of-type{border:0}.set-row .k{color:var(--muted);font-size:12px}
-.logs{max-height:560px;overflow:auto;font:12.5px/1.45 ui-monospace,Consolas,monospace}.lg{display:grid;grid-template-columns:96px 52px 70px 1fr;gap:8px;padding:5px 2px;border-top:1px solid var(--line)}.lv-error{color:var(--red2)}.lv-warn{color:var(--amber)}.lv-info{color:var(--green)}
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw}.toast.show{opacity:1}.toast.err{border-color:var(--red)}
+:root{--bg:#0b0b0e;--card:#14141a;--card2:#1b1b23;--line:#262631;--line2:#32323f;--txt:#ececf1;--muted:#9a9aab;--red:#e50914;--red2:#ff4d57;--green:#43d98b;--amber:#f5b942;--blue:#5aa9ff;--violet:#a78bfa;--off:#6f6f82;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1100px 520px at 50% -160px,#191924 0,var(--bg) 62%) no-repeat,var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--red2);text-decoration:none}a:hover{text-decoration:underline}
+code{font:12.5px/1.4 ui-monospace,Consolas,monospace;color:#cfd0dd}
+.hidden{display:none!important}
+.wrap{max-width:1120px;margin:0 auto;padding:22px 18px 80px}
+.card{background:linear-gradient(180deg,#16161d,#13131a);border:1px solid var(--line);border-radius:14px;padding:18px}
+h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0}
+.muted{color:var(--muted);font-size:13px}
+.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(150deg,var(--red2),#8c0009);font-weight:800;color:#fff;flex:none;box-shadow:0 6px 18px -8px var(--red)}
+
+/* ---- connexion ---- */
+.login{min-height:100vh;display:grid;place-items:center;padding:20px}
+.login .card{width:min(390px,100%);text-align:center;padding:26px}
+.login .logo{margin:0 auto 14px;width:48px;height:48px;font-size:19px}
+.err{color:var(--red2);font-size:13px;min-height:20px;margin-top:10px}
+
+/* ---- en-tête ---- */
+.top{position:sticky;top:0;z-index:5;background:rgba(11,11,14,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1120px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.top h1{font-size:16px;margin:0;letter-spacing:-.2px}
+.top .sub{color:var(--muted);font-size:12.5px;display:flex;gap:7px;flex-wrap:wrap}
+.top .sub i{font-style:normal;opacity:.45}
+.sp{flex:1}
+
+/* ---- onglets ---- */
+.tabs{display:flex;gap:2px;margin:20px 0 22px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font:inherit;cursor:pointer;white-space:nowrap;transition:color .15s}
+.tab:hover{color:var(--txt)}
+.tab.active{color:var(--txt);border-color:var(--red2)}
+
+/* ---- contrôles ---- */
+.btn,.inp,select{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 13px;transition:border-color .15s,background .15s}
+.btn{cursor:pointer}.btn:hover:not(:disabled){border-color:var(--line2);background:#20202b}
+.btn.primary{background:var(--red);border-color:var(--red);font-weight:600}.btn.primary:hover:not(:disabled){background:#f3121f;border-color:#f3121f}
+.btn.ghost{background:transparent}.btn.sm{padding:6px 11px;font-size:13px}
+.btn:disabled{opacity:.4;cursor:default}
+.inp{width:100%}.inp::placeholder{color:#6c6c7e}
+.tools{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}.tools .inp{flex:1;min-width:200px;width:auto}
+
+/* ---- grilles ---- */
+.grid{display:grid;gap:12px}
+.contents{display:contents}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+
+/* ---- titres de section ---- */
+.sec{display:flex;align-items:baseline;gap:10px;margin:30px 0 12px}
+.sec h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+.sec .hint{font-size:12.5px;color:var(--muted);opacity:.8}
+.sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+
+/* ---- couverture (hero) ---- */
+.hero{display:grid;grid-template-columns:148px 1fr;gap:24px;align-items:center;padding:22px}
+.ring{position:relative;width:148px;height:148px;display:grid;place-items:center}
+.ring svg{position:absolute;inset:0;width:148px;height:148px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-linecap:round}
+.ring .bgc{stroke:#22222c;stroke-width:10}
+.ring .fgc{stroke:url(#rg);stroke-width:10;transition:stroke-dashoffset .7s ease}
+.ring .lbl{text-align:center;line-height:1.15}
+.ring .lbl b{display:block;font-size:26px;font-weight:700;letter-spacing:-.6px}
+.ring .lbl span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.hero h2{font-size:17px;margin:0 0 4px}
+.hero .why{color:var(--muted);font-size:13.5px;margin:0 0 14px;max-width:60ch}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.split .it{font-size:12.5px;color:var(--muted)}
+.split .it .k{display:flex;justify-content:space-between;gap:8px;margin-bottom:5px}
+.split .it b{color:var(--txt);font-weight:600;font-size:13px}
+.bar{height:5px;border-radius:9px;background:#1e1e27;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--c,var(--red2));transition:width .5s}
+
+/* ---- indicateurs ---- */
+.kpi{padding:15px 16px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.kpi .n{font-size:25px;font-weight:700;letter-spacing:-.7px;margin:3px 0 1px;font-variant-numeric:tabular-nums}
+.kpi .d{color:var(--muted);font-size:12.5px}
+
+/* ---- état des sources ---- */
+.health{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--card);border-radius:99px;padding:7px 13px;font-size:13px;cursor:default}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--off);flex:none}
+.chip.ok .dot{background:var(--green);box-shadow:0 0 0 3px rgba(67,217,139,.14)}
+.chip.warn .dot{background:var(--amber);box-shadow:0 0 0 3px rgba(245,185,66,.14)}
+.chip.err .dot{background:var(--err,#ff4d57);box-shadow:0 0 0 3px rgba(255,77,87,.14)}
+.chip .k{color:var(--muted)}
+.chip .v{font-weight:600}
+
+/* ---- tâches ---- */
+.job{display:flex;flex-direction:column;gap:9px}
+.job .hd{display:flex;align-items:center;gap:8px}
+.job .hd h3{flex:1}
+.job .pill{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.job .why{color:var(--muted);font-size:12.5px;margin:0;min-height:34px}
+.job .row{display:flex;gap:8px;align-items:center;margin-top:auto;flex-wrap:wrap}
+.job .st{font-size:12.5px;color:var(--muted);flex:1;min-width:120px}
+
+/* ---- badges ---- */
+.badge{display:inline-block;font-size:11.5px;border-radius:99px;padding:2px 9px;border:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.b-vf{color:var(--amber);border-color:#5a4720}.b-nf{color:var(--red2);border-color:#5a1f24}
+.b-up{color:var(--blue);border-color:#1f3d5a}.b-ap{color:var(--violet);border-color:#3d315e}
+.b-no{color:var(--muted)}.b-ok{color:var(--green);border-color:#1d4535}
+
+/* ---- listes de flux ---- */
+.flux{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+.flux:first-of-type{border:0;padding-top:0}
+.flux .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--card2);border:1px solid var(--line);font-size:11.5px;font-weight:700;flex:none;margin-top:1px}
+.flux .t{flex:1;min-width:0}
+.flux b{font-weight:600}
+.url{display:flex;gap:8px;margin-top:9px}
+.url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+
+/* ---- tableaux ---- */
+table{width:100%;border-collapse:collapse}
+td,th{text-align:left;padding:10px 12px;border-top:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;border:0}
+tbody tr:hover{background:#16161d}
+
+/* ---- paramètres ---- */
+.set-row{display:grid;grid-template-columns:1fr minmax(160px,250px) 34px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.set-row:first-of-type{border:0}
+.set-row .k{color:var(--muted);font-size:11.5px}
+
+/* ---- journal ---- */
+.logs{max-height:560px;overflow:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace}
+.lg{display:grid;grid-template-columns:96px 52px 70px 1fr;gap:8px;padding:5px 2px;border-top:1px solid var(--line)}
+.lv-error{color:var(--red2)}.lv-warn{color:var(--amber)}.lv-info{color:var(--green)}
+
+/* ---- divers ---- */
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line2);border-radius:10px;padding:10px 16px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;z-index:20;box-shadow:0 12px 32px -12px #000}
+.toast.show{opacity:1}.toast.err{border-color:var(--red)}
+.empty{padding:18px 0;color:var(--muted);font-size:13.5px}
+@media (max-width:640px){
+  .hero{grid-template-columns:1fr;justify-items:center;text-align:center}
+  .hero .why{text-align:left}
+  .ring,.ring svg{width:128px;height:128px}
+  .set-row{grid-template-columns:1fr;gap:6px}
+}
 </style></head><body>
-<div id="login" class="login hidden"><div class="card"><div class="logo">W</div><h1 style="font-size:18px;margin:0 0 4px">W stockage bande annonce</h1><p class="muted" style="margin:0 0 18px">Dashboard d'administration</p>
+
+<div id="login" class="login hidden"><div class="card"><div class="logo">W</div><h1 style="font-size:19px;margin:0 0 4px">W stockage bande annonce</h1><p class="muted" style="margin:0 0 20px">Dashboard d'administration</p>
 <form id="login-form"><input id="login-pass" class="inp" type="password" placeholder="Mot de passe" autocomplete="current-password" required style="text-align:center"><button id="login-btn" class="btn primary" style="width:100%;margin-top:10px" type="submit">Se connecter</button></form><div id="login-err" class="err"></div></div></div>
 
 <div id="app" class="hidden">
-<header class="top"><div class="in"><div class="logo">W</div><div><h1>W stockage bande annonce</h1><div class="muted"><span id="version">v—</span> · bandes-annonces Netflix, Apple TV</div></div><div class="sp"></div>
-<a class="btn" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a><button id="logout" class="btn" type="button">Déconnexion</button></div></header>
+<header class="top"><div class="in"><div class="logo">W</div>
+  <div><h1>W stockage bande annonce</h1><div class="sub"><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
+  <div class="sp"></div>
+  <a class="btn sm" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
+  <button id="logout" class="btn sm ghost" type="button">Déconnexion</button></div></header>
 <div class="wrap">
 <nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="search">Recherche</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
 
 <section id="tab-home">
-  <div id="kpis" class="grid g5"></div>
-  <div class="sec">Ce que l'addon propose</div>
-  <div class="grid g2">
-    <div class="card"><h2>Flux affichés dans Stremio</h2><p class="muted" style="margin:0 0 6px">À l'ouverture d'une fiche Stremio (film, série, épisodes), l'addon retrouve le titre sur TMDB, le cherche sur le web, lit sa page Netflix et stocke la bande-annonce. Chaque titre n'est cherché qu'une fois. Flux proposés, dans cet ordre :</p><div id="flux"></div><p class="muted" id="lookup-line" style="margin:10px 0 0"></p></div>
-    <div class="card"><h2>Installation et API</h2><p class="muted" style="margin:0">Ajoute l'addon dans Stremio avec cette adresse (HTTPS obligatoire) :</p>
-      <div class="url"><code id="manifest-url">—</code><button class="btn" id="copy-manifest" type="button">Copier</button></div>
-      <p class="muted" style="margin:14px 0 0">API pour les autres instances : <code id="api-url">—</code></p><p class="muted" id="api-note" style="margin:6px 0 0"></p></div>
+  <div class="card hero">
+    <div class="ring">
+      <svg viewBox="0 0 148 148" aria-hidden="true">
+        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4d57"/><stop offset="1" stop-color="#e50914"/></linearGradient></defs>
+        <circle class="bgc" cx="74" cy="74" r="64"/>
+        <circle class="fgc" id="ring-fg" cx="74" cy="74" r="64" stroke-dasharray="402.1" stroke-dashoffset="402.1"/>
+      </svg>
+      <div class="lbl"><b id="ring-pct">—</b><span>couverture</span></div>
+    </div>
+    <div>
+      <h2>Couverture des bandes-annonces</h2>
+      <p class="why" id="hero-line">Chargement…</p>
+      <div class="split" id="hero-split"></div>
+    </div>
   </div>
-  <div class="sec">Collecter des bandes-annonces</div>
-  <div id="jobs" class="grid g2"></div>
-  <div class="sec">Titres Netflix</div>
+
+  <div id="kpis" class="grid g4" style="margin-top:12px"></div>
+
+  <div class="sec"><h2>État des sources</h2><span class="hint">ce qui casse en premier : clé TMDB, moteur de recherche, Apple TV, ffmpeg</span></div>
+  <div id="health" class="health"></div>
+
+  <div class="sec"><h2>1 · Collecter</h2><span class="hint">remplir la base de titres</span></div>
+  <div class="grid g3">
+    <div id="jobs-bulk" class="contents"></div>
+    <div class="card"><h3>Synchro TMDB</h3><p class="why muted" style="margin:6px 0 10px">Récupère les titres Netflix de la région puis lance le liage des IDs.</p><div class="row" style="display:flex;gap:8px;margin-top:auto"><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div></div>
+    <div class="card"><h3>Ajouter un titre</h3><p class="why muted" style="margin:6px 0 10px">Colle une URL <code>netflix.com/…/title/&lt;id&gt;</code>, un ID, ou une page <code>primevideo.com/…/detail/&lt;id&gt;</code>.</p>
+      <div style="display:flex;gap:8px"><input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880"><button id="add-btn" class="btn primary" type="button">Ajouter</button></div></div>
+  </div>
+
+  <div class="sec"><h2>2 · Enrichir</h2><span class="hint">un ID par titre, puis la bande-annonce</span></div>
+  <div id="jobs-enrich" class="grid g3"></div>
+
+  <div class="sec"><h2>3 · Brancher Stremio</h2><span class="hint">ce que l'addon renvoie sur une fiche</span></div>
   <div class="grid g2">
-    <div class="card"><h2>Ajouter un titre</h2><p class="muted" style="margin:0 0 10px">Colle une URL <code>netflix.com/…/title/&lt;id&gt;</code>, l'ID, ou une URL <code>primevideo.com/…/detail/&lt;id&gt;</code>.</p><div style="display:flex;gap:8px"><input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880"><button id="add-btn" class="btn primary" type="button">Ajouter</button></div></div>
-    <div class="card"><h2>Synchronisation TMDB</h2><p class="muted" style="margin:0 0 10px">Récupère les titres Netflix de la région puis lance le liage des IDs.</p><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div>
+    <div class="card"><h3>Adresse de l'addon</h3><p class="muted" style="margin:6px 0 0">À ajouter dans Stremio (<em>Addons → Install from URL</em>). HTTPS obligatoire, sauf en local.</p>
+      <div class="url"><code id="manifest-url">—</code><button class="btn sm" id="copy-manifest" type="button">Copier</button></div>
+      <h3 style="margin-top:16px">API de fédération</h3><p class="muted" style="margin:6px 0 0">Pour partager les bandes-annonces entre instances.</p>
+      <div class="url"><code id="api-url">—</code></div>
+      <p class="muted" id="api-note" style="margin:8px 0 0"></p></div>
+    <div class="card"><h3>Ordre des flux proposés</h3><p class="muted" style="margin:6px 0 8px">À l'ouverture d'une fiche Stremio, l'addon retrouve le titre sur TMDB, cherche sa fiche Netflix, lit la page et stocke la bande-annonce. Chaque titre n'est cherché qu'une fois.</p><div id="flux"></div><p class="muted" id="lookup-line" style="margin:12px 0 0"></p></div>
   </div>
 </section>
 
 <section id="tab-search" class="hidden">
-  <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:0 0 10px">Tape un titre : les liens Netflix et Apple TV trouvés s'affichent. Vérifie que c'est le bon, puis clique sur « Ajouter » pour stocker sa bande-annonce.</p>
+  <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:6px 0 12px">Tape un titre : les liens Netflix (Brave Search) et Apple TV (API iTunes) trouvés s'affichent. Vérifie que c'est le bon, puis « Ajouter » stocke sa bande-annonce.</p>
     <div style="display:flex;gap:8px"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
   <div id="s-res" class="grid g2" style="margin-top:12px"></div>
 </section>
 
 <section id="tab-titles" class="hidden">
   <div class="tools"><input id="t-search" class="inp" placeholder="Rechercher un titre…"><select id="t-filter"><option value="">Tous les titres</option><option value="none">Sans bande-annonce</option><option value="netflix">Avec Netflix</option><option value="apple">Avec Apple TV</option></select></div>
-  <div class="card" style="padding:6px 8px"><table><thead><tr><th>Titre</th><th>Bandes-annonces</th></tr></thead><tbody id="t-body"></tbody></table></div>
+  <div class="card" style="padding:4px 8px"><table><thead><tr><th>Titre</th><th>Bandes-annonces</th></tr></thead><tbody id="t-body"></tbody></table></div>
   <div style="display:flex;gap:12px;align-items:center;margin-top:12px"><button id="t-more" class="btn hidden" type="button">Charger plus</button><span id="t-count" class="muted"></span></div>
 </section>
 
@@ -70,7 +218,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
 
 <section id="tab-journal" class="hidden">
   <div class="tools"><select id="log-level"><option value="">Tous niveaux</option><option>error</option><option>warn</option><option>info</option></select><input id="log-search" class="inp" placeholder="Filtrer (source, message)…"><button id="log-clear" class="btn" type="button">Effacer</button></div>
-  <div class="card"><div id="logs" class="logs"></div></div>
+  <div class="card" style="padding:8px 12px"><div id="logs" class="logs"></div></div>
 </section>
 </div></div>
 <div id="toast" class="toast"></div>
@@ -82,6 +230,8 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var fmt = function (n) { return new Intl.NumberFormat('fr-FR').format(n || 0); };
   var pct = function (a, b) { return b ? Math.round(a / b * 100) : 0; };
+  var mo = function (b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' Mo' : Math.round(b / 1024) + ' Ko'; };
+  var dur = function (s) { if (!s) return '—'; var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600); return d ? d + ' j ' + h + ' h' : h ? h + ' h' : Math.floor(s / 60) + ' min'; };
   function toast(m, kind) { var t = $('toast'); t.textContent = m; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(function () { t.className = 'toast'; }, 4200); }
   function api(path, body) {
     var o = { method: body === undefined ? 'GET' : 'POST', headers: { 'x-admin-token': token } };
@@ -94,19 +244,62 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
   function showLogin(m) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('login-err').textContent = m || ''; }
   function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); $('login-err').textContent = ''; $('login-pass').value = ''; }
 
-  /* ---- Stockage : indicateurs et flux ---- */
+  /* ---- Stockage : couverture, indicateurs, état des sources ---- */
   function renderHome(d) {
-    var s = d.stats; $('version').textContent = 'v' + d.version;
-    var kp = [['Titres stockés', s.total, fmt(s.movies) + ' films · ' + fmt(s.series) + ' séries', null, null],
-      ['Avec bande-annonce', s.withTrailer, pct(s.withTrailer, s.total) + ' % des titres', s.withTrailer, 'var(--green)'],
-      ['Netflix', s.withNetflixTrailer, pct(s.withNetflixTrailer, s.total) + ' % des titres', s.withNetflixTrailer, 'var(--red2)'],
-      ['Apple TV', s.withAppletv, pct(s.withAppletv, s.total) + ' % des titres', s.withAppletv, 'var(--violet)']];
-    $('kpis').innerHTML = kp.map(function (k) { return '<div class="card kpi"><div class="l">' + k[0] + '</div><div class="v">' + fmt(k[1]) + '</div><div class="l">' + k[2] + '</div>' +
-      (k[3] == null ? '' : '<div class="bar"><i style="width:' + pct(k[3], s.total) + '%;--c:' + k[4] + '"></i></div>') + '</div>'; }).join('');
-    var fl = [['Netflix', 'Bande-annonce de la page Netflix' + (d.addon.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
-      ['Apple TV', d.addon.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg) par ton serveur, puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']];
-    $('flux').innerHTML = fl.map(function (f, i) { return '<div class="flux"><div class="num">' + (i + 1) + '</div><div class="t"><b>' + f[0] + '</b><div class="muted">' + f[1] + '</div></div><span class="badge ' + f[3] + '">' + fmt(f[2]) + ' titres</span></div>'; }).join('');
-    $('lookup-line').textContent = d.addon.resolve ? 'Recherche automatique : ' + fmt(s.lookups) + ' titre(s) cherché(s), ' + fmt(s.lookupsFound) + ' avec bande-annonce.' : 'Recherche automatique désactivée (RESOLVE_ENABLED=0 ou TMDB_API_KEY manquant).';
+    var s = d.stats, src = d.sources || {};
+    $('version').textContent = 'v' + d.version;
+    $('sub-meta').innerHTML = esc(fmt(s.total)) + ' titres <i>·</i> base ' + esc(mo(s.dbBytes)) + ' <i>·</i> en ligne depuis ' + esc(dur(d.uptime));
+
+    // couverture : la promesse de l'addon, c'est un titre Stremio qui affiche une bande-annonce
+    var cov = pct(s.withTrailer, s.total), C = 2 * Math.PI * 64;
+    $('ring-pct').textContent = cov + ' %';
+    $('ring-fg').style.strokeDashoffset = String(C * (1 - cov / 100));
+    $('hero-line').innerHTML = fmt(s.withTrailer) + ' titres sur ' + fmt(s.total) + ' ont au moins une bande-annonce, '
+      + 'et ' + fmt(s.withImdb) + ' ont un ID IMDb — c\'est ce couple qui fait apparaître un flux dans Stremio.';
+    var parts = [
+      ['Netflix', s.withNetflixTrailer, 'var(--red2)'],
+      ['Apple TV', s.withAppletv, 'var(--violet)'],
+      ['IDs IMDb', s.withImdb, 'var(--blue)'],
+      ['IDs Netflix', s.netflixId, 'var(--green)']
+    ];
+    $('hero-split').innerHTML = parts.map(function (p) {
+      return '<div class="it"><div class="k"><span>' + p[0] + '</span><b>' + fmt(p[1]) + '</b></div>'
+        + '<div class="bar"><i style="width:' + pct(p[1], s.total) + '%;--c:' + p[2] + '"></i></div></div>';
+    }).join('');
+
+    var kp = [
+      ['Titres connus', s.total, fmt(s.movies) + ' films · ' + fmt(s.series) + ' séries'],
+      ['Épisodes', s.episodes, 'saisons détaillées sur les séries'],
+      ['À lier (Netflix)', s.unlinked, s.unlinked ? 'lance « IDs Netflix » ci-dessous' : 'tout est lié'],
+      ['Recherches auto', s.lookups, fmt(s.lookupsFound) + ' ont abouti, ' + fmt(s.lookups - s.lookupsFound) + ' sans résultat']
+    ];
+    $('kpis').innerHTML = kp.map(function (k) {
+      return '<div class="card kpi"><div class="l">' + k[0] + '</div><div class="n">' + fmt(k[1]) + '</div><div class="d">' + k[2] + '</div></div>';
+    }).join('');
+
+    var chips = [
+      ['TMDB', src.tmdb ? 'clé active' : 'clé absente', src.tmdb ? 'ok' : 'warn'],
+      ['Recherche web', src.search || '—', src.brave ? 'ok' : 'warn'],
+      ['Apple TV', src.appletv ? 'activé' : 'désactivé', src.appletv ? 'ok' : 'off'],
+      ['ffmpeg', src.ffmpeg ? 'présent' : 'absent — son Apple muet', src.ffmpeg ? 'ok' : 'err'],
+      ['Résolution auto', src.resolve ? 'active' : 'désactivée', src.resolve ? 'ok' : 'off'],
+      ['Instance amont', src.upstream ? 'configurée' : 'aucune', src.upstream ? 'ok' : 'off'],
+      ['API fédération', src.apiOpen ? 'ouverte (sans clé)' : 'protégée par clé', src.apiOpen ? 'warn' : 'ok']
+    ];
+    $('health').innerHTML = chips.map(function (c) {
+      return '<span class="chip ' + c[2] + '"><span class="dot"></span><span class="k">' + esc(c[0]) + '</span><span class="v">' + esc(c[1]) + '</span></span>';
+    }).join('');
+
+    // flux : ordre réellement proposé par l'addon (miroir de src/addon.js)
+    var fl = [
+      ['Netflix', 'Bande-annonce de la page Netflix' + (src.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
+      ['Apple TV', src.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg), puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']
+    ];
+    $('flux').innerHTML = fl.map(function (f, i) {
+      return '<div class="flux"><div class="num">' + (i + 1) + '</div><div class="t"><b>' + f[0] + '</b> <span class="badge ' + f[3] + '">' + fmt(f[2]) + ' titres</span><div class="muted">' + f[1] + '</div></div></div>';
+    }).join('');
+    $('lookup-line').textContent = src.resolve ? 'Recherche automatique : ' + fmt(s.lookups) + ' titre(s) cherché(s), ' + fmt(s.lookupsFound) + ' avec bande-annonce.' : 'Recherche automatique désactivée (RESOLVE_ENABLED=0 ou TMDB_API_KEY manquant).';
+
     var base = (d.addon.publicUrl || location.origin).replace(/\/+$/, '');
     $('manifest-url').textContent = base + '/manifest.json';
     $('api-url').textContent = base + '/api/trailers?imdb=tt…';
@@ -114,22 +307,28 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
     JOBS.forEach(function (j) { var p = $('pend-' + j.k); if (p) p.textContent = j.pend(s); });
   }
 
-  /* ---- Tâches de fond ---- */
+  /* ---- Tâches de fond, groupées par étape ---- */
   var JOBS = [
-    { k: 'appletv', t: 'Apple TV', d: 'Cherche la bande-annonce de chaque titre dans le catalogue Apple TV (Apple Originals et chaînes : beaucoup de titres Netflix n\'y sont pas).', st: '/admin/api/appletv', go: '/admin/appletv', stop: '/admin/appletv/stop',
-      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.found) + ' trouvée(s)' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.appletvPending) + ' à vérifier'; } },
-    { k: 'vf', t: 'IDs IMDb / TMDB', d: 'Associe chaque titre à son ID IMDb via TMDB (nécessite TMDB_API_KEY) pour qu\'il apparaisse sur les fiches Stremio, et complète affiches et synopsis.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',
-      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.matched) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.vfPending) + ' à vérifier'; } },
-    { k: 'link', t: 'IDs Netflix', d: 'Associe chaque titre à son ID Netflix (via JustWatch) pour récupérer sa bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
+    { k: 'harvest', group: 'bulk', t: 'Moissonnage Netflix', d: 'Liste le catalogue Netflix des pays configurés (via JustWatch) pour créer les fiches et récupérer les IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
+      line: function (s) { return fmt(s.seen) + ' vus · ' + fmt(s.added) + ' ajoutés · ' + fmt(s.linked) + ' liés'; }, pend: function (s) { return fmt(s.total) + ' titres'; } },
+    { k: 'link', group: 'enrich', t: 'IDs Netflix', d: 'Associe chaque fiche à son ID Netflix (JustWatch) : c\'est la clé de la bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.linked) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.unlinked) + ' à lier'; } },
-    { k: 'harvest', t: 'Moissonnage Netflix', d: 'Liste tout le catalogue Netflix des pays configurés pour ajouter les titres et leurs IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
-      line: function (s) { return fmt(s.seen) + ' vus · ' + fmt(s.added) + ' ajoutés · ' + fmt(s.linked) + ' liés'; }, pend: function (s) { return fmt(s.total) + ' titres'; } }
+    { k: 'vf', group: 'enrich', t: 'IDs IMDb / TMDB', d: 'Retrouve l\'ID IMDb via TMDB (nécessaire pour apparaître sur une fiche Stremio) et complète affiche, synopsis, genres.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',
+      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.matched) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.vfPending) + ' à vérifier'; } },
+    { k: 'appletv', group: 'enrich', t: 'Apple TV', d: 'Cherche la bande-annonce dans le catalogue Apple TV (Apple Originals et chaînes : beaucoup de titres Netflix n\'y sont pas).', st: '/admin/api/appletv', go: '/admin/appletv', stop: '/admin/appletv/stop',
+      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.found) + ' trouvée(s)' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.appletvPending) + ' à vérifier'; } }
   ];
+  function jobCard(j) {
+    return '<div class="card job"><div class="hd"><h3>' + esc(j.t) + '</h3><span class="pill" id="pend-' + j.k + '">—</span></div>'
+      + '<p class="why">' + esc(j.d) + '</p><div class="bar"><i id="bar-' + j.k + '"></i></div>'
+      + '<div class="row"><span class="st" id="st-' + j.k + '">Inactif</span>'
+      + (j.recent ? '<button class="btn sm" data-go="' + j.k + '" data-recent="1" type="button">Dernières sorties</button>' : '')
+      + '<button class="btn sm primary" data-go="' + j.k + '" type="button">Lancer</button>'
+      + '<button class="btn sm ghost" data-stop="' + j.k + '" type="button" disabled>Arrêter</button></div></div>';
+  }
   function buildJobs() {
-    $('jobs').innerHTML = JOBS.map(function (j) { return '<div class="card job"><div style="display:flex;gap:8px"><h3 style="flex:1">' + j.t + '</h3><span class="muted" id="pend-' + j.k + '"></span></div><p class="muted" style="margin:6px 0 0">' + j.d + '</p>' +
-      '<div class="bar"><i id="bar-' + j.k + '"></i></div><div class="row"><span class="st" id="st-' + j.k + '">Inactif</span>' +
-      (j.recent ? '<button class="btn" data-go="' + j.k + '" data-recent="1" type="button">Dernières sorties</button>' : '') +
-      '<button class="btn primary" data-go="' + j.k + '" type="button">Lancer</button><button class="btn" data-stop="' + j.k + '" type="button" disabled>Arrêter</button></div></div>'; }).join('');
+    $('jobs-bulk').innerHTML = JOBS.filter(function (j) { return j.group === 'bulk'; }).map(jobCard).join('');
+    $('jobs-enrich').innerHTML = JOBS.filter(function (j) { return j.group === 'enrich'; }).map(jobCard).join('');
   }
   function pollJobs() {
     clearTimeout(jobTimer);
@@ -144,8 +343,8 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
       else if (jobTimer !== 0) api('/admin/api/summary').then(function (d) { sum = d; renderHome(d); });
     }).catch(fail);
   }
-  $('jobs').addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return;
+  $('tab-home').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-go],button[data-stop]'); if (!b) return;
     var j = JOBS.filter(function (x) { return x.k === (b.dataset.go || b.dataset.stop); })[0]; if (!j) return;
     var req = b.dataset.stop ? api(j.stop, {}) : api(j.go, b.dataset.recent ? { recent: true } : {});
     req.then(function () { toast(b.dataset.stop ? 'Arrêt demandé' : j.t + ' : lancé'); jobTimer = null; pollJobs(); }).catch(fail);
@@ -226,7 +425,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
 
   /* ---- Recherche ---- */
   var lastApple = [];
-  function sBtn(stored, attr, i) { return stored ? '<button class="btn" disabled>Stocké ✓</button>' : '<button class="btn primary" ' + attr + '="' + i + '" type="button">Ajouter</button>'; }
+  function sBtn(stored, attr, i) { return stored ? '<button class="btn sm" disabled>Stocké ✓</button>' : '<button class="btn sm primary" ' + attr + '="' + i + '" type="button">Ajouter</button>'; }
   function renderSearch(d) {
     lastApple = d.apple;
     var nf = d.netflixError ? '<p class="muted">' + esc(d.netflixError) + '</p>' : d.netflix.length ? d.netflix.map(function (r, i) {

@@ -295,4 +295,4 @@ function prefetch(url) {
   ensure(url).catch((e) => log.warn('hls', `conversion impossible : ${e.message}`));
 }
 
-module.exports = { isHls, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore, durationOf, keyOf };
+module.exports = { isHls, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore, durationOf, keyOf, ffmpegAvailable: () => !!ffmpeg() };

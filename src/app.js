@@ -69,6 +69,17 @@ app.get('/admin/api/summary', auth, (_req, res) => {
   res.json({
     version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view(),
     addon: { resolve: !!(config.resolveEnabled && config.tmdbKey), publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: !config.apiKey },
+    // État des sources : ce qui, dans ce projet, casse en premier (clé TMDB, moteur de recherche, Apple TV, ffmpeg).
+    sources: {
+      tmdb: !!config.tmdbKey,
+      brave: !!config.braveApiKey,
+      search: config.braveApiKey ? 'Brave Search' : 'DuckDuckGo',
+      appletv: !!config.appletvEnabled,
+      ffmpeg: hls.ffmpegAvailable(),
+      resolve: !!(config.resolveEnabled && config.tmdbKey),
+      upstream: config.upstreamUrl || '',
+      apiOpen: !config.apiKey,
+    },
   });
 });
 app.post('/admin/api/settings', auth, (req, res) => {

@@ -46,7 +46,7 @@ Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 ## Dashboard d'administration
 `https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
 
-Cinq onglets : **Stockage** (indicateurs par source, ordre des flux proposés, adresse d'installation, tâches de collecte VF / Netflix / Apple TV), **Recherche** (tape un titre : liens Netflix trouvés via Brave Search et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
+Cinq onglets : **Stockage** (couverture des bandes-annonces, état des sources — TMDB, moteur de recherche, Apple TV, ffmpeg —, puis les trois étapes *collecter → enrichir → brancher Stremio*), **Recherche** (tape un titre : liens Netflix trouvés via Brave Search et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
 
 **Vue d'ensemble**
 - Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
