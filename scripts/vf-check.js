@@ -1,4 +1,4 @@
-// Cherche, via TMDB, la bande-annonce YouTube en FRANÇAIS de chaque titre (américains compris)
+// Associe chaque titre à TMDB/IMDb (et complète affiches, synopsis, genres)
 // et complète affiche / synopsis / genres / IMDb des fiches moissonnées. Nécessite TMDB_API_KEY.
 // Usage : npm run vf                      (tous les titres pas encore vérifiés)
 //         npm run vf -- --limit 200       (test rapide)
@@ -17,10 +17,10 @@ const val = (n) => { const i = args.indexOf(`--${n}`); return i >= 0 ? Number(ar
     onProgress(s) {
       if (s.done === last) return;
       last = s.done;
-      process.stdout.write(`\r${s.done}/${s.total} · ${s.withVf} avec bande-annonce VF · ${s.noMatch} sans fiche TMDB · ${s.failed} erreurs`);
+      process.stdout.write(`\r${s.done}/${s.total} · ${s.matched} liés à TMDB · ${s.noMatch} sans fiche TMDB · ${s.failed} erreurs`);
     },
   });
   process.stdout.write('\n');
-  console.log(`Terminé : ${st.withVf} titres avec bande-annonce VF sur ${st.done} vérifiés (${st.noMatch} introuvables sur TMDB, ${st.failed} erreurs).`);
+  console.log(`Terminé : ${st.matched} titres liés à TMDB sur ${st.done} vérifiés (${st.noMatch} introuvables sur TMDB, ${st.failed} erreurs).`);
   if (st.errors.length) console.log('Dernières erreurs :\n- ' + st.errors.join('\n- '));
 })().catch((e) => { console.error(e.message); process.exitCode = 1; });

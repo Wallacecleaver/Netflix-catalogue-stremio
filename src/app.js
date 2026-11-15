@@ -225,7 +225,7 @@ app.get('/admin/api/titles', auth, (req, res) => {
       id: r.id, name: r.name, type: r.type, year: r.year,
       netflix: r.trailers.filter((t) => t && t.source !== 'upstream').length,
       upstream: r.trailers.filter((t) => t && t.source === 'upstream').length,
-      vf: !!r.vf_trailer, apple: r.appletv.length,
+      apple: r.appletv.length,
     })),
   });
 });

@@ -4,7 +4,7 @@
 > de l'addon (`community.wallacecleaver.netflix-catalogue`) restent inchangés pour ne pas casser les installations existantes.
 
 Addon Stremio **de stockage de bandes-annonces** (aucun film/épisode, **aucun catalogue**). Il stocke pour chaque titre ses bandes-annonces
-**VF** (TMDB/YouTube), **Netflix** et **Apple TV**, et les propose comme flux sur n'importe quelle fiche Stremio dont l'ID IMDb est connu
+**Netflix** et **Apple TV**, et les propose comme flux sur n'importe quelle fiche Stremio dont l'ID IMDb est connu
 (film, série, épisodes), plus sur les anciennes fiches `nflx:`. Il garde aussi, pour chaque titre,
 synopsis, année, classification (16+), genres, casting, **bande-annonce**, **épisodes avec synopsis, durée et images**.
 
@@ -96,10 +96,8 @@ planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.
 ## Catalogue mondial et bandes-annonces VF
 - **Plusieurs pays** : `HARVEST_COUNTRIES` (défaut `FR,US,GB,CA`, modifiable dans *Paramètres*) ou `npm run harvest -- --countries FR,US,DE`.
   L'ID Netflix est identique dans tous les pays : le moissonnage fait l'union dédoublonnée, donc les titres exclusifs aux États-Unis sont inclus.
-- **Bande-annonce VF** : `npm run vf` (ou le bouton du dashboard) interroge TMDB, une requête par titre, et retient la bande-annonce YouTube marquée en français.
-  La même requête complète affiche, fond, synopsis, genres et IMDb des fiches moissonnées. Nécessite `TMDB_API_KEY`.
-  Résultat : flux **« Netflix VF »** (YouTube) en premier dans Stremio.
-- Les titres sans résultat sont revérifiés après 14 jours (une bande-annonce VF peut sortir plus tard).
+- **Liaison TMDB / IMDb** : `npm run vf` (ou le bouton du dashboard) interroge TMDB, une requête par titre, pour retrouver l'ID IMDb et compléter affiche, fond, synopsis et genres. Nécessite `TMDB_API_KEY`.
+- Les titres sans résultat sont revérifiés après 14 jours.
 - Ordre conseillé : `npm run harvest` → `npm run vf` → `npm run netflix-ids` (bande-annonce Netflix, casting, épisodes).
 
 ## Journal d'événements

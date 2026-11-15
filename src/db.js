@@ -165,10 +165,9 @@ function deleteDuplicates(tmdbType, tmdbId, keepId) {
 // Conditions SQL « ce titre a une bande-annonce de telle source ».
 const TR = {
   netflix: "(trailers_json IS NOT NULL AND trailers_json NOT IN ('', '[]'))",
-  vf: 'vf_trailer IS NOT NULL',
   apple: "(appletv_json IS NOT NULL AND appletv_json NOT IN ('', '[]'))",
 };
-TR.any = `(${TR.netflix} OR ${TR.vf} OR ${TR.apple})`;
+TR.any = `(${TR.netflix} OR ${TR.apple})`;
 
 // Titres dont les bandes-annonces Apple TV n'ont pas encore été cherchées (ou sans résultat depuis plus de `retryDays` jours).
 const appletvPendingWhere = '(appletv_checked IS NULL OR (appletv_json IS NULL AND appletv_checked < @before))';
@@ -205,7 +204,6 @@ function stats() {
     netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
     unlinked: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NULL').get().c,
     withImdb: db.prepare('SELECT COUNT(*) c FROM titles WHERE imdb_id IS NOT NULL').get().c,
-    withVf: db.prepare('SELECT COUNT(*) c FROM titles WHERE vf_trailer IS NOT NULL').get().c,
     vfChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE vf_checked IS NOT NULL').get().c,
     vfPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${vfPendingWhere}`).get({ before: Date.now() - 14 * 86400000 }).c,
     logs: db.prepare('SELECT COUNT(*) c FROM logs').get().c,

@@ -3,12 +3,12 @@ const store = require('./db');
 const log = require('./log');
 const tmdb = require('./tmdb');
 
-// Job de fond : pour chaque titre, une requête TMDB qui (1) cherche une bande-annonce YouTube EN FRANÇAIS
-// et (2) complète affiche, fond, synopsis, genres et IMDb quand la fiche vient du moissonnage (donc vide).
+// Job de fond : pour chaque titre, une requête TMDB qui retrouve son ID IMDb et complète
+// affiche, fond, synopsis et genres quand la fiche vient du moissonnage (donc vide).
 // Les titres sans TMDB sont recherchés par nom + année + type. Fonctionne pour TOUS les titres, américains compris.
 const state = {
   running: false, stopRequested: false,
-  total: 0, done: 0, withVf: 0, noMatch: 0, failed: 0,
+  total: 0, done: 0, matched: 0, noMatch: 0, failed: 0,
   current: null, startedAt: null, finishedAt: null, errors: [],
 };
 
@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function status() {
   return {
     running: state.running, total: state.total, done: state.done,
-    withVf: state.withVf, noMatch: state.noMatch, failed: state.failed,
+    matched: state.matched, noMatch: state.noMatch, failed: state.failed,
     percent: state.total ? Math.round((state.done / state.total) * 100) : 0,
     current: state.current, startedAt: state.startedAt, finishedAt: state.finishedAt,
     errors: state.errors.slice(-8),
@@ -61,9 +61,8 @@ async function checkOne(row) {
     genres: row.genres && row.genres.length ? row.genres : b.genres,
     poster: row.poster || b.poster || null, background: row.background || b.background || null,
     runtime: row.runtime || b.runtime || null,
-    vf_trailer: b.vf || null,
   });
-  return { vf: !!b.vf, match: true };
+  return { match: true };
 }
 
 /** Lance la vérification. `limit` > 0 borne le nombre de fiches ; `concurrency` requêtes TMDB en parallèle. */
@@ -72,7 +71,7 @@ async function run({ limit = 0, concurrency = 4, delayMs = 150, onProgress } = {
   if (!config.tmdbKey) { const msg = 'TMDB_API_KEY manquant'; log.error('vf', msg); throw new Error(msg); }
   const rows = store.listVfPending({ limit });
   Object.assign(state, {
-    running: true, stopRequested: false, total: rows.length, done: 0, withVf: 0, noMatch: 0, failed: 0,
+    running: true, stopRequested: false, total: rows.length, done: 0, matched: 0, noMatch: 0, failed: 0,
     current: null, startedAt: Date.now(), finishedAt: null, errors: [],
   });
   log.info('vf', `Début de la recherche des bandes-annonces VF : ${rows.length} titre(s)`, { total: rows.length });
@@ -85,7 +84,7 @@ async function run({ limit = 0, concurrency = 4, delayMs = 150, onProgress } = {
       state.current = { id: row.id, name: row.name, type: row.type };
       try {
         const r = await checkOne(row);
-        if (r.vf) state.withVf++;
+        if (r.match) state.matched++;
         if (!r.match) state.noMatch++;
       } catch (e) {
         state.failed++;
@@ -105,8 +104,8 @@ async function run({ limit = 0, concurrency = 4, delayMs = 150, onProgress } = {
     state.running = false;
     state.current = null;
     state.finishedAt = Date.now();
-    log.info('vf', `Recherche VF terminée : ${state.withVf} avec bande-annonce française, ${state.noMatch} sans fiche TMDB, ${state.failed} erreurs`,
-      { withVf: state.withVf, noMatch: state.noMatch, failed: state.failed, done: state.done, total: state.total });
+    log.info('vf', `Liaison TMDB terminée : ${state.matched} liés à TMDB, ${state.noMatch} sans fiche TMDB, ${state.failed} erreurs`,
+      { matched: state.matched, noMatch: state.noMatch, failed: state.failed, done: state.done, total: state.total });
   }
   return status();
 }

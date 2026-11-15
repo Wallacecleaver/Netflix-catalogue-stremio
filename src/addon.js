@@ -8,6 +8,8 @@ const resolve = require('./resolve');
 const { enrichTitle } = require('./enrich');
 
 const TYPES = ['movie', 'series'];
+// En-têtes envoyés au CDN Apple : sans eux le lecteur Stremio reste sur un chargement infini.
+const APPLE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', Origin: 'https://tv.apple.com', Referer: 'https://tv.apple.com/' };
 
 // Plus de catalogue : l'addon ne fait que fournir des bandes-annonces.
 //  - stream : sur n'importe quelle fiche Stremio (ID IMDb `tt…`, y compris épisodes) ET sur les anciennes fiches `nflx:`
@@ -16,7 +18,7 @@ const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
   version: '2.1.0',
   name: 'W stockage bande annonce',
-  description: 'Bandes-annonces sur tes fiches Stremio : VF (TMDB/YouTube), Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
+  description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
     { name: 'meta', types: TYPES, idPrefixes: ['nflx:'] },
     { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'tt'] },
@@ -41,9 +43,8 @@ function buildMeta(row, eps) {
     runtime: row.runtime ? `${row.runtime} min` : undefined,
     imdbId: row.imdb_id || undefined,
   };
-  // Bande-annonce VF (via TMDB) d'abord, puis celles de la page Netflix / de l'instance amont.
+  // Bandes-annonces de la page Netflix / de l'instance amont, puis Apple TV.
   const trailerStreams = [
-    ...(row.vf_trailer ? [{ title: 'Bande-annonce VF', ytId: row.vf_trailer }] : []),
     ...federation.trailerUrls(row).map(({ title, url }) => ({ title, url })),
     ...appletv.urls(row),
   ];
@@ -87,7 +88,7 @@ function resolveRow(id) {
   return hit ? store.getTitle(hit.id) : null;
 }
 
-// Flux, dans l'ordre : bande-annonce VF (TMDB/YouTube), puis Netflix (ou instance amont, relayée par /trailer/... quand un ID
+// Flux, dans l'ordre : Netflix (ou instance amont, relayée par /trailer/... quand un ID
 // Netflix est connu), puis Apple TV (HLS). Proposés aussi sur chaque épisode d'une série.
 builder.defineStreamHandler(async ({ type, id }) => {
   let row = resolveRow(id);
@@ -99,7 +100,6 @@ builder.defineStreamHandler(async ({ type, id }) => {
   const isEpisode = type === 'series' && String(id).split(':').length > 2;
   const suffix = isEpisode ? ' (série)' : '';
   const streams = [];
-  if (row.vf_trailer) streams.push({ name: 'Netflix VF', title: `▶ Bande-annonce VF${suffix}`, ytId: row.vf_trailer });
   for (const t of federation.trailerUrls(row)) {
     streams.push({
       name: t.source === 'upstream' ? 'Amont' : 'Netflix',
@@ -111,7 +111,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
   for (const t of appletv.urls(row)) {
     streams.push({
       name: 'Apple TV', title: `▶ ${t.title}${suffix}`, url: t.url,
-      behaviorHints: { notWebReady: true, bingeGroup: `appletv-trailer-${row.id}` },   // flux HLS (.m3u8)
+      behaviorHints: { notWebReady: true, bingeGroup: `appletv-trailer-${row.id}`, proxyHeaders: { request: APPLE_HEADERS } },   // flux HLS (.m3u8) ; Stremio relaie avec ces en-têtes
     });
   }
   return { streams, cacheMaxAge: 60 };

@@ -1,5 +1,5 @@
 // Résolution À LA DEMANDE : quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) qui n'est pas encore stockée,
-//   1. TMDB : IMDb → titre, année, type (+ bande-annonce VF au passage)
+//   1. TMDB : IMDb → titre, année, type 
 //   2. Web  : recherche DuckDuckGo « site:netflix.com/title <titre> » → pages Netflix candidates
 //   3. On lit la page Netflix, on vérifie que c'est bien le bon titre (nom, type, année) et on stocke sa bande-annonce
 // Apple TV est ensuite cherché par appletv.ensure(). Tout est mis en cache (SQLite) : un titre n'est cherché qu'une fois.
@@ -72,15 +72,15 @@ async function work(imdb, type, existing) {
   if (net.nid) id = (await ingestNetflix(net.nid, { html: net.html })).id;
   else id = existing ? existing.id : `imdb:${imdb}`;
 
-  const base = { id, imdb_id: imdb, tmdb_id: info.tmdbId, tmdb_type: info.tmdbType, vf_trailer: b.vf || null, vf_checked: Date.now() };
+  const base = { id, imdb_id: imdb, tmdb_id: info.tmdbId, tmdb_type: info.tmdbType, vf_checked: Date.now() };
   if (net.nid) { const row = store.getTitle(id); store.upsertTitle({ ...base, type: row.type, name: row.name }); }   // on garde les infos Netflix
   else store.upsertTitle({ ...base, type: info.type, name: info.name, year: info.year, release_date: info.release_date || b.release_date,
     synopsis: info.synopsis, poster: info.poster, background: info.background, genres: b.genres, runtime: b.runtime });
 
   const row = store.getTitle(id);
-  const found = !!(row.vf_trailer || row.trailers.length);
+  const found = !!row.trailers.length;
   if (!net.skipped) store.setLookup(imdb, found);      // DuckDuckGo indisponible : on retentera plus tard
-  log.info('resolve', `${info.name} (${imdb}) : ${net.nid ? 'Netflix ' + net.nid : net.skipped ? 'Netflix non vérifié' : 'pas sur Netflix'}${b.vf ? ' + VF' : ''}`);
+  log.info('resolve', `${info.name} (${imdb}) : ${net.nid ? 'Netflix ' + net.nid : net.skipped ? 'Netflix non vérifié' : 'pas sur Netflix'}`);
   return row;
 }
 

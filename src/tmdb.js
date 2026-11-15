@@ -111,17 +111,9 @@ async function discoverRecent(tmdbType, { since, until, page = 1 } = {}) {
   });
 }
 
-/** Meilleure bande-annonce YouTube EN FRANÇAIS (iso_639_1 = fr), ou null. Bande-annonce > teaser, officielle d'abord. */
-function pickFrenchTrailer(videos) {
-  const rank = (v) => (v.type === 'Trailer' ? 0 : v.type === 'Teaser' ? 10 : 99) + (v.official ? 0 : 1);
-  const fr = (videos?.results || []).filter((v) => v.site === 'YouTube' && v.iso_639_1 === 'fr' && v.key && rank(v) < 99);
-  fr.sort((a, b) => rank(a) - rank(b) || String(b.published_at || '').localeCompare(String(a.published_at || '')));
-  return fr[0]?.key || null;
-}
-
 /**
- * Une seule requête par titre : visuels, synopsis, genres, IMDb + bande-annonce VF.
- * Sert à compléter les fiches moissonnées (sans affiche) et à repérer celles qui ont une bande-annonce en français.
+ * Une seule requête par titre : visuels, synopsis, genres, IMDb.
+ * Sert à compléter les fiches moissonnées (sans affiche).
  */
 /** Retrouve un titre TMDB à partir de son ID IMDb. `type` (movie|series) départage si l'ID existe dans les deux listes. */
 async function findByImdb(imdbId, type) {
@@ -152,7 +144,6 @@ async function basics(tmdbType, id) {
     poster: img(d.poster_path, 'w500'), background: img(d.backdrop_path, 'w1280'),
     imdb_id: d.external_ids?.imdb_id || null,
     runtime: d.runtime || d.episode_run_time?.[0] || null,
-    vf: pickFrenchTrailer(d.videos),
   };
 }
 
@@ -167,4 +158,4 @@ async function externalIds(tmdbType, id) {
   return { imdb_id: d.imdb_id || null, tvdb_id: d.tvdb_id || null };
 }
 
-module.exports = { findByImdb, searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, basics, pickFrenchTrailer, img };
+module.exports = { findByImdb, searchMatch, fetchFull, discover, discoverRecent, genreMap, externalIds, basics, img };
