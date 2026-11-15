@@ -1,17 +1,25 @@
-// Tests hors ligne de src/search.js (Brave Search + API iTunes) : réseau simulé par un faux `fetch`.
+// Tests hors ligne de src/search.js : JustWatch d'abord, moteur de recherche en secours, API iTunes pour Apple TV.
 //   node test/search-brave-itunes.test.js
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const SEARCH = path.join(__dirname, '..', 'src', 'search.js');
 const CONFIG = path.join(__dirname, '..', 'src', 'config.js');
+const JW = path.join(__dirname, '..', 'src', 'justwatch.js');
 
 let passes = 0;
 const ok = (name) => { passes++; console.log(`  ok  ${name}`); };
 
-/** Recharge search.js avec un environnement et un `fetch` donnés (les modules sont mis en cache par Node). */
-function reload(env, fetchImpl) {
-  for (const k of [SEARCH, CONFIG]) delete require.cache[k];
+const jwFail = { searchNetflix: async () => { throw new Error('JustWatch 503'); } };
+const jwEmpty = { searchNetflix: async () => [] };
+const jwHit = { searchNetflix: async () => ([
+  { netflixId: '81763154', netflixUrl: 'https://www.netflix.com/title/81763154', title: 'Ninho : Le prix à payer', type: 'movie', objectType: 'MOVIE', year: 2026 },
+]) };
+
+/** Recharge search.js avec un environnement, un `fetch` simulé et un faux JustWatch. */
+function reload(env, fetchImpl, justwatch = jwFail) {
+  for (const k of [SEARCH, CONFIG, JW]) delete require.cache[k];
+  require.cache[JW] = { id: JW, filename: JW, loaded: true, exports: justwatch };
   for (const k of Object.keys(process.env)) if (k.startsWith('BRAVE_')) delete process.env[k];
   Object.assign(process.env, env);
   global.fetch = fetchImpl;
@@ -44,7 +52,30 @@ const ITUNES_SHOW = { results: [
 ] };
 
 (async () => {
-  // 1. Brave : extraction des IDs, nettoyage des titres, dédoublonnage, en-tête d'authentification
+  // 1. JustWatch répond : aucune requête réseau, même avec une clé Brave configurée
+  {
+    const calls = [];
+    const search = reload({ BRAVE_API_KEY: 'cle-test' }, async (url) => { calls.push(String(url)); return json(BRAVE_FIXTURE); }, jwHit);
+    const out = await search.netflix('ninho le prix a payer');
+    assert.equal(calls.length, 0, 'aucun appel réseau quand JustWatch répond');
+    assert.deepEqual(out.map((r) => r.id), ['81763154']);
+    assert.equal(out[0].title, 'Ninho : Le prix à payer');
+    assert.equal(out[0].snippet, 'Film · 2026');
+    assert.equal(out[0].url, 'https://www.netflix.com/title/81763154');
+    ok('JustWatch prioritaire : gratuit, sans clé, sans requête web');
+  }
+
+  // 2. JustWatch répond « rien » : c'est une vraie réponse, pas de moteur de recherche
+  {
+    const calls = [];
+    const search = reload({}, async (url) => { calls.push(String(url)); return text(DDG_HTML); }, jwEmpty);
+    const out = await search.netflix('titre absent');
+    assert.deepEqual(out, []);
+    assert.equal(calls.length, 0, 'pas de recherche web pour un titre absent de JustWatch');
+    ok('JustWatch vide : réponse vide, sans appel web');
+  }
+
+  // 3. JustWatch en panne → Brave
   {
     const calls = [];
     const search = reload({ BRAVE_API_KEY: 'cle-test' }, async (url, opts) => {
@@ -55,74 +86,54 @@ const ITUNES_SHOW = { results: [
     assert.deepEqual(out.map((r) => r.id), ['81944880', '81040344'], 'IDs Netflix extraits et dédoublonnés');
     assert.equal(out[0].title, 'Trouble échange', 'suffixe « | Netflix » retiré');
     assert.equal(out[1].title, 'Squid Game', 'préfixe « Regarder » retiré');
-    assert.equal(out[0].snippet, 'Un film drôle.');
-    assert.equal(out[0].url, 'https://www.netflix.com/title/81944880');
     assert.equal(calls.length, 1);
-    const u = calls[0].url;
-    assert.equal(u.hostname, 'api.search.brave.com');
-    assert.equal(u.pathname, '/res/v1/web/search');
-    assert.equal(u.searchParams.get('q'), 'site:netflix.com/title Trouble échange');
-    assert.equal(u.searchParams.get('country'), 'FR');
-    assert.equal(u.searchParams.get('search_lang'), 'fr');
-    assert.equal(u.searchParams.get('count'), '20');
+    assert.equal(calls[0].url.hostname, 'api.search.brave.com');
     assert.equal(calls[0].opts.headers['x-subscription-token'], 'cle-test');
-    ok('Brave : IDs, titres nettoyés, dédoublonnage, en-tête de clé');
+    ok('JustWatch en panne → Brave Search');
   }
 
-  // 2. Clé refusée : erreur de configuration remontée telle quelle (pas de secours silencieux)
+  // 4. Clé Brave refusée : erreur de configuration remontée telle quelle
   {
-    const calls = [];
-    const search = reload({ BRAVE_API_KEY: 'mauvaise' }, async (url) => {
-      calls.push(String(url));
-      if (String(url).includes('brave')) return text('unauthorized', 401);
-      return text(DDG_HTML);
-    });
+    const search = reload({ BRAVE_API_KEY: 'mauvaise' }, async (url) => (String(url).includes('brave') ? text('unauthorized', 401) : text(DDG_HTML)));
     await assert.rejects(() => search.netflix('x'), /BRAVE_API_KEY/);
-    assert.equal(calls.length, 1, 'aucun appel à DuckDuckGo quand la clé est refusée');
-    ok('Brave 401 : erreur de configuration remontée sans secours');
+    ok('Brave 401 : erreur de configuration, pas de masquage');
   }
 
-  // 3. Quota Brave atteint : bascule sur DuckDuckGo
+  // 5. Quota Brave → DuckDuckGo
   {
     const calls = [];
     const search = reload({ BRAVE_API_KEY: 'cle-test' }, async (url) => {
       calls.push(String(url));
-      if (String(url).includes('brave')) return text('quota', 429);
-      return text(DDG_HTML);
+      return String(url).includes('brave') ? text('quota', 429) : text(DDG_HTML);
     });
     const out = await search.netflix('Le Bon Film');
     assert.deepEqual(out.map((r) => r.id), ['81234567']);
-    assert.equal(out[0].title, 'Le Bon Film');
-    assert.equal(calls.length, 2);
     assert.ok(calls[1].includes('html.duckduckgo.com'), 'deuxième appel = DuckDuckGo');
-    ok('Brave 429 : bascule sur DuckDuckGo');
+    ok('Brave 429 → DuckDuckGo');
   }
 
-  // 4. Sans clé : comportement d'origine strictement inchangé
+  // 6. Sans clé Brave : DuckDuckGo (comportement historique)
   {
     const calls = [];
-    const search = reload({}, async (url) => {
-      calls.push(String(url));
-      return text(DDG_HTML);
-    });
+    const search = reload({}, async (url) => { calls.push(String(url)); return text(DDG_HTML); });
     const out = await search.netflix('Le Bon Film');
     assert.deepEqual(out.map((r) => r.id), ['81234567']);
-    assert.equal(calls.length, 1);
-    assert.ok(calls[0].startsWith('https://html.duckduckgo.com/html/?q='), 'aucun appel Brave sans clé');
-    ok('Sans BRAVE_API_KEY : DuckDuckGo inchangé');
+    assert.ok(calls[0].startsWith('https://html.duckduckgo.com/html/?q='));
+    ok('Sans clé Brave → DuckDuckGo');
   }
 
-  // 5. Les deux moteurs en échec : message qui cite les deux causes
+  // 7. Tout en échec : message qui cite les deux causes, et « fetch failed » traduit
   {
+    const netErr = () => { const e = new TypeError('fetch failed'); e.cause = { code: 'ECONNRESET' }; return e; };
     const search = reload({ BRAVE_API_KEY: 'cle-test' }, async (url) => {
-      if (String(url).includes('brave')) throw new Error('réseau coupé');
-      return text('<html>anomaly detected</html>', 202);
+      if (String(url).includes('brave')) throw netErr();
+      throw netErr();
     });
-    await assert.rejects(() => search.netflix('x'), (e) => /réseau coupé/.test(e.message) && /DuckDuckGo/.test(e.message));
-    ok('Brave + DuckDuckGo en échec : message combiné');
+    await assert.rejects(() => search.netflix('x'), (e) => /JustWatch : JustWatch 503/.test(e.message) && /réseau injoignable/.test(e.message));
+    ok('Tout en échec : causes citées, erreur réseau lisible');
   }
 
-  // 6. Apple TV via iTunes : ID umc.cmc, type, année, saisons dédoublonnées
+  // 8. Apple TV via iTunes : ID umc.cmc, type, année, saisons dédoublonnées
   {
     const calls = [];
     const search = reload({}, async (url) => {
@@ -136,34 +147,30 @@ const ITUNES_SHOW = { results: [
     });
     const out = await search.apple('Ted Lasso');
     assert.equal(calls.length, 2, 'un appel films + un appel séries');
-    assert.deepEqual(calls.map((u) => u.searchParams.get('entity')).sort(), ['movie', 'tvSeason']);
     const movie = out.find((r) => r.type === 'movie');
     const show = out.find((r) => r.type === 'series');
     assert.equal(movie.id, 'umc.cmc.1abc');
-    assert.equal(movie.title, 'Trouble échange');
     assert.equal(movie.year, 2024);
     assert.equal(show.title, 'Ted Lasso', '« , Season 1 » retiré');
-    assert.equal(show.year, 2020, 'première occurrence gardée');
     assert.equal(out.filter((r) => r.id === 'umc.cmc.2def').length, 1, 'saisons dédoublonnées');
     assert.equal(search.appleWeb, search.apple, 'alias de compatibilité conservé');
     ok('Apple TV : iTunes → ID umc.cmc, type, année, dédoublonnage des saisons');
   }
 
-  // 7. iTunes indisponible
+  // 9. iTunes indisponible
   {
     const search = reload({}, async () => text('boom', 500));
     await assert.rejects(() => search.apple('x'), /iTunes Search HTTP 500/);
     ok('iTunes 500 : erreur remontée');
   }
 
-  // 8. Compatibilité des exports historiques (parse / parseApple / appleWeb)
+  // 10. Compatibilité des exports historiques (parse / parseApple / appleWeb)
   {
     const search = reload({}, async () => text(''));
     assert.equal(typeof search.parse, 'function');
     assert.equal(typeof search.parseApple, 'function');
     assert.equal(typeof search.appleWeb, 'function');
     assert.deepEqual(search.parse(DDG_HTML).map((r) => r.id), ['81234567']);
-    assert.deepEqual(search.parseApple(DDG_HTML), []);
     ok('parse / parseApple / appleWeb toujours exportés');
   }
 

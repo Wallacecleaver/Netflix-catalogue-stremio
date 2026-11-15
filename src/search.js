@@ -4,6 +4,7 @@
 //   Apple TV : API iTunes Search (publique, sans clé) : l'URL `trackViewUrl` contient déjà l'ID `umc.cmc.*`
 //              de tv.apple.com, avec le type (movie/show), le titre et la date de sortie.
 const config = require('./config');
+const jw = require('./justwatch');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const TIMEOUT_MS = 10000;
@@ -109,23 +110,58 @@ async function netflixDdg(query) {
   return parse(html).slice(0, 8);
 }
 
+const LABEL = { MOVIE: 'Film', SHOW: 'Série' };
+
+/** JustWatch (gratuit, sans clé) → mêmes champs que les autres sources : { id, url, title, snippet }. */
+async function justwatchNetflix(query) {
+  const cands = await jw.searchNetflix(query);
+  return (cands || []).map((c) => ({
+    id: c.netflixId,
+    url: c.netflixUrl || `https://www.netflix.com/title/${c.netflixId}`,
+    title: c.title || null,
+    snippet: [LABEL[c.objectType] || (c.type === 'series' ? 'Série' : 'Film'), c.year].filter(Boolean).join(' · '),
+  }));
+}
+
+/** « fetch failed » et autres erreurs réseau brutes → message lisible. */
+const humanize = (e) => {
+  const msg = String((e && e.message) || e);
+  if (!/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up/i.test(msg)) return msg;
+  const cause = (e && e.cause && (e.cause.code || e.cause.message)) || '';
+  return `réseau injoignable${cause ? ' (' + cause + ')' : ''}`;
+};
+
 /**
- * Cherche la fiche Netflix d'un titre. Brave d'abord (si BRAVE_API_KEY) ; en cas de quota/réseau, DuckDuckGo.
- * Une clé Brave refusée remonte l'erreur telle quelle : c'est un problème de configuration, pas de couverture.
+ * Cherche la fiche Netflix d'un titre.
+ *
+ * 1. JustWatch d'abord : gratuit, sans clé, et c'est déjà la source des IDs Netflix du projet
+ *    (moissonnage et liage passent par là). C'est la source fiable : DuckDuckGo renvoie désormais
+ *    ECONNRESET et Brave devient payant passé le quota gratuit.
+ * 2. Moteur de recherche web uniquement si JustWatch est en panne.
+ *
+ * Une réponse vide de JustWatch est une vraie réponse (« pas sur Netflix ») : on ne relance pas
+ * un moteur de recherche pour ça.
  */
 async function netflix(query) {
-  if (!config.braveApiKey) return netflixDdg(query);
+  let jwErr = null;
   try {
-    return await netflixBrave(query);
-  } catch (e) {
-    if (e.fatal) throw e;
-    try {
-      return await netflixDdg(query);
-    } catch (e2) {
-      throw new Error(`${e.message} ; secours DuckDuckGo : ${e2.message}`);
+    return (await justwatchNetflix(query)).slice(0, 8);
+  } catch (e) { jwErr = e; }
+
+  let webErr = null;
+  try {
+    if (config.braveApiKey) {
+      try { return await netflixBrave(query); }
+      catch (e) { if (e.fatal) throw e; webErr = e; }   // quota/réseau : on tente DuckDuckGo
     }
-  }
+    return await netflixDdg(query);
+  } catch (e) { webErr = e; }
+
+  const parts = [jwErr && `JustWatch : ${humanize(jwErr)}`, webErr && `moteur de recherche : ${humanize(webErr)}`].filter(Boolean);
+  throw new Error(parts.length ? parts.join(' | ') : 'aucune source de recherche disponible');
 }
+
+module.exports = { netflix, parse, apple, appleWeb: apple, appleCandidates, netflixCandidates, parseApple, justwatchNetflix };
 
 // ---- Apple TV : API iTunes Search ----
 // L'API non documentée de tv.apple.com peut ne rien renvoyer (paramètres périmés) : iTunes Search, publique et stable,

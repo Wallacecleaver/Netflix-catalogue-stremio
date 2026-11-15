@@ -73,7 +73,7 @@ app.get('/admin/api/summary', auth, (_req, res) => {
     sources: {
       tmdb: !!config.tmdbKey,
       brave: !!config.braveApiKey,
-      search: config.braveApiKey ? 'Brave Search' : 'DuckDuckGo',
+      search: 'JustWatch',
       appletv: !!config.appletvEnabled,
       ffmpeg: hls.ffmpegAvailable(),
       resolve: !!(config.resolveEnabled && config.tmdbKey),

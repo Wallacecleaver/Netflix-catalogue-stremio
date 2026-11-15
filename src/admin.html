@@ -304,7 +304,7 @@ tbody tr:hover{background:#16161d}
 
     var chips = [
       ['TMDB', src.tmdb ? 'clé active' : 'clé absente', src.tmdb ? 'ok' : 'warn'],
-      ['Recherche web', src.search || '—', src.brave ? 'ok' : 'warn'],
+      ['Recherche des IDs', 'JustWatch' + (src.brave ? ' + Brave' : ''), 'ok'],
       ['Apple TV', src.appletv ? 'activé' : 'désactivé', src.appletv ? 'ok' : 'off'],
       ['ffmpeg', src.ffmpeg ? 'présent' : 'absent — son Apple muet', src.ffmpeg ? 'ok' : 'err'],
       ['Résolution auto', src.resolve ? 'active' : 'désactivée', src.resolve ? 'ok' : 'off'],
