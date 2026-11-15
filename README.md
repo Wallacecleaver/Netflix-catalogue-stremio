@@ -174,7 +174,8 @@ rien.
 
 ## API
 
-**Fédération** (`x-api-key: …` ou `?key=` si `API_KEY` est défini)
+**Fédération** — ouverte par défaut. Une clé se génère en un clic dans **Paramètres → API de fédération**
+(elle n'est affichée qu'une fois) et s'envoie en `x-api-key`, `Authorization: Bearer <clé>` ou `?key=`.
 
 ```bash
 curl "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
@@ -191,6 +192,10 @@ La liste `trailers` contient **toutes les sources relayables** de la fiche, dans
 (`/trailer/…`), instance amont, **Apple TV** (`/apple/…`, HLS converti en MP4) et liens ajoutés à la main
 (`/media/…`). C'est ce qui permet à une instance cliente (par exemple `vf-trailer-wallace`) de trouver une
 bande-annonce même pour une série qui n'existe que sur Apple TV.
+
+Ajoute `&debug=1` pour savoir pourquoi une fiche ne donne rien : la réponse contient alors la fiche trouvée
+(`id`, `imdb_id`, `tmdb_id`, `netflix_id`), le nombre de bandes-annonces par source et l'état de la
+résolution. Chaque appel est aussi journalisé (source `federation`).
 
 **Supervision** — `GET /health` renvoie la version, l'uptime, les compteurs par source, le travail
 restant et l'état des sources. `GET /manifest.json` est mis en cache 5 min.
