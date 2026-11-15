@@ -334,6 +334,11 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
   // Sans les deux dernières, une série qui n'a que de l'Apple TV (Nocturne, par exemple) était
   // annoncée « aucune bande-annonce » à l'instance amont.
   const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
+  // Trace dans le Journal : c'est le seul moyen de savoir si une instance cliente (vf-trailer) nous
+  // appelle vraiment, et ce qu'on lui a répondu. Volume faible (le client met en cache 6 h).
+  const asked = imdb || `tmdb:${tmdb}` || `netflix:${netflix}`;
+  if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(',') });
+  else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending });
   res.json({
     found: trailers.length > 0,
     pending: pending && !trailers.length,
