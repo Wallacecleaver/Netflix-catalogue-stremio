@@ -183,7 +183,11 @@ app.get('/admin/api/search', auth, async (req, res) => {
   res.set('cache-control', 'no-store');
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'Saisis au moins 2 caractères' });
-  const [nf, ap] = await Promise.allSettled([search.netflix(q), appletv.search(q)]);
+  const [nf, ap] = await Promise.allSettled([
+    search.netflix(q),
+    // API Apple d'abord ; si elle échoue ou ne renvoie rien, secours via DuckDuckGo (site:tv.apple.com)
+    appletv.search(q).then((r) => (r.length ? r : search.appleWeb(q))).catch((e) => search.appleWeb(q).catch(() => { throw e; })),
+  ]);
   const want = normName(q);
   const apple = ap.status === 'fulfilled'
     ? ap.value.map((r) => ({ ...r, score: normName(r.title) === want ? 2 : normName(r.title).includes(want) ? 1 : 0 }))

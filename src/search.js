@@ -42,4 +42,36 @@ async function netflix(query) {
   return parse(html).slice(0, 8);
 }
 
-module.exports = { netflix, parse };
+// Secours Apple TV : l'API non documentée de tv.apple.com peut ne rien renvoyer (paramètres périmés).
+// On retrouve alors les fiches via DuckDuckGo (site:tv.apple.com) : l'URL contient le type et l'ID umc.cmc.*
+const APPLE_URL = /tv\.apple\.com\/(?:[a-z]{2}\/)?(show|movie)\/([^\/?#\s"]*)\/?(umc\.cmc\.[a-z0-9]+)/i;
+const cleanApple = (t) => t.replace(/^(Regarder|Watch)\s+/i, '').replace(/\s+(sur|on)\s+Apple TV\+?.*$/i, '').replace(/\s*[|\-–]\s*Apple TV\+?.*$/i, '').trim();
+
+function parseApple(html) {
+  const out = [];
+  const seen = new Set();
+  for (const block of html.split(/class="result__a"/).slice(1)) {
+    const href = /href="([^"]+)"/.exec(block);
+    if (!href) continue;
+    let url = decodeEnt(href[1]);
+    const u = /[?&]uddg=([^&]+)/.exec(url);
+    if (u) { try { url = decodeURIComponent(u[1]); } catch { /* URL brute */ } }
+    const m = APPLE_URL.exec(url);
+    if (!m || seen.has(m[3])) continue;
+    seen.add(m[3]);
+    const t = />([\s\S]*?)<\/a>/.exec(block);
+    const slug = decodeURIComponent(m[2] || '').replace(/-/g, ' ').trim();
+    out.push({ id: m[3], title: (t ? cleanApple(strip(t[1])) : '') || slug, type: m[1].toLowerCase() === 'show' ? 'series' : 'movie', year: null });
+  }
+  return out;
+}
+
+async function appleWeb(query) {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:tv.apple.com ${query}`)}&kl=fr-fr`;
+  const res = await fetch(url, { headers: { 'user-agent': UA, 'accept-language': 'fr-FR,fr;q=0.9' }, signal: AbortSignal.timeout(10000) });
+  const html = await res.text();
+  if (!res.ok || /anomaly|captcha|unusual traffic/i.test(html.slice(0, 5000))) throw new Error(`DuckDuckGo bloque la requête (HTTP ${res.status})`);
+  return parseApple(html).slice(0, 8);
+}
+
+module.exports = { netflix, parse, appleWeb, parseApple };
