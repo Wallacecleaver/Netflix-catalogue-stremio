@@ -18,18 +18,25 @@ const appleRelay = (row, index) => `${config.publicUrl}/apple/${encodeURICompone
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '2.4.0',
+  version: '2.5.0',
   name: 'W stockage bande annonce',
   description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
-    { name: 'meta', types: TYPES, idPrefixes: ['nflx:', 'prime:'] },
-    { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'tt'] },
+    { name: 'meta', types: TYPES, idPrefixes: ['nflx:', 'prime:', 'apple:'] },
+    { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'prime:', 'apple:', 'tt'] },
   ],
   types: TYPES,
   catalogs: [],
 };
 
 const builder = new addonBuilder(manifest);
+
+/** ISO 8601 ou undefined : une date illisible en base ne doit pas faire échouer toute la fiche (RangeError). */
+function isoDate(v) {
+  if (!v) return undefined;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
 
 function buildMeta(row, eps) {
   const description = [row.synopsis, row.certification ? `Classification : ${row.certification}` : null]
@@ -39,7 +46,7 @@ function buildMeta(row, eps) {
     id: row.id, type: row.type, name: row.name,
     poster: row.poster, posterShape: extra.posterShape || 'poster', background: row.background, logo: row.logo,
     description, releaseInfo: row.year ? String(row.year) : undefined,
-    released: row.release_date ? new Date(row.release_date).toISOString() : undefined,
+    released: isoDate(row.release_date),
     genres: row.genres, cast: row.cast,
     director: extra.directors && extra.directors.length ? extra.directors : undefined,
     runtime: row.runtime ? `${row.runtime} min` : undefined,
@@ -82,13 +89,13 @@ builder.defineMetaHandler(async ({ id }) => {
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
 });
 
-/** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`). */
+/** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`, `prime:xxx`, `apple:xxx`). */
 const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
 
 /** Fiche stockée pour un ID Stremio : `nflx:…` (direct) ou `tt1234567` / `tt1234567:1:2` (via l'ID IMDb). */
 function resolveRow(id) {
   const sid = String(id);
-  if (sid.startsWith('nflx:')) return store.getTitle(baseId(sid));
+  if (/^(nflx|prime|apple):/.test(sid)) return store.getTitle(baseId(sid));
   const imdb = sid.split(':')[0];
   if (!/^tt\d+$/.test(imdb)) return null;
   const hit = federation.lookup({ imdb });
@@ -101,7 +108,7 @@ function resolveRow(id) {
 builder.defineStreamHandler(async ({ type, id }) => {
   let row = resolveRow(id);
   const imdb = String(id).split(':')[0];
-  if (/^tt\d+$/.test(imdb)) row = (await resolve.ensure(imdb, type, row)) || row;   // fiche inconnue : TMDB → web → bande-annonce
+  if (/^tt\d+$/.test(imdb)) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 9000 })) || row;   // fiche inconnue : TMDB → web → bande-annonce
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);
   row = await appletv.ensure(row);

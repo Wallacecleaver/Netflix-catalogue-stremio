@@ -29,12 +29,20 @@ app.set('trust proxy', 'loopback');       // derrière Caddy/Nginx : req.ip = IP
 // ---- Accès admin : mot de passe = ADMIN_TOKEN (.env) ----
 const attempts = new Map();               // borne les essais : 10 échecs / minute / IP
 
+const sha = (v) => crypto.createHash('sha256').update(String(v || '')).digest();
 function tokenOk(given) {
   if (!config.adminToken) return false;
-  const a = Buffer.from(String(given || ''));
-  const b = Buffer.from(config.adminToken);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return crypto.timingSafeEqual(sha(given), sha(config.adminToken));
 }
+
+// Les routes async d'Express 4 ne remontent pas leurs erreurs toutes seules : sans ça, la requête reste pendue.
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// En-têtes de sécurité sur tout le dashboard (page + API).
+app.use('/admin', (_req, res, next) => {
+  res.set({ 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' });
+  next();
+});
 
 function auth(req, res, next) {
   if (!config.adminToken) return res.status(503).json({ error: 'ADMIN_TOKEN non configuré dans le .env' });
@@ -287,9 +295,48 @@ app.get('/admin/api/titles', auth, (req, res) => {
       netflix: r.trailers.filter((t) => t && t.source !== 'upstream').length,
       upstream: r.trailers.filter((t) => t && t.source === 'upstream').length,
       apple: r.appletv.length,
+      manual: ((r.extra && r.extra.manualTrailers) || []).map((m) => ({ title: String(m.title || '').slice(0, 80), url: String(m.url || '').slice(0, 300) })),
       youtube: !!(r.vf_trailer || r.trailer_yt),
     })),
   });
+});
+// Gestion d'un titre : supprimer, forcer une nouvelle recherche, retirer un lien manuel.
+app.post('/admin/titles/delete', auth, (req, res) => {
+  const id = String((req.body && req.body.id) || '').trim();
+  const row = id && store.getTitle(id);
+  if (!row) return res.status(404).json({ error: 'Titre introuvable' });
+  store.deleteTitle(id);
+  log.warn('admin', `Titre supprimé : ${row.name}`, { id });
+  res.json({ ok: true, id, name: row.name });
+});
+app.post('/admin/titles/recheck', auth, wrap(async (req, res) => {
+  const id = String((req.body && req.body.id) || '').trim();
+  if (!id || !store.getTitle(id)) return res.status(404).json({ error: 'Titre introuvable' });
+  store.resetChecks(id);
+  const errors = [];
+  let row = store.getTitle(id);
+  if (row.netflix_id) {
+    try { await refreshTrailers(row.netflix_id); } catch (e) { errors.push(`Netflix : ${e.message}`); }
+    row = store.getTitle(id) || row;
+  }
+  if (/^tt\d+$/.test(row.imdb_id || '')) {
+    try { row = (await resolve.ensure(row.imdb_id, row.type, row, { timeoutMs: 12000 })) || row; } catch (e) { errors.push(`Recherche : ${e.message}`); }
+  }
+  try { row = await appletv.ensure(row); } catch (e) { errors.push(`Apple TV : ${e.message}`); }
+  log.info('admin', `Nouvelle recherche : ${row.name}`, { id, errors: errors.length });
+  res.json({ ok: true, id, name: row.name, netflix: (row.trailers || []).length, apple: (row.appletv || []).length,
+    youtube: !!(row.vf_trailer || row.trailer_yt), errors });
+}));
+app.post('/admin/trailer/remove', auth, (req, res) => {
+  const id = String((req.body && req.body.id) || '').trim();
+  const index = Number(req.body && req.body.index);
+  const row = id && store.getTitle(id);
+  const list = row && row.extra && Array.isArray(row.extra.manualTrailers) ? [...row.extra.manualTrailers] : [];
+  if (!row || !Number.isInteger(index) || index < 0 || index >= list.length) return res.status(404).json({ error: 'Lien introuvable' });
+  const [gone] = list.splice(index, 1);
+  store.upsertTitle({ id: row.id, type: row.type, name: row.name, extra: { ...row.extra, manualTrailers: list } });
+  log.info('admin', `Lien manuel retiré : ${row.name}`, { url: String(gone.url || '').slice(0, 90) });
+  res.json({ ok: true, id: row.id, count: list.length });
 });
 app.get('/admin/api/netflix-ids/export', auth, (_req, res) => {
   res.set('content-disposition', 'attachment; filename="netflix-ids.json"');
@@ -325,7 +372,7 @@ app.get('/api/status', apiAuth, (_req, res) => {
   res.json({ ok: true, version: manifest.version, stats: store.stats() });
 });
 
-app.get('/api/trailers', apiAuth, async (req, res) => {
+app.get('/api/trailers', apiAuth, wrap(async (req, res) => {
   res.set('cache-control', 'no-store');
   const imdb = String(req.query.imdb || '').trim();
   const tmdb = String(req.query.tmdb || '').trim();
@@ -347,7 +394,7 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
   const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
   // Trace dans le Journal : c'est le seul moyen de savoir si une instance cliente (vf-trailer) nous
   // appelle vraiment, et ce qu'on lui a répondu. Volume faible (le client met en cache 6 h).
-  const asked = imdb || `tmdb:${tmdb}` || `netflix:${netflix}`;
+  const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
   if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(',') });
   else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending });
 
@@ -373,26 +420,38 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
     trailers,
     ...(debug ? { debug } : {}),
   });
-});
+}));
 
 // Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).
 app.get('/', (_req, res) => res.redirect('/admin'));
 
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
-async function relayVideo(req, res, url, { range = true } = {}) {
-  const headers = { 'user-agent': UA };
-  if (range && req.headers.range) headers.range = req.headers.range;
-  const up = await fetch(url, { headers });
+const UPSTREAM_HEADERS_TIMEOUT = 15000;
+const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
+
+/** fetch dont le délai ne couvre que l'attente des en-têtes (le corps d'une vidéo se lit pendant des minutes). Coupé si le client part. */
+async function fetchHead(url, headers, res) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), UPSTREAM_HEADERS_TIMEOUT);
+  res.once('close', () => ctl.abort());
+  try { return await fetch(url, { headers, signal: ctl.signal }); } finally { clearTimeout(timer); }
+}
+
+function pipeUpstream(req, res, up) {
   res.status(up.status);
-  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
-    if (up.headers.get(h)) res.set(h, up.headers.get(h));
-  }
+  for (const h of PASS_HEADERS) if (up.headers.get(h)) res.set(h, up.headers.get(h));
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'HEAD' || !up.body) return res.end();
   const stream = Readable.fromWeb(up.body);
   stream.on('error', () => res.destroy());
   res.on('close', () => stream.destroy());
   stream.pipe(res);
+}
+
+async function relayVideo(req, res, url, { range = true } = {}) {
+  const headers = { 'user-agent': UA };
+  if (range && req.headers.range) headers.range = req.headers.range;
+  pipeUpstream(req, res, await fetchHead(url, headers, res));
 }
 
 /** Sert un flux HLS sous forme de MP4 (converti et mis en cache à la première lecture). */
@@ -426,21 +485,13 @@ async function trailerHandler(req, res) {
     if (!url || (t.expires && t.expires < Date.now() + 120000)) url = (await refreshTrailers(nid))[idx]?.url;
     if (!url) throw new Error('lien vidéo indisponible');
     if (hls.isHls(url)) return await serveHls(req, res, url);
-    let up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } });
+    const hdr = () => ({ 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) });
+    let up = await fetchHead(url, hdr(), res);
     if (up.status === 403 || up.status === 410) {            // lien périmé côté Netflix : on le renouvelle une fois
       const fresh = (await refreshTrailers(nid))[idx]?.url;
-      if (fresh) { url = fresh; up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } }); }
+      if (fresh) { await up.body?.cancel().catch(() => {}); url = fresh; up = await fetchHead(url, hdr(), res); }
     }
-    res.status(up.status);
-    for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
-      if (up.headers.get(h)) res.set(h, up.headers.get(h));
-    }
-    res.set('Access-Control-Allow-Origin', '*');
-    if (req.method === 'HEAD' || !up.body) return res.end();
-    const stream = Readable.fromWeb(up.body);
-    stream.on('error', () => res.destroy());
-    res.on('close', () => stream.destroy());
-    stream.pipe(res);
+    pipeUpstream(req, res, up);
   } catch (e) {
     console.warn('[trailer]', nid, e.message);
     log.error('trailer', `${nid}/${idx} : ${e.message}`);
@@ -514,6 +565,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Une route d'API inconnue répond en JSON (et non avec la page d'erreur HTML d'Express).
+app.use(['/admin/api', '/api'], (_req, res) => res.status(404).json({ error: 'Route inconnue' }));
+
 app.use(getRouter(builder.getInterface()));
+
+// Dernier filet : JSON invalide, corps trop gros, erreur inattendue → réponse JSON propre, jamais de requête pendue.
+app.use((err, req, res, _next) => {
+  if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'JSON invalide' });
+  if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Corps de requête trop gros' });
+  log.error('http', `${req.method} ${req.path} : ${err && err.message}`);
+  if (res.headersSent) return res.destroy();
+  res.status(500).json({ error: 'Erreur interne' });
+});
 
 module.exports = app;

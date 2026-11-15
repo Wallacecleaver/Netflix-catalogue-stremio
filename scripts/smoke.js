@@ -122,7 +122,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   // Plus de catalogue : manifest sans catalogue, flux sur les IDs IMDb (tt…) et sur les anciennes fiches nflx:, meta seulement nflx:
   assert.deepEqual(iface.manifest.catalogs, []);
   assert.ok(!iface.manifest.resources.some((r) => r.name === 'catalog'));
-  assert.deepEqual(iface.manifest.resources.find((r) => r.name === 'stream').idPrefixes, ['nflx:', 'tt']);
+  assert.deepEqual(iface.manifest.resources.find((r) => r.name === 'stream').idPrefixes, ['nflx:', 'prime:', 'apple:', 'tt']);
   const { meta } = await iface.get('meta', 'series', 'nflx:81944880');
   assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
   assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"
@@ -414,6 +414,50 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(cleared.ok, true);
   jdata = await (await fetch(`${base}/admin/api/logs`, { headers: auth })).json();
   assert.equal(jdata.total, 1); // l'effacement est lui-même journalisé
+
+  // ---- Robustesse (v2.5) ----
+  // API inconnue et JSON invalide : réponses JSON, pas de page HTML d'erreur
+  const unknown = await fetch(`${base}/admin/api/nimporte-quoi`, { headers: auth });
+  assert.equal(unknown.status, 404); assert.equal((await unknown.json()).error, 'Route inconnue');
+  const badJson = await fetch(`${base}/admin/add`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{pas du json' });
+  assert.equal(badJson.status, 400); assert.equal((await badJson.json()).error, 'JSON invalide');
+  assert.equal((await fetch(`${base}/admin`)).headers.get('x-frame-options'), 'DENY');
+
+  // Date de sortie illisible en base : la fiche reste servie (RangeError auparavant)
+  store.upsertTitle({ id: 'nflx:55550001', netflix_id: '55550001', type: 'movie', name: 'Date cassée', release_date: 'pas-une-date', year: 2020, enriched: 1 });
+  const brokenMeta = await iface.get('meta', 'movie', 'nflx:55550001');
+  assert.equal(brokenMeta.meta.name, 'Date cassée'); assert.equal(brokenMeta.meta.released, undefined);
+
+  // Les fiches `prime:` / `apple:` obtiennent aussi leurs flux directement
+  store.upsertTitle({ id: 'prime:BRK01', type: 'movie', name: 'Film Prime', imdb_id: 'tt5559991', trailer_yt: 'abcDEF12345', enriched: 1 });
+  const primeStreams = await iface.get('stream', 'movie', 'prime:BRK01');
+  assert.ok(primeStreams.streams.length >= 1);
+
+  // Stats en cache, mais invalidées dès qu'une fiche change
+  const before = store.stats().total;
+  store.upsertTitle({ id: 'nflx:55550002', type: 'movie', name: 'Compteur', enriched: 1 });
+  assert.equal(store.stats().total, before + 1);
+
+  // Liens manuels : ajout, apparition dans la liste des titres, retrait
+  const jsonHdr = { ...auth, 'content-type': 'application/json' };
+  const addMan = await fetch(`${base}/admin/add/trailer`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002', url: 'https://exemple.test/ba.mp4', title: 'BA test' }) });
+  assert.equal(addMan.status, 200);
+  const list1 = await (await fetch(`${base}/admin/api/titles?search=Compteur`, { headers: auth })).json();
+  assert.equal(list1.rows[0].manual.length, 1); assert.equal(list1.rows[0].manual[0].title, 'BA test');
+  const rm = await fetch(`${base}/admin/trailer/remove`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002', index: 0 }) });
+  assert.equal(rm.status, 200); assert.equal((await rm.json()).count, 0);
+  assert.equal((await fetch(`${base}/admin/trailer/remove`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002', index: 0 }) })).status, 404);
+
+  // Nouvelle recherche d'un titre (sans réseau : Apple TV désactivé) puis suppression
+  const oldApple = cfgR.appletvEnabled; cfgR.appletvEnabled = false;
+  const rc = await fetch(`${base}/admin/titles/recheck`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002' }) });
+  cfgR.appletvEnabled = oldApple;
+  assert.equal(rc.status, 200); assert.equal((await rc.json()).ok, true);
+  assert.equal((await fetch(`${base}/admin/titles/recheck`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:inconnu' }) })).status, 404);
+  const del = await fetch(`${base}/admin/titles/delete`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002' }) });
+  assert.equal(del.status, 200); assert.equal(store.getTitle('nflx:55550002'), null);
+  assert.equal((await fetch(`${base}/admin/titles/delete`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002' }) })).status, 404);
+  assert.equal((await fetch(`${base}/admin/titles/delete`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
 
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');

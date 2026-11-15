@@ -225,7 +225,8 @@ tbody tr:hover{background:#12121a}
 <header class="top"><div class="in"><div class="logo">W</div>
   <div><h1>W stockage bande annonce</h1><div class="sub"><span id="health-dot" class="hdot" title=""></span><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
   <div class="sp"></div>
-  <a class="btn sm" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
+  <a id="install" class="btn sm" href="/manifest.json" title="Ouvre Stremio et propose d'installer l'addon">Installer dans Stremio</a>
+  <a class="btn sm ghost" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
   <button id="logout" class="btn sm ghost" type="button">Déconnexion</button></div></header>
 <div class="wrap">
 <nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="search">Recherche</button><button class="tab" data-tab="add">Ajouter</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
@@ -333,7 +334,7 @@ tbody tr:hover{background:#12121a}
 <section id="tab-titles" class="hidden">
   <div class="tools"><input id="t-search" class="inp" placeholder="Rechercher un titre…"><select id="t-filter"><option value="">Tous les titres</option><option value="none">Sans bande-annonce</option><option value="netflix">Avec Netflix</option><option value="apple">Avec Apple TV</option></select></div>
   <div style="display:flex;align-items:center;gap:10px;margin:-2px 2px 10px"><span id="t-count" class="muted"></span><span class="muted" style="font-size:11.5px;color:var(--dim);margin-left:auto">IMDb = la fiche peut apparaître dans Stremio</span></div>
-  <div class="panel" style="padding:2px 6px"><table><thead><tr><th>Titre</th><th>Bandes-annonces</th></tr></thead><tbody id="t-body"></tbody></table></div>
+  <div class="panel" style="padding:2px 6px"><table><thead><tr><th>Titre</th><th>Bandes-annonces</th><th style="width:1%"></th></tr></thead><tbody id="t-body"></tbody></table></div>
   <div style="display:flex;gap:12px;align-items:center;margin-top:12px"><button id="t-more" class="btn hidden" type="button">Charger plus</button></div>
 </section>
 
@@ -448,6 +449,7 @@ tbody tr:hover{background:#12121a}
 
     var base = (d.addon.publicUrl || location.origin).replace(/\/+$/, '');
     $('manifest-url').textContent = base + '/manifest.json';
+    $('install').href = (base + '/manifest.json').replace(/^https?:\/\//, 'stremio://');
     $('api-url').textContent = base + '/api/trailers?imdb=tt…';
     $('api-note').textContent = d.addon.apiOpen
       ? 'API ouverte : n\'importe qui connaissant l\'URL peut appeler. Génère une clé pour la fermer.'
@@ -663,12 +665,37 @@ tbody tr:hover{background:#12121a}
     if (!more) tOffset = 0;
     var q = '?search=' + encodeURIComponent($('t-search').value.trim()) + '&filter=' + $('t-filter').value + '&limit=50&offset=' + tOffset;
     api('/admin/api/titles' + q).then(function (d) {
-      var html = d.rows.map(function (r) { return '<tr><td><b>' + esc(r.name) + '</b><div class="muted">' + (r.type === 'movie' ? 'Film' : 'Série') + (r.year ? ' · ' + r.year : '') + '</div></td><td>' + badges(r) + '</td></tr>'; }).join('');
-      if (more) $('t-body').insertAdjacentHTML('beforeend', html); else $('t-body').innerHTML = html || '<tr><td colspan="2" class="muted">Aucun titre.</td></tr>';
+      var html = d.rows.map(function (r) {
+        var man = (r.manual || []).map(function (m, i) {
+          return '<div class="muted">🔗 ' + esc(m.title || 'Lien') + ' <button class="btn sm ghost" type="button" data-act="rm-manual" data-id="' + esc(r.id) + '" data-i="' + i + '" title="Retirer ce lien">✕</button></div>';
+        }).join('');
+        return '<tr><td><b>' + esc(r.name) + '</b><div class="muted">' + (r.type === 'movie' ? 'Film' : 'Série') + (r.year ? ' · ' + r.year : '') + '</div></td><td>' + badges(r) + man + '</td>'
+          + '<td style="white-space:nowrap"><button class="btn sm ghost" type="button" data-act="recheck" data-id="' + esc(r.id) + '" title="Relancer la recherche des bandes-annonces de ce titre">↻</button> '
+          + '<button class="btn sm ghost" type="button" data-act="delete" data-id="' + esc(r.id) + '" data-name="' + esc(r.name) + '" title="Supprimer ce titre">🗑</button></td></tr>';
+      }).join('');
+      if (more) $('t-body').insertAdjacentHTML('beforeend', html); else $('t-body').innerHTML = html || '<tr><td colspan="3" class="muted">Aucun titre.</td></tr>';
       tOffset += d.rows.length; $('t-count').textContent = fmt(Math.min(tOffset, d.total)) + ' / ' + fmt(d.total);
       $('t-more').classList.toggle('hidden', tOffset >= d.total);
     }).catch(fail);
   }
+  $('t-body').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b || b.disabled) return;
+    var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
+    if (act === 'delete') {
+      if (!window.confirm('Supprimer « ' + b.getAttribute('data-name') + ' » et ses bandes-annonces ?')) return;
+      api('/admin/titles/delete', { id: id }).then(function (r) { toast('« ' + r.name + ' » supprimé'); loadTitles(false); refresh().catch(fail); }).catch(fail);
+    } else if (act === 'recheck') {
+      b.disabled = true;
+      api('/admin/titles/recheck', { id: id }).then(function (r) {
+        var n = (r.netflix || 0) + (r.apple || 0);
+        toast(r.name + ' : ' + (n ? fmt(n) + ' bande(s)-annonce(s)' : r.youtube ? 'YouTube seulement' : 'aucune bande-annonce') + (r.errors && r.errors.length ? ' (' + r.errors.length + ' erreur(s), voir le journal)' : ''), n || r.youtube ? '' : 'err');
+        loadTitles(false);
+      }).catch(fail).then(function () { b.disabled = false; });
+    } else if (act === 'rm-manual') {
+      api('/admin/trailer/remove', { id: id, index: Number(b.getAttribute('data-i')) }).then(function () { toast('Lien retiré'); loadTitles(false); }).catch(fail);
+    }
+  });
   $('t-search').addEventListener('input', function () { clearTimeout(tTimer); tTimer = setTimeout(function () { loadTitles(false); }, 300); });
   $('t-filter').addEventListener('change', function () { loadTitles(false); });
   $('t-more').addEventListener('click', function () { loadTitles(true); });

@@ -74,6 +74,7 @@ for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', '
   try { db.exec(`ALTER TABLE titles ADD COLUMN ${col}`); } catch { /* déjà présente */ }
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(type, name COLLATE NOCASE)');
 
 // vf_trailer = clé YouTube de la bande-annonce en français (TMDB) ; vf_checked = date de la dernière vérification.
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
@@ -89,7 +90,12 @@ ON CONFLICT(id) DO UPDATE SET
   updated_at=excluded.updated_at
 `);
 
+// Les stats (≈ 30 COUNT) sont mises en cache 5 s ; toute écriture sur les fiches les invalide.
+let statsCache = null;
+const invalidateStats = () => { statsCache = null; };
+
 function upsertTitle(t) {
+  invalidateStats();
   const row = { id: t.id, now: Date.now(), enriched: t.enriched ? 1 : 0 };
   for (const f of FIELDS) row[f] = null;
   for (const [k, v] of Object.entries(t)) {
@@ -115,8 +121,8 @@ const findByName = (name, type) => parse(db.prepare(
   'SELECT * FROM titles WHERE type = ? AND name = ? COLLATE NOCASE ORDER BY enriched DESC, added_at ASC LIMIT 1').get(type, String(name)));
 // Cache des recherches automatiques (resolve.js) : quand un IMDb a été cherché, et si une bande-annonce a été trouvée.
 const getLookup = (imdb) => db.prepare('SELECT * FROM lookups WHERE imdb = ?').get(String(imdb));
-const setLookup = (imdb, found) => db.prepare(`INSERT INTO lookups (imdb, checked_at, found) VALUES (?, ?, ?)
-  ON CONFLICT(imdb) DO UPDATE SET checked_at = excluded.checked_at, found = excluded.found`).run(String(imdb), Date.now(), found ? 1 : 0);
+const setLookup = (imdb, found) => { invalidateStats(); return db.prepare(`INSERT INTO lookups (imdb, checked_at, found) VALUES (?, ?, ?)
+  ON CONFLICT(imdb) DO UPDATE SET checked_at = excluded.checked_at, found = excluded.found`).run(String(imdb), Date.now(), found ? 1 : 0); };
 const count = () => db.prepare('SELECT COUNT(*) c FROM titles').get().c;
 
 // L'ID Netflix n'est pas toujours l'ID Stremio (`nflx:tv-123`) : on retrouve la fiche par `netflix_id`.
@@ -166,6 +172,7 @@ const listLinked = () => db.prepare(`SELECT netflix_id, name, type, year, tmdb_t
 
 /** Supprime les doublons d'un même ID Netflix (garde la fiche dont l'ID Stremio est déjà connu des utilisateurs). */
 function deleteNetflixDuplicates(netflixId, keepId) {
+  invalidateStats();
   return db.prepare('DELETE FROM titles WHERE id != ? AND (netflix_id = ? OR id = ?)')
     .run(keepId, String(netflixId), `nflx:${netflixId}`).changes;
 }
@@ -173,6 +180,7 @@ function deleteNetflixDuplicates(netflixId, keepId) {
 const insEp = db.prepare(`INSERT INTO episodes (title_id, season, episode, name, synopsis, image, runtime, released)
   VALUES (@title_id, @season, @episode, @name, @synopsis, @image, @runtime, @released)`);
 const replaceEpisodes = db.transaction((titleId, eps) => {
+  invalidateStats();
   db.prepare('DELETE FROM episodes WHERE title_id = ?').run(titleId);
   for (const e of eps) {
     insEp.run({ title_id: titleId, season: e.season, episode: e.episode, name: e.name ?? null,
@@ -182,6 +190,7 @@ const replaceEpisodes = db.transaction((titleId, eps) => {
 
 // Un titre ajouté depuis Netflix remplace la ligne "découverte TMDB" équivalente (évite les doublons)
 function deleteDuplicates(tmdbType, tmdbId, keepId) {
+  invalidateStats();
   db.prepare('DELETE FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').run(tmdbType, tmdbId, keepId);
 }
 
@@ -217,6 +226,12 @@ function listTitles({ search = '', filter = '', limit = 50, offset = 0 } = {}) {
 
 // Chiffres affichés dans le dashboard (aucune donnée sensible).
 function stats() {
+  if (statsCache && Date.now() - statsCache.at < 5000) return statsCache.value;
+  const value = computeStats();
+  statsCache = { at: Date.now(), value };
+  return value;
+}
+function computeStats() {
   const byType = Object.fromEntries(db.prepare('SELECT type, COUNT(*) c FROM titles GROUP BY type').all().map((r) => [r.type, r.c]));
   const dbBytes = db.pragma('page_count', { simple: true }) * db.pragma('page_size', { simple: true });
   return {
@@ -235,7 +250,8 @@ function stats() {
     lookups: db.prepare('SELECT COUNT(*) c FROM lookups').get().c,
     lookupsFound: db.prepare('SELECT COUNT(*) c FROM lookups WHERE found = 1').get().c,
     withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
-    withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,    withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
+    withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
+    withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
     // Bandes-annonces YouTube (TMDB) réellement utilisées : celles des titres sans flux Netflix/Apple,
     // puisque c'est la seule source qui reste affichée dans ce cas.
     withYoutube: db.prepare(`SELECT COUNT(*) c FROM titles
@@ -252,6 +268,22 @@ function stats() {
     netflixTrailerPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${netflixTrailerPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
     dbBytes,
   };
+}
+
+/** Supprime une fiche (les épisodes partent avec : ON DELETE CASCADE). */
+function deleteTitle(id) {
+  invalidateStats();
+  return db.prepare('DELETE FROM titles WHERE id = ?').run(String(id)).changes;
+}
+
+/** Remet à zéro les marqueurs « déjà cherché » : la fiche sera re-cherchée à sa prochaine ouverture (ou au prochain lot). */
+function resetChecks(id) {
+  invalidateStats();
+  const row = getTitle(id);
+  if (!row) return false;
+  db.prepare('UPDATE titles SET vf_checked = NULL, appletv_checked = NULL, trailers_checked = NULL, link_checked = NULL, updated_at = ? WHERE id = ?').run(Date.now(), id);
+  if (row.imdb_id) db.prepare('DELETE FROM lookups WHERE imdb = ?').run(row.imdb_id);
+  return true;
 }
 
 // Paramètres surchargés depuis le dashboard (prioritaires sur le .env).
@@ -286,4 +318,4 @@ const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, getLookup, setLookup, listUnlinked, listLinked, listVfPending,
   listNetflixTrailerPending, deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
-  allSettings, setSettings, deleteSetting, addLog, listLogs, clearLogs };
+  allSettings, setSettings, deleteSetting, deleteTitle, resetChecks, addLog, listLogs, clearLogs };

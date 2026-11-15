@@ -26,7 +26,13 @@ async function fetchNetflixPage(id, country = config.netflixCountry) {
   };
   let status = 0;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers, redirect: 'follow' });
+    let res;
+    try { res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(15000) }); }   // sans délai, une page muette bloquait tout un lot
+    catch (e) {                                                                                            // timeout / coupure réseau : on retente
+      if (attempt === 2) throw new Error(`Netflix injoignable : ${e.message}`);
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      continue;
+    }
     status = res.status;
     if (res.ok) return res.text();
     if (status < 500 && status !== 429) break;

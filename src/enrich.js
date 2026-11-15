@@ -60,9 +60,6 @@ async function ingestNetflix(input, opts = {}) {
   const year = n.year || t?.year || null;
   const releaseDate = n.releaseDate || t?.release_date || null;
 
-  let trailerYt = t?.trailer_yt || null;
-  trailerYt = null;
-
   const hasTmdbPoster = !!t?.poster;
   store.upsertTitle({
     id, netflix_id: nid, type, name: n.name,
@@ -75,7 +72,7 @@ async function ingestNetflix(input, opts = {}) {
     poster: t?.poster || n.image,                       // TMDB = affiche verticale, sinon visuel horizontal Netflix
     background: n.background || t?.background || n.image,
     logo: n.logo || t?.logo,
-    trailer_yt: trailerYt, trailers: n.trailers, runtime: t?.runtime,
+    trailers: n.trailers, runtime: t?.runtime,
     extra: {
       directors: n.directors, creators: n.creators, netflixGenres: n.netflixGenres, tags: n.tags,
       seasonLabels: n.seasonLabels, posterShape: hasTmdbPoster ? 'poster' : 'landscape', fetchedAt: Date.now(),
@@ -89,7 +86,7 @@ async function ingestNetflix(input, opts = {}) {
   }
   return {
     id, name: n.name, type, year, genres: n.genres, episodes: store.getEpisodes(id).length,
-    seasons: [...new Set(n.episodes.map((e) => e.season))].length, trailerYouTube: trailerYt, trailersNetflix: n.trailers.length,
+    seasons: [...new Set(n.episodes.map((e) => e.season))].length, trailersNetflix: n.trailers.length,
     warnings: n.warnings,
   };
 }

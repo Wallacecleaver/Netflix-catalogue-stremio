@@ -5,10 +5,13 @@ const app = require('./app');
 const link = require('./link');
 const { syncCatalog, syncRecent } = require('./sync');
 
+// Un job d'arrière-plan qui échoue ne doit pas faire tomber l'addon (Node ≥ 15 quitte sur une promesse rejetée non gérée).
+process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e); log.error('process', `Promesse rejetée : ${e && e.message || e}`); });
+
 // Associe en arrière-plan les titres non liés à leur ID Netflix (même sans clé TMDB).
 const kickLink = () => { if (store.stats().unlinked > 0 && !link.status().running) link.start({}); };
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   log.info('startup', `Serveur démarré (port ${config.port}, base ${config.dbPath})`);
   console.log(`Addon prêt : http://localhost:${config.port}/manifest.json`);
   console.log(`URL publique des bandes-annonces : ${config.publicUrl}/trailer/…`);
@@ -27,3 +30,22 @@ app.listen(config.port, () => {
     console.warn('TMDB_API_KEY absent : pas de catalogue auto, ajoute des titres via /admin ou `npm run add`.');
   }
 });
+
+server.on('error', (e) => {
+  console.error(e.code === 'EADDRINUSE' ? `Port ${config.port} déjà utilisé` : e);
+  process.exit(1);
+});
+
+// Arrêt propre (docker stop / redémarrage) : on finit les requêtes en cours, puis on ferme SQLite (checkpoint WAL).
+let stopping = false;
+function shutdown(sig) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[${sig}] arrêt…`);
+  const force = setTimeout(() => process.exit(0), 8000);
+  force.unref();
+  server.close(() => { try { store.db.close(); } catch { /* déjà fermée */ } process.exit(0); });
+  server.closeIdleConnections?.();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

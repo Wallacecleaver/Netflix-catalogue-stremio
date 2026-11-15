@@ -160,9 +160,10 @@ function remux(bin, videoUrl, audioUrl, out) {
       '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', out];
     const p = spawn(bin, args, { windowsHide: true });
     let err = '';
+    const killer = setTimeout(() => { err += ' timeout'; p.kill('SIGKILL'); }, config.hlsTimeoutMs * 4);   // flux bloqué : on ne gèle pas toutes les lectures
     p.stderr.on('data', (d) => { err = (err + d).slice(-4000); });
-    p.on('error', reject);
-    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg code ${code}${err ? ` : ${err.trim().split('\n').slice(-2).join(' | ')}` : ''}`))));
+    p.on('error', (e) => { clearTimeout(killer); reject(e); });
+    p.on('close', (code) => (clearTimeout(killer), code === 0 ? resolve() : reject(new Error(`ffmpeg code ${code}${err ? ` : ${err.trim().split('\n').slice(-2).join(' | ')}` : ''}`))));
   });
 }
 
@@ -184,10 +185,13 @@ async function writeMedia(mediaUrl, file) {
       const bufs = await Promise.all(batch.map((s) => get(new URL(s, base).href, 'buffer')));
       for (const buf of bufs) bytes += (await fh.write(buf)).bytesWritten;
     }
-  } finally {
-    await fh.close();
+  } catch (e) {
+    await fh.close().catch(() => {});
+    await fsp.rm(tmp, { force: true });
+    throw e;
   }
-  if (!bytes) throw new Error('aucun segment téléchargé');
+  await fh.close();
+  if (!bytes) { await fsp.rm(tmp, { force: true }); throw new Error('aucun segment téléchargé'); }
   await fsp.rename(tmp, file);
   return { bytes, segments: segments.length, duration: durationOf(text) };
 }
@@ -231,7 +235,7 @@ async function build(url, file, metaFile) {
     duration: res.duration || null, height: chosen?.height || null, codecs: chosen?.codecs || null, tracks,
   };
   await fsp.writeFile(metaFile, JSON.stringify(meta));
-  const sound = tracks === 2 ? ` (avec son${audio?.name ? ` ${audio.name.trim()}` : ''})` : ' (sans son : ffmpeg absent)';
+  const sound = tracks === 2 ? ` (avec son${audio?.name ? ` ${audio.name.trim()}` : ''})` : audio ? ' (sans son : ffmpeg absent ou muxage échoué)' : '';
   log.info('hls', `Bande-annonce convertie en MP4${sound} : ${Math.round(res.bytes / 1048576)} Mo, ${Math.round(res.duration || 0)} s`, { host: hostOf(url) });
   return meta;
 }
@@ -242,9 +246,10 @@ async function prune(dir) {
   const now = Date.now();
   let names = [];
   try { names = await fsp.readdir(dir); } catch { return; }
-  await Promise.all(names.filter((n) => n.endsWith('.mp4')).map(async (n) => {
+  await Promise.all(names.filter((n) => /\.(mp4|json|part)$/.test(n)).map(async (n) => {
     const p = path.join(dir, n);
-    try { const st = await fsp.stat(p); if (now - st.mtimeMs > ttl) await fsp.unlink(p); } catch { /* ignore */ }
+    const limit = n.endsWith('.part') ? 3600000 : ttl;           // conversion abandonnée : 1 h suffit
+    try { const st = await fsp.stat(p); if (now - st.mtimeMs > limit) await fsp.unlink(p); } catch { /* ignore */ }
   }));
 }
 
@@ -268,7 +273,8 @@ async function ensure(url) {
     let meta = null;
     try { meta = JSON.parse(await fsp.readFile(metaFile, 'utf8')); } catch { /* pas encore converti */ }
     // Un fichier muet (converti avant l'installation de ffmpeg) est refait dès que ffmpeg est disponible.
-    const silentOnly = meta && meta.tracks < 2 && !!ffmpeg();
+    // On ne refait que si une piste audio séparée existait mais n'a pas pu être collée (et pas plus d'une fois par heure).
+    const silentOnly = !!(meta && meta.audioUrl && meta.tracks < 2 && ffmpeg() && Date.now() - meta.builtAt > 3600000);
     if (meta && fs.existsSync(file) && !silentOnly && Date.now() - meta.builtAt < config.hlsCacheDays * 86400000) return { file, meta, cached: true };
     prune(dir).catch(() => {});
     return { file, meta: await build(url, file, metaFile), cached: false };
