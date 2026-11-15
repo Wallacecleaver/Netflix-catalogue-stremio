@@ -1,5 +1,9 @@
 FROM node:22-bookworm-slim
 WORKDIR /app
+# ffmpeg sert à remuxer la vidéo et la piste audio séparée des bandes-annonces Apple TV (sinon : pas de son).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 # better-sqlite3 v13 embarque des binaires précompilés (linux-x64 / linuxmusl inclus) : aucune compilation requise.
 # Le npm 10 fourni avec node:22 lance quand même un `node-gyp rebuild` (échec : pas de Python dans l'image slim),

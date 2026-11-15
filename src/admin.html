@@ -104,7 +104,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
     $('kpis').innerHTML = kp.map(function (k) { return '<div class="card kpi"><div class="l">' + k[0] + '</div><div class="v">' + fmt(k[1]) + '</div><div class="l">' + k[2] + '</div>' +
       (k[3] == null ? '' : '<div class="bar"><i style="width:' + pct(k[3], s.total) + '%;--c:' + k[4] + '"></i></div>') + '</div>'; }).join('');
     var fl = [['Netflix', 'Bande-annonce de la page Netflix' + (d.addon.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
-      ['Apple TV', d.addon.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 par ton serveur (cache disque) puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']];
+      ['Apple TV', d.addon.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg) par ton serveur, puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']];
     $('flux').innerHTML = fl.map(function (f, i) { return '<div class="flux"><div class="num">' + (i + 1) + '</div><div class="t"><b>' + f[0] + '</b><div class="muted">' + f[1] + '</div></div><span class="badge ' + f[3] + '">' + fmt(f[2]) + ' titres</span></div>'; }).join('');
     $('lookup-line').textContent = d.addon.resolve ? 'Recherche automatique : ' + fmt(s.lookups) + ' titre(s) cherché(s), ' + fmt(s.lookupsFound) + ' avec bande-annonce.' : 'Recherche automatique désactivée (RESOLVE_ENABLED=0 ou TMDB_API_KEY manquant).';
     var base = (d.addon.publicUrl || location.origin).replace(/\/+$/, '');

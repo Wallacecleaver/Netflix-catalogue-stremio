@@ -181,6 +181,30 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const linkedPart = await fetch(`${base}/trailer/77777777/0.mp4`, { headers: { range: 'bytes=2-5' } });
   assert.equal(linkedPart.status, 206); assert.equal(Buffer.from(await linkedPart.arrayBuffer()).toString(), '2345');
 
+  // Choix du couple vidéo/audio : langue exacte, piste sans audio-description, AAC stéréo.
+  // Ici la 720p n'a qu'une piste AC-3 qui décrit l'image : la 480p en AAC français est préférée.
+  const hlsMod = require('../src/hls');
+  const AUDIO = [
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Français",LANGUAGE="fr-FR",DEFAULT=NO,CHANNELS="2",URI="fr_mp4a-40-2.m3u8"',
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="English",LANGUAGE="en",DEFAULT=YES,CHANNELS="2",URI="en_mp4a-40-2.m3u8"',
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="ac3",NAME="Français (audiodescription)",LANGUAGE="fr-FR",DEFAULT=NO,CHANNELS="6",CHARACTERISTICS="public.accessibility.describes-video",URI="fr-ad-ac3.m3u8"',
+  ];
+  const masterOf = (audio720) => ['#EXTM3U', ...AUDIO,
+    `#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aac"`, 'v480.m3u8',
+    `#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2",AUDIO="${audio720}"`, 'v720.m3u8',
+    `#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080,CODECS="hvc1.1.6.L120",AUDIO="ac3"`, 'v1080.m3u8',
+  ].join('\n');
+  const masterUrl = 'https://apple.test/master.m3u8';
+  const pick = (audio720) => {
+    const text = masterOf(audio720);
+    return hlsMod.pickPair(hlsMod.parseVariants(masterUrl, text), masterUrl, text, { maxHeight: 720, maxMB: 60, duration: 120, lang: 'fr-FR' });
+  };
+  const pair = pick('aac');
+  assert.equal(pair.video.height, 720); assert.equal(pair.audio.url, 'https://apple.test/fr_mp4a-40-2.m3u8');
+  assert.equal(pair.audio.language, 'fr-FR'); assert.ok(pair.audio.aac && pair.audio.stereo && !pair.audio.description);
+  assert.equal(pick('ac3').video.height, 480);                 // pas de son audible en AC-3/AD : on descend en définition
+  assert.ok(hlsMod.audioScore(hlsMod.pickAudio(masterUrl, masterOf('ac3'), 'ac3', 'fr-FR'), 'fr-FR') < 60);
+
   // Relais Apple TV : la playlist HLS est recollée en MP4 (init + segments) puis servie avec Range.
   const hlsSrv = http.createServer((rq, rs) => {
     const p = rq.url.split('?')[0];
@@ -344,4 +368,4 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
 
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');
-})().catch((e) => { console.error(e); process.exitCode = 1; });
+})().catch((e) => { console.error(e); process.exit(1); });

@@ -188,6 +188,10 @@ de la page. La bande-annonce (« Bandes-annonces » de la page) et, à défaut, 
 - Le HLS Apple n'est **pas chiffré** (les clés FairPlay de la page ne servent qu'à l'app Apple) : l'addon télécharge les segments et les recolle en vrai **MP4**,
   mis en cache sur disque (`HLS_CACHE_DIR`, 7 jours), puis le sert comme le relais Netflix : `PUBLIC_URL/apple/<id>/<n>.mp4`, avec support des `Range`.
   Le résultat se lit donc partout (Stremio PC/mobile **et** Stremio Web, navigateur, VLC).
+- **Le son** : Apple sépare l'image et l'audio en deux flux HLS. L'addon prend la piste de la langue de `TMDB_LANG` (`fr-FR` par défaut, sinon VO),
+  en évitant les pistes d'audio-description, et recolle le tout avec **ffmpeg** (`-c copy`, sans réencodage). Sans ffmpeg, la bande-annonce reste
+  **muette** et le journal l'indique. Installation : `apt install ffmpeg` (Debian/Ubuntu), `brew install ffmpeg` (macOS), `winget install Gyan.FFmpeg`
+  (Windows), ou `FFMPEG_PATH` dans `.env` vers le binaire. L'image Docker l'installe déjà.
 - Première lecture : la conversion prend quelques secondes (téléchargement de ~20-50 Mo). Elle est lancée en tâche de fond dès l'affichage de la liste des flux.
   Réglages : `HLS_MAX_HEIGHT` (720 par défaut), `HLS_MAX_MB` (60), `HLS_CACHE_DAYS` (7).
 - Résultat mis en cache 30 jours (sans résultat : 7 jours).
