@@ -1,6 +1,6 @@
 // Résolution À LA DEMANDE : quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) qui n'est pas encore stockée,
 //   1. TMDB : IMDb → titre, année, type 
-//   2. Web  : recherche DuckDuckGo « site:netflix.com/title <titre> » → pages Netflix candidates
+//   2. Web  : recherche Brave Search « site:netflix.com/title <titre> » (DuckDuckGo en secours, sans clé) → pages Netflix candidates
 //   3. On lit la page Netflix, on vérifie que c'est bien le bon titre (nom, type, année) et on stocke sa bande-annonce
 // Apple TV est ensuite cherché par appletv.ensure(). Tout est mis en cache (SQLite) : un titre n'est cherché qu'une fois.
 const config = require('./config');
@@ -17,15 +17,15 @@ const TOTAL_TIMEOUT = 15000;              // Stremio n'attend pas indéfiniment 
 const MAX_PER_MIN = 20;                    // garde-fou : l'API publique ne doit pas pouvoir déclencher des centaines de recherches web
 const inflight = new Map();
 let starts = [];
-let ddgBlockedUntil = 0;
+let searchBlockedUntil = 0;
 let queue = Promise.resolve();
 let lastAt = 0;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-/** DuckDuckGo : une requête à la fois, au moins 1 s d'écart (évite le blocage). */
-function ddg(q) {
+/** Recherche web : une requête à la fois, au moins 1 s d'écart (limite du plan gratuit Brave : 1 req/s). */
+function webSearch(q) {
   const job = queue.then(async () => {
     const wait = lastAt + 1000 - Date.now();
     if (wait > 0) await sleep(wait);
@@ -35,14 +35,14 @@ function ddg(q) {
   return job;
 }
 
-/** Cherche la page Netflix d'un titre TMDB. → { nid, html } | { nid: null } | { skipped: true } (DuckDuckGo indisponible). */
+/** Cherche la page Netflix d'un titre TMDB. → { nid, html } | { nid: null } | { skipped: true } (recherche web indisponible). */
 async function findNetflix(info) {
-  if (Date.now() < ddgBlockedUntil) return { skipped: true };
+  if (Date.now() < searchBlockedUntil) return { skipped: true };
   let cands;
-  try { cands = await ddg(info.name); }
+  try { cands = await webSearch(info.name); }
   catch (e) {
-    ddgBlockedUntil = Date.now() + 10 * 60 * 1000;      // pause de 10 min : on ne retape pas DuckDuckGo à chaque ouverture de fiche
-    log.warn('resolve', `DuckDuckGo : ${e.message}`);
+    searchBlockedUntil = Date.now() + 10 * 60 * 1000;   // pause de 10 min : on ne relance pas la recherche à chaque ouverture de fiche
+    log.warn('resolve', `Recherche web : ${e.message}`);
     return { skipped: true };
   }
   const names = new Set([info.name, info.originalName].filter(Boolean).map(norm));
@@ -79,7 +79,7 @@ async function work(imdb, type, existing) {
 
   const row = store.getTitle(id);
   const found = !!row.trailers.length;
-  if (!net.skipped) store.setLookup(imdb, found);      // DuckDuckGo indisponible : on retentera plus tard
+  if (!net.skipped) store.setLookup(imdb, found);      // recherche web indisponible : on retentera plus tard
   log.info('resolve', `${info.name} (${imdb}) : ${net.nid ? 'Netflix ' + net.nid : net.skipped ? 'Netflix non vérifié' : 'pas sur Netflix'}`);
   return row;
 }

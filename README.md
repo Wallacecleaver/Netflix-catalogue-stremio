@@ -14,7 +14,9 @@ Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3
 1. **Page Netflix** (`netflix.com/fr/title/<id>`) : titre, synopsis, casting, classification, épisodes (JSON-LD + `netflix.reactContext`).
 2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours et liste automatique des titres Netflix France (synchronisation).
 3. **JustWatch** (API GraphQL publique) : correspondance nom → **ID Netflix** (la recherche netflix.com redirige vers `/login`, elle ne permet pas de découvrir les IDs).
-4. **Autre instance** (optionnel) : API de fédération pour récupérer les bandes-annonces par TMDB/IMDb.
+4. **Brave Search** (clé gratuite) : recherche `site:netflix.com/title <titre>` pour la résolution à la demande et l'onglet **Recherche** du dashboard. Sans clé, ou si le quota est atteint, DuckDuckGo prend le relais.
+5. **API iTunes Search** (publique, sans clé) : secours pour retrouver une fiche tv.apple.com quand l'API web de tv.apple.com ne renvoie rien — l'URL renvoyée contient déjà l'ID `umc.cmc.*`.
+6. **Autre instance** (optionnel) : API de fédération pour récupérer les bandes-annonces par TMDB/IMDb.
 
 > La bande-annonce de la page Netflix est relayée par ton addon (`PUBLIC_URL/trailer/<id>/<n>.mp4`) : Stremio reçoit une URL
 > stable, et le lien signé Netflix est renouvelé à chaque lecture.
@@ -44,7 +46,7 @@ Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
 ## Dashboard d'administration
 `https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
 
-Cinq onglets : **Stockage** (indicateurs par source, ordre des flux proposés, adresse d'installation, tâches de collecte VF / Netflix / Apple TV), **Recherche** (tape un titre : liens Netflix trouvés via DuckDuckGo et titres Apple TV, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
+Cinq onglets : **Stockage** (indicateurs par source, ordre des flux proposés, adresse d'installation, tâches de collecte VF / Netflix / Apple TV), **Recherche** (tape un titre : liens Netflix trouvés via Brave Search et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
 
 **Vue d'ensemble**
 - Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
@@ -172,10 +174,10 @@ au moment de l'ouverture de la fiche (et lors d'une demande de flux), puis stock
 ## Recherche automatique (à l'ouverture d'une fiche)
 Quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) que l'addon ne connaît pas encore, il la résout tout seul :
 1. **TMDB** : IMDb → titre, année, type (+ bande-annonce VF au passage) ;
-2. **Web** : recherche DuckDuckGo `site:netflix.com/title <titre>` ;
+2. **Web** : recherche Brave Search `site:netflix.com/title <titre>` (DuckDuckGo si `BRAVE_API_KEY` est vide) ;
 3. **Page Netflix** : lecture de la page, vérification du nom, du type et de l'année (pour une série, l'année Netflix est celle de la dernière saison), puis stockage de sa bande-annonce ;
 4. **Apple TV** : recherche par titre.
-Chaque titre n'est cherché qu'une fois (cache SQLite : 30 jours si trouvé, 7 jours sinon). DuckDuckGo est interrogé au plus une fois par seconde et mis en pause 10 min s'il bloque.
+Chaque titre n'est cherché qu'une fois (cache SQLite : 30 jours si trouvé, 7 jours sinon). La recherche web est interrogée au plus une fois par seconde (limite du plan gratuit Brave) et mise en pause 10 min si elle échoue ou si le quota est atteint.
 Si la recherche dépasse 15 s, elle continue en arrière-plan : la bande-annonce apparaîtra à la prochaine ouverture de la fiche.
 La même résolution est déclenchée par l'API `GET /api/trailers?imdb=tt…&type=movie|series` (utilisée par vf-trailer-wallace) : attente de 5 s au plus,
 puis `pending: true` dans la réponse si la recherche continue en arrière-plan. Garde-fou : 20 nouvelles recherches par minute au maximum.
@@ -185,6 +187,7 @@ Nécessite `TMDB_API_KEY` ; `RESOLVE_ENABLED=0` désactive. Code : `src/resolve.
 Pour chaque titre, l'addon cherche une bande-annonce sur **tv.apple.com** (API web non documentée) : recherche par titre exact (+ année et type), puis lecture
 de la page. La bande-annonce (« Bandes-annonces » de la page) et, à défaut, l'aperçu `og:video` sont des flux **HLS (.m3u8)**.
 - Lancement : bouton **Apple TV** du dashboard (titres jamais vérifiés), ou automatiquement à la première ouverture d'une fiche. Test : `npm run inspect-appletv -- "Ted Lasso" series`.
+- Si l'API web ne renvoie rien (paramètres périmés), le secours passe par l'**API iTunes Search** (publique, sans clé) : l'URL renvoyée contient déjà le type et l'ID `umc.cmc.*` de la fiche.
 - Le HLS Apple n'est **pas chiffré** (les clés FairPlay de la page ne servent qu'à l'app Apple) : l'addon télécharge les segments et les recolle en vrai **MP4**,
   mis en cache sur disque (`HLS_CACHE_DIR`, 7 jours), puis le sert comme le relais Netflix : `PUBLIC_URL/apple/<id>/<n>.mp4`, avec support des `Range`.
   Le résultat se lit donc partout (Stremio PC/mobile **et** Stremio Web, navigateur, VLC).
@@ -209,6 +212,7 @@ Sans épisodes Netflix, ceux de TMDB sont utilisés.
 
 ## Tests
 `npm test` : parseur + SQL + handlers Stremio, sans réseau.
+`npm run test:search` : recherche web (Brave Search + API iTunes), réseau simulé, 8 cas.
 
 ## Structure
 `src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/federation.js` API/partage des bandes-annonces · `src/addon.js` manifest/handlers · `src/db.js` SQLite.

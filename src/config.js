@@ -38,4 +38,8 @@ module.exports = {
   hlsCacheDays: num(process.env.HLS_CACHE_DAYS, 7),        // au-delà, la conversion est refaite
   hlsTimeoutMs: num(process.env.HLS_TIMEOUT_MS, 30000),
   harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
+  // Recherche web des fiches Netflix : Brave Search si une clé est fournie, sinon DuckDuckGo (sans clé).
+  braveApiKey: process.env.BRAVE_API_KEY || '',
+  braveCountry: (process.env.BRAVE_COUNTRY || process.env.REGION || 'FR').toUpperCase(),
+  braveLang: (process.env.BRAVE_LANG || String(process.env.TMDB_LANG || 'fr-FR').slice(0, 2)).toLowerCase(),
 };

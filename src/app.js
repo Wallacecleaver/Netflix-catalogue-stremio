@@ -180,7 +180,7 @@ app.post('/admin/appletv/stop', auth, (_req, res) => {
   log.warn('appletv', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
 });
-// Recherche manuelle : liens Netflix (DuckDuckGo) + titres Apple TV. Chaque source échoue indépendamment des autres.
+// Recherche manuelle : liens Netflix (Brave Search) + titres Apple TV (API iTunes). Chaque source échoue indépendamment des autres.
 const normName = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 app.get('/admin/api/search', auth, async (req, res) => {
   res.set('cache-control', 'no-store');
@@ -188,8 +188,8 @@ app.get('/admin/api/search', auth, async (req, res) => {
   if (q.length < 2) return res.status(400).json({ error: 'Saisis au moins 2 caractères' });
   const [nf, ap] = await Promise.allSettled([
     search.netflix(q),
-    // API Apple d'abord ; si elle échoue ou ne renvoie rien, secours via DuckDuckGo (site:tv.apple.com)
-    appletv.search(q).then((r) => (r.length ? r : search.appleWeb(q))).catch((e) => search.appleWeb(q).catch(() => { throw e; })),
+    // API tv.apple.com d'abord ; si elle échoue ou ne renvoie rien, secours via l'API iTunes Search
+    appletv.search(q).then((r) => (r.length ? r : search.apple(q))).catch((e) => search.apple(q).catch(() => { throw e; })),
   ]);
   const want = normName(q);
   const apple = ap.status === 'fulfilled'
