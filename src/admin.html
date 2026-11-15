@@ -148,6 +148,33 @@ tbody tr:hover{background:#12121a}
 .lv-warn{color:var(--amber);background:rgba(240,180,41,.12)}
 .lv-info{color:var(--green);background:rgba(61,220,151,.1)}
 
+/* recherche : grande barre + exemples + squelettes */
+.searchbar{display:flex;gap:10px;align-items:center}
+.searchbar .wrapi{flex:1;display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:0 12px;transition:border-color .15s}
+.searchbar .wrapi:focus-within{border-color:var(--line2)}
+.searchbar .wrapi svg{width:15px;height:15px;flex:none;color:var(--dim)}
+.searchbar .inp{background:transparent;border:0;padding:11px 0;font-size:14px}
+.searchbar .inp:focus{outline:none}
+.examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center}
+.examples span{font-size:11.5px;color:var(--dim)}
+.ex-chip{font:inherit;font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer}
+.ex-chip:hover{color:var(--txt);border-color:var(--line2);background:var(--panel2)}
+.sk{height:52px;border-radius:10px;background:linear-gradient(90deg,#14141a,#1b1b23,#14141a);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite}
+@keyframes sk{to{background-position:-200% 0}}
+.emptystate{text-align:center;padding:34px 20px;border:1px dashed var(--line);border-radius:12px;color:var(--dim);font-size:13px}
+.emptystate b{display:block;color:var(--muted);font-size:13.5px;margin-bottom:3px;font-weight:600}
+
+/* barre d'enregistrement collante */
+.savebar{position:sticky;bottom:0;z-index:20;display:flex;gap:10px;align-items:center;padding:10px 0;margin-top:8px;background:linear-gradient(180deg,transparent,var(--bg) 34%)}
+.set-row.dirty{background:rgba(255,77,87,.05);border-radius:8px;padding-left:8px;margin-left:-8px}
+.set-row.dirty .k{color:var(--red2)}
+
+/* compteurs du journal */
+.jsum{display:flex;gap:6px;align-items:center;margin-left:auto}
+.jsum .b{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+.jsum .b.e{color:var(--red2);border-color:#4a1c20}
+.jsum .b.w{color:var(--amber);border-color:#4a3b18}
+
 /* divers */
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(6px);background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:9px 15px 9px 34px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:90vw;z-index:60;font-size:13px;box-shadow:0 16px 40px -16px #000}
 .toast::before{content:"✓";position:absolute;left:13px;color:var(--green);font-weight:700}
@@ -221,8 +248,19 @@ tbody tr:hover{background:#12121a}
 </section>
 
 <section id="tab-search" class="hidden">
-  <div class="card"><h2 style="font-size:14px;margin:0">Chercher une bande-annonce</h2><p class="muted" style="margin:5px 0 11px">Liens Netflix (JustWatch) et Apple TV (API iTunes). Vérifie que c'est le bon, puis « Ajouter ». Tu as déjà l'URL ? Onglet <b>Ajouter</b>.</p>
-    <div class="field"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
+  <div class="panel" style="padding:16px">
+    <div class="searchbar">
+      <div class="wrapi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14"/></svg>
+        <input id="s-q" class="inp" placeholder="Cherche un film ou une série…" autocomplete="off">
+      </div>
+      <button id="s-go" class="btn primary" type="button">Chercher</button>
+    </div>
+    <div class="examples" id="s-ex"><span>Exemples :</span>
+      <button class="ex-chip" data-q="Trouble échange" type="button">Trouble échange</button>
+      <button class="ex-chip" data-q="Ninho le prix a payer" type="button">Ninho : Le prix à payer</button>
+      <button class="ex-chip" data-q="Ted Lasso" type="button">Ted Lasso</button>
+    </div>
+  </div>
   <div id="s-res" class="grid g2" style="margin-top:12px"></div>
 </section>
 
@@ -251,17 +289,21 @@ tbody tr:hover{background:#12121a}
 
 <section id="tab-titles" class="hidden">
   <div class="tools"><input id="t-search" class="inp" placeholder="Rechercher un titre…"><select id="t-filter"><option value="">Tous les titres</option><option value="none">Sans bande-annonce</option><option value="netflix">Avec Netflix</option><option value="apple">Avec Apple TV</option></select></div>
+  <div style="display:flex;align-items:center;gap:10px;margin:-2px 2px 10px"><span id="t-count" class="muted"></span><span class="muted" style="font-size:11.5px;color:var(--dim);margin-left:auto">IMDb = la fiche peut apparaître dans Stremio</span></div>
   <div class="panel" style="padding:2px 6px"><table><thead><tr><th>Titre</th><th>Bandes-annonces</th></tr></thead><tbody id="t-body"></tbody></table></div>
-  <div style="display:flex;gap:12px;align-items:center;margin-top:12px"><button id="t-more" class="btn hidden" type="button">Charger plus</button><span id="t-count" class="muted"></span></div>
+  <div style="display:flex;gap:12px;align-items:center;margin-top:12px"><button id="t-more" class="btn hidden" type="button">Charger plus</button></div>
 </section>
 
 <section id="tab-settings" class="hidden">
-  <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span id="restart-note" class="muted hidden">⟳ Certains réglages demandent un redémarrage du conteneur.</span><div class="sp"></div><button id="settings-save" class="btn primary" type="button" disabled>Enregistrer</button></div>
+  <div class="tools"><input id="set-filter" class="inp" placeholder="Filtrer les réglages (clé ou libellé)…"></div>
   <div id="settings-groups" class="grid"></div>
+  <div class="savebar"><span id="restart-note" class="muted hidden">⟳ Certains réglages demandent un redémarrage du conteneur.</span><div class="sp"></div><button id="settings-save" class="btn primary" type="button" disabled>Enregistrer</button></div>
 </section>
 
 <section id="tab-journal" class="hidden">
-  <div class="tools"><select id="log-level"><option value="">Tous niveaux</option><option>error</option><option>warn</option><option>info</option></select><input id="log-search" class="inp" placeholder="Filtrer (source, message)…"><button id="log-clear" class="btn" type="button">Effacer</button></div>
+  <div class="tools"><select id="log-level"><option value="">Tous niveaux</option><option>error</option><option>warn</option><option>info</option></select><input id="log-search" class="inp" placeholder="Filtrer (source, message)…">
+    <div class="jsum"><span class="b e" id="j-err">0</span><span class="b w" id="j-warn">0</span><span class="b" id="j-total">0</span></div>
+    <button id="log-copy" class="btn sm" type="button">Copier</button><button id="log-clear" class="btn sm" type="button">Effacer</button></div>
   <div class="panel" style="padding:8px 12px"><div id="logs" class="logs"></div></div>
 </section>
 </div></div>
@@ -502,6 +544,8 @@ tbody tr:hover{background:#12121a}
     if (r.netflix) b.push('<span class="badge b-nf">Netflix' + (r.netflix > 1 ? ' ×' + r.netflix : '') + '</span>');
     if (r.upstream) b.push('<span class="badge b-up">Amont' + (r.upstream > 1 ? ' ×' + r.upstream : '') + '</span>');
     if (r.apple) b.push('<span class="badge b-ap">Apple TV</span>');
+    if (r.youtube) b.push('<span class="badge b-vf">YouTube</span>');
+    if (r.imdb) b.push('<span class="badge b-ok" title="' + esc(r.imdb) + '">IMDb</span>');
     return b.join(' ') || '<span class="badge b-no">aucune</span>';
   }
   function loadTitles(more) {
@@ -535,7 +579,18 @@ tbody tr:hover{background:#12121a}
     var orig = e.target.dataset.original; var changed = e.target.value !== (orig === undefined ? e.target.value + '!' : orig) && e.target.value !== '';
     if (e.target.tagName === 'SELECT') changed = true;
     if (changed) dirty[k] = e.target.value; else delete dirty[k];
+    var row = e.target.closest && e.target.closest('.set-row');
+    if (row) row.classList.toggle('dirty', changed);
     $('settings-save').disabled = !Object.keys(dirty).length;
+  });
+  $('set-filter').addEventListener('input', function () {
+    var v = this.value.trim().toLowerCase();
+    Array.prototype.forEach.call(document.querySelectorAll('#settings-groups .set-row'), function (row) {
+      row.classList.toggle('hidden', !!v && row.textContent.toLowerCase().indexOf(v) < 0);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#settings-groups section'), function (card) {
+      card.classList.toggle('hidden', !card.querySelector('.set-row:not(.hidden)'));
+    });
   });
   $('settings-groups').addEventListener('click', function (e) {
     var b = e.target.closest('[data-reset]'); if (!b || b.disabled) return;
@@ -551,11 +606,18 @@ tbody tr:hover{background:#12121a}
   /* ---- Journal ---- */
   function loadLogs() {
     api('/admin/api/logs?level=' + $('log-level').value + '&search=' + encodeURIComponent($('log-search').value.trim()) + '&limit=200').then(function (d) {
+      var errs = 0, warns = 0;
       $('logs').innerHTML = d.logs.length ? d.logs.map(function (l) {
+        if (l.level === 'error') errs++; else if (l.level === 'warn') warns++;
         var t = new Date(l.ts); var m = l.meta && Object.keys(l.meta).length ? ' <span class="muted">' + esc(JSON.stringify(l.meta)) + '</span>' : '';
         return '<div class="lg"><span class="muted">' + t.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + t.toLocaleTimeString('fr-FR') + '</span><span class="lv lv-' + esc(l.level) + '">' + esc(l.level) + '</span><span class="muted">' + esc(l.source || '—') + '</span><span>' + esc(l.message) + m + '</span></div>'; }).join('') : '<div class="muted">Aucune entrée.</div>';
+      $('j-err').textContent = errs; $('j-warn').textContent = warns; $('j-total').textContent = d.logs.length;
     }).catch(fail);
   }
+  $('log-copy').addEventListener('click', function () {
+    var txt = $('logs').innerText || $('logs').textContent || '';
+    navigator.clipboard.writeText(txt).then(function () { toast('Journal copié'); }, function () { toast('Copie impossible', 'err'); });
+  });
   $('log-level').addEventListener('change', loadLogs);
   $('log-search').addEventListener('input', function () { clearTimeout(tTimer); tTimer = setTimeout(loadLogs, 300); });
   $('log-clear').addEventListener('click', function () { api('/admin/api/logs/clear', {}).then(function () { toast('Journal effacé'); loadLogs(); }).catch(fail); });
@@ -573,11 +635,18 @@ tbody tr:hover{background:#12121a}
   }
   function doSearch() {
     var q = $('s-q').value.trim(); if (q.length < 2) return; $('s-go').disabled = true;
-    $('s-res').innerHTML = '<p class="muted"><span class="spinner"></span>Recherche…</p>';
-    api('/admin/api/search?q=' + encodeURIComponent(q)).then(renderSearch).catch(function (e) { $('s-res').innerHTML = ''; fail(e); }).then(function () { $('s-go').disabled = false; });
+    $('s-res').innerHTML = '<div class="sk" style="height:150px"></div><div class="sk" style="height:150px"></div>';
+    api('/admin/api/search?q=' + encodeURIComponent(q)).then(renderSearch).catch(function (e) { searchIdle(); fail(e); }).then(function () { $('s-go').disabled = false; });
+  }
+  function searchIdle() {
+    $('s-res').innerHTML = '<div class="emptystate" style="grid-column:1/-1"><b>Cherche une bande-annonce</b>Tape un titre : les liens Netflix (JustWatch) et Apple TV (API iTunes) s\'affichent ici, avec un bouton « Ajouter ».</div>';
   }
   $('s-go').addEventListener('click', doSearch);
   $('s-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
+  $('s-ex').addEventListener('click', function (e) {
+    var b = e.target.closest('.ex-chip'); if (!b) return;
+    $('s-q').value = b.dataset.q; doSearch();
+  });
   $('s-res').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-nf],button[data-ap]'); if (!b) return; b.disabled = true; b.textContent = 'Ajout…';
     var req = b.dataset.nf ? api('/admin/add', { id: b.dataset.nf }) : api('/admin/api/search/apple', lastApple[+b.dataset.ap]);
@@ -591,7 +660,7 @@ tbody tr:hover{background:#12121a}
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) { b.classList.toggle('active', b.dataset.tab === n); });
     ['home', 'search', 'add', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
     if (n === 'home') { jobTimer = null; pollJobs(); }
-    if (n === 'search') setTimeout(function () { $('s-q').focus(); }, 50);
+    if (n === 'search') { if (!$('s-res').innerHTML) searchIdle(); setTimeout(function () { $('s-q').focus(); }, 50); }
     if (n === 'titles') loadTitles(false);
     if (n === 'journal') { loadLogs(); logTimer = setInterval(loadLogs, 4000); }
   }
