@@ -330,7 +330,10 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
   if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 5000 })) || row;
   const pending = !!imdb && resolve.isPending(imdb);
   if (!row) return res.json({ found: false, pending, trailers: [] });
-  const trailers = federation.trailerUrls(row);
+  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels.
+  // Sans les deux dernières, une série qui n'a que de l'Apple TV (Nocturne, par exemple) était
+  // annoncée « aucune bande-annonce » à l'instance amont.
+  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
   res.json({
     found: trailers.length > 0,
     pending: pending && !trailers.length,

@@ -187,6 +187,11 @@ Réponse : `{ found, pending, title: {…}, trailers: [{ title, url, runtime, so
 Un titre inconnu déclenche la résolution à la demande (réponse au plus tard après 5 s, `pending: true`
 si elle continue en arrière-plan).
 
+La liste `trailers` contient **toutes les sources relayables** de la fiche, dans cet ordre : Netflix
+(`/trailer/…`), instance amont, **Apple TV** (`/apple/…`, HLS converti en MP4) et liens ajoutés à la main
+(`/media/…`). C'est ce qui permet à une instance cliente (par exemple `vf-trailer-wallace`) de trouver une
+bande-annonce même pour une série qui n'existe que sur Apple TV.
+
 **Supervision** — `GET /health` renvoie la version, l'uptime, les compteurs par source, le travail
 restant et l'état des sources. `GET /manifest.json` est mis en cache 5 min.
 

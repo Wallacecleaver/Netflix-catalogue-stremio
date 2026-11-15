@@ -19,8 +19,15 @@ function keyOk(given) {
  * URL des bandes-annonces d'une fiche, dans l'ordre de `row.trailers`.
  * - fiche avec ID Netflix : on passe par notre relais /trailer/<netflix_id>/<n>.mp4
  * - fiche sans ID Netflix mais avec trailers amont : on renvoie l'URL amont telle quelle
+ *
+ * `includeApple` / `includeManual` : ajoutent les bandes-annonces Apple TV (relayées par
+ * /apple/<id>/<n>.mp4) et les liens ajoutés à la main (/media/...). Nécessaire pour l'API de
+ * fédération : sans ça, un titre qui n'a QUE de l'Apple TV (beaucoup de séries Apple) était
+ * annoncé « aucune bande-annonce » à l'instance amont.
+ * Le handler `stream` de l'addon ne les demande pas : il les ajoute lui-même, avec ses propres
+ * libellés (sinon elles apparaîtraient deux fois).
  */
-function trailerUrls(row) {
+function trailerUrls(row, { includeApple = false, includeManual = false } = {}) {
   if (!row) return [];
   const list = Array.isArray(row.trailers) ? row.trailers : [];
   const out = [];
@@ -39,6 +46,32 @@ function trailerUrls(row) {
     if (t.source === 'upstream' && t.url) item.directUrl = t.url;
     out.push(item);
   });
+
+  if (includeApple) {
+    (Array.isArray(row.appletv) ? row.appletv : []).forEach((t, i) => {
+      if (!t || !t.url) return;
+      out.push({
+        title: t.title || 'Bande-annonce Apple TV',
+        url: `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,
+        runtime: t.runtime || null,
+        source: 'appletv',
+      });
+    });
+  }
+
+  if (includeManual) {
+    const manual = (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers : [];
+    manual.forEach((t, i) => {
+      if (!t || !t.url) return;
+      out.push({
+        title: t.title || 'Bande-annonce',
+        url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
+        runtime: null,
+        source: 'manual',
+      });
+    });
+  }
+
   return out;
 }
 
