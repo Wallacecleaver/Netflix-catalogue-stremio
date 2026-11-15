@@ -15,9 +15,12 @@
     "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",
     "test": "node scripts/smoke.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "inspect-prime": "node scripts/inspect-prime.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "better-sqlite3": "^13.1.1",
     "cheerio": "^1.0.0",

@@ -47,6 +47,44 @@ assert.equal(p.episodes.length, 4); assert.equal(p.episodes[0].name, 'Épisode 1
 assert.ok(p.episodes[1].image.startsWith('https://img.nflx/ep2')); assert.equal(p.logo, 'https://img.nflx/logo.webp');
 assert.equal(p.trailers.length, 1); assert.equal(p.releaseDate, '2026-10-30');
 
+// Prime Video : structure réelle (JSON embarqué dv-web-page-hydration-data), saison 1 de « Sterling Point »
+{
+  const { parsePrimeHtml, parsePrimeId, frDateToIso } = require('../src/primevideo');
+  const G = 'amzn1.dv.gti.561b790f-28c4-45b6-b350-647cc0f9440a';
+  const E1 = 'amzn1.dv.gti.c93c6f76-4d62-4965-95f7-887e061c13a8', E2 = 'amzn1.dv.gti.336b223f-d1ec-4cb3-b70f-74d988392cf6';
+  const epd = (n, title, dur) => ({ title, synopsis: 'Synopsis ' + n, episodeNumber: n, duration: dur, titleType: 'episode', releaseDate: '5 août 2026',
+    images: { covershot: 'https://img.prime/ep' + n + '.jpg' } });
+  const hyd = { init: { preparations: { body: {
+    atf: { state: { pageTitleId: G,
+      detail: { headerDetail: { [G]: { title: 'Sterling Point - S1', parentTitle: 'Sterling Point', seasonNumber: 1, titleType: 'season', entityType: 'TV Show',
+        synopsis: 'Annie Jacobson, 17 ans, hérite d\u2019une île.', releaseYear: 2026, releaseDate: '5 août 2026', ratingBadge: { displayText: '16+' },
+        genres: [{ text: 'Drame' }, { text: 'Romance' }], studios: ['Amazon Studios'], isHdr: true, isUhd: true, isPrime: true,
+        contributors: { cast: [{ name: 'Ella Rubin' }, { name: 'Amélie Hoeferle' }], directors: [{ name: 'Megan Park' }], producers: [{ name: 'Josh Schwartz' }] },
+        images: { packshot: 'https://img.prime/pack.jpg', heroshot: 'https://img.prime/hero.jpg', titleLogo: 'https://img.prime/logo.png' },
+        audioTracks: ['Français (France)', 'English'], subtitles: ['Français (France)'] } } },
+      metadata: { [G]: { moods: ['Réconfortant'] } },
+      action: { atf: { [G]: { secondaryActions: [{ payload: { playback: { isTrailer: true, playbackID: 'amzn1.dv.gti.f08c707b', playbackEnvelope: 'ENV',
+        expiryTime: 1794933326863, playbackURL: '/-/fr/detail/0TEACR92ZF4DLOOKOZN4EMAU1T?autoplay=trailer' } } }] } } } } },
+    btf: { state: { detail: { detail: { [E2]: epd(2, '2. Elle a l\u2019air célib et bi', 2660), [E1]: epd(1, '1. Mais je viens de prendre un somnifère', 3084), [G]: { titleType: 'season' } } },
+      episodeList: { cardTitleIds: [E1, E2] }, self: { [E1]: { sequenceNumber: 1, compactGTI: '0R2I1RKZFG6WWC5CH1D03XMOQ0' } } } } } } } };
+  const ph = '<html><head><title>Prime Video: Sterling Point - S1</title><link rel="canonical" href="https://www.primevideo.com/-/fr/detail/0K94N2UBORZCLPIC46VTJQ093E"/></head><body>'
+    + '<script id="dv-web-page-hydration-data" type="application/json">' + JSON.stringify(hyd) + '</script></body></html>';
+  const pv = parsePrimeHtml(ph);
+  assert.deepEqual(pv.warnings, []);
+  assert.equal(parsePrimeId('https://www.primevideo.com/-/fr/detail/0K94N2UBORZCLPIC46VTJQ093E?ref_=x'), '0K94N2UBORZCLPIC46VTJQ093E');
+  assert.equal(pv.primeId, '0K94N2UBORZCLPIC46VTJQ093E'); assert.equal(pv.name, 'Sterling Point'); assert.equal(pv.type, 'series');
+  assert.equal(pv.seasonNumber, 1); assert.equal(pv.year, 2026); assert.equal(pv.releaseDate, '2026-08-05'); assert.equal(pv.certification, '16+');
+  assert.deepEqual(pv.genres, ['Drame', 'Romance']); assert.deepEqual(pv.cast, ['Ella Rubin', 'Amélie Hoeferle']); assert.deepEqual(pv.directors, ['Megan Park']);
+  assert.deepEqual(pv.moods, ['Réconfortant']); assert.equal(pv.episodes.length, 2);
+  assert.equal(pv.episodes[0].name, 'Mais je viens de prendre un somnifère'); assert.equal(pv.episodes[0].runtime, 51); assert.equal(pv.episodes[0].released, '2026-08-05');
+  assert.equal(pv.episodes[1].episode, 2); assert.equal(pv.primeTrailer.playbackId, 'amzn1.dv.gti.f08c707b');
+  assert.equal(pv.primeTrailer.page, 'https://www.primevideo.com/-/fr/detail/0TEACR92ZF4DLOOKOZN4EMAU1T?autoplay=trailer');
+  assert.equal(frDateToIso('1er février 2026'), '2026-02-01');
+  // Secours DOM : sans JSON embarqué, le titre et le synopsis restent lisibles
+  const pd = parsePrimeHtml('<html><head><title>Prime Video: Sterling Point - S1</title><meta name="description" content="Synopsis"/></head><body></body></html>');
+  assert.equal(pd.name, 'Sterling Point'); assert.equal(pd.seasonNumber, 1); assert.ok(pd.warnings.length);
+}
+
 // Fusion TMDB : saisons incompatibles => Netflix seul ; compatibles => dates TMDB
 const tm = [{ season: 1, episode: 1, released: '2021-01-08' }, { season: 1, episode: 2, released: '2021-01-08' }];
 assert.equal(mergeEpisodes(p.episodes, tm).length, 4); assert.equal(mergeEpisodes(p.episodes, tm)[0].released, null);

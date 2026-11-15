@@ -238,3 +238,12 @@ stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'
 (avec support des `Range`). La bande-annonce est aussi exposée comme ressource `stream`, donc elle apparaît également dans la liste des flux.
 Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`).
 Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
+
+## Prime Video (métadonnées)
+
+`src/primevideo.js` lit une page `https://www.primevideo.com/-/fr/detail/<id>` (JSON embarqué `dv-web-page-hydration-data`) :
+titre, synopsis, genres, casting, épisodes, visuels. La bande-annonce n'est stockée que comme référence (`extra.primeTrailer`) :
+son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement.
+
+- Déboguer : `npm run inspect-prime -- <url|id>` ou `npm run inspect-prime -- --file page.html`
+- Ajouter en base : `require('./src/primevideo').ingestPrime(<url|id>)` (id stocké : `prime:<id>`)
