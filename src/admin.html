@@ -187,7 +187,7 @@ tbody tr:hover{background:#16161d}
   </div>
 
   <div class="sec"><h2>2 · Enrichir</h2><span class="hint">un ID par titre, puis la bande-annonce</span></div>
-  <div id="jobs-enrich" class="grid g3"></div>
+  <div id="jobs-enrich" class="grid g2"></div>
 
   <div class="sec"><h2>3 · Brancher Stremio</h2><span class="hint">ce que l'addon renvoie sur une fiche</span></div>
   <div class="grid g2">
@@ -337,6 +337,8 @@ tbody tr:hover{background:#16161d}
   var JOBS = [
     { k: 'harvest', group: 'bulk', t: 'Moissonnage Netflix', d: 'Liste le catalogue Netflix des pays configurés (via JustWatch) pour créer les fiches et récupérer les IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
       line: function (s) { return fmt(s.seen) + ' vus · ' + fmt(s.added) + ' ajoutés · ' + fmt(s.linked) + ' liés'; }, pend: function (s) { return fmt(s.total) + ' titres'; } },
+    { k: 'trailers', group: 'enrich', t: 'Bandes-annonces Netflix', d: 'Lit la page Netflix des titres déjà liés à un ID mais sans bande-annonce. C\'est ce job qui remplit vraiment la base : le moissonnage ne pose que les IDs.', st: '/admin/api/netflix-trailers', go: '/admin/netflix-trailers', stop: '/admin/netflix-trailers/stop',
+      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.found) + ' trouvée(s)' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.netflixTrailerPending) + ' pages à lire'; } },
     { k: 'link', group: 'enrich', t: 'IDs Netflix', d: 'Associe chaque fiche à son ID Netflix (JustWatch) : c\'est la clé de la bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.linked) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.unlinked) + ' à lier'; } },
     { k: 'vf', group: 'enrich', t: 'IDs IMDb / TMDB', d: 'Retrouve l\'ID IMDb via TMDB (nécessaire pour apparaître sur une fiche Stremio) et complète affiche, synopsis, genres.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',

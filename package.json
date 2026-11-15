@@ -11,6 +11,7 @@
     "inspect-appletv": "node scripts/inspect-appletv.js",
     "sync": "node scripts/sync.js",
     "netflix-ids": "node scripts/netflix-ids.js",
+    "netflix-trailers": "node scripts/netflix-trailers.js",
     "harvest": "node scripts/harvest-all.js",
     "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",

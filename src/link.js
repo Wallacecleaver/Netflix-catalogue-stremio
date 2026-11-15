@@ -53,10 +53,15 @@ async function findMatch(row) {
   return best;
 }
 
-/** Associe une fiche (sans `netflix_id`) à un ID Netflix. */
-async function linkOne(row) {
-  if (!row || row.netflix_id) return { linked: false, reason: 'déjà lié' };
-  const best = await findMatch(row);
+/**
+ * Associe une fiche à un ID Netflix et lit sa page.
+ * `refresh: true` → la fiche a déjà un `netflix_id` : on relit seulement sa page (c'est ce qu'utilise
+ * le job « remplir les bandes-annonces Netflix », le moissonnage n'ayant fait que poser les IDs).
+ */
+async function linkOne(row, { refresh = false } = {}) {
+  if (!row) return { linked: false, reason: 'déjà lié' };
+  if (row.netflix_id && !refresh) return { linked: false, reason: 'déjà lié' };
+  const best = refresh && row.netflix_id ? { netflixId: row.netflix_id } : await findMatch(row);
   if (!best) return { linked: false, reason: 'introuvable' };
 
   const nid = best.netflixId;

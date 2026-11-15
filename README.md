@@ -96,6 +96,21 @@ Sortie : `data/netflix-ids.json` et `data/netflix-ids.csv` (`netflix_id, name, t
 Ensuite `npm run netflix-ids` complète TMDB/IMDb, bandes-annonces et épisodes. Pour garder les « Dernières sorties » à jour,
 planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.
 
+## Remplir les bandes-annonces Netflix
+
+Le moissonnage et le liage ne posent que les `netflix_id`. Cette tâche lit ensuite la page Netflix de chaque
+titre déjà lié qui n'a pas encore de bande-annonce, et stocke la vidéo, les épisodes et le casting — c'est
+elle qui fait passer la couverture de quelques pour cent à l'essentiel du catalogue.
+
+```bash
+npm run netflix-trailers                  # tout le gisement (≈ 1,2 s par page)
+npm run netflix-trailers -- --limit 50    # pour tester
+```
+
+Dans le dashboard : carte **Bandes-annonces Netflix** (progression, bouton d'arrêt, compteur « pages à lire »).
+Une page lue sans bande-annonce n'est pas relue avant 7 jours ; 8 échecs consécutifs arrêtent la tâche
+(Netflix bloque). Le Journal (source `netflix`) garde la trace des erreurs.
+
 ## Catalogue mondial et bandes-annonces VF
 - **Plusieurs pays** : `HARVEST_COUNTRIES` (défaut `FR,US,GB,CA`, modifiable dans *Paramètres*) ou `npm run harvest -- --countries FR,US,DE`.
   L'ID Netflix est identique dans tous les pays : le moissonnage fait l'union dédoublonnée, donc les titres exclusifs aux États-Unis sont inclus.

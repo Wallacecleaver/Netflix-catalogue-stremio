@@ -17,6 +17,7 @@ const vf = require('./vf');
 const search = require('./search');
 const resolve = require('./resolve');
 const appletv = require('./appletv');
+const netflixTrailers = require('./netflix-trailers');
 const hls = require('./hls');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
@@ -189,6 +190,24 @@ app.post('/admin/appletv', auth, (_req, res) => {
 app.post('/admin/appletv/stop', auth, (_req, res) => {
   const st = appletv.stop();
   log.warn('appletv', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
+  res.json(st);
+});
+// Bandes-annonces Netflix : lire la page des titres déjà liés à un ID mais sans bande-annonce.
+app.get('/admin/api/netflix-trailers', auth, (_req, res) => { res.set('cache-control', 'no-store'); res.json(netflixTrailers.status()); });
+app.post('/admin/netflix-trailers', auth, (req, res) => {
+  try {
+    const limit = Number(req.body && req.body.limit) || 0;
+    const st = netflixTrailers.start(limit ? { limit } : {});
+    log.info('netflix', `Lecture des pages Netflix lancée depuis le dashboard`, { total: st.total, limit });
+    res.json(st);
+  } catch (e) {
+    log.error('netflix', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/admin/netflix-trailers/stop', auth, (_req, res) => {
+  const st = netflixTrailers.stop();
+  log.warn('netflix', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
 });
 // Recherche manuelle : liens Netflix (Brave Search) + titres Apple TV (API iTunes). Chaque source échoue indépendamment des autres.
