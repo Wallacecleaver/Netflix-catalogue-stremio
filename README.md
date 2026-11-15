@@ -12,7 +12,7 @@ Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3
 
 ## Sources de données
 1. **Page Netflix** (`netflix.com/fr/title/<id>`) : titre, synopsis, casting, classification, épisodes (JSON-LD + `netflix.reactContext`).
-2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours et liste automatique des titres Netflix France (synchronisation).
+2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours, liste automatique des titres des plateformes choisies (synchronisation) et bande-annonce YouTube de secours.
 3. **JustWatch** (API GraphQL publique) : correspondance nom → **ID Netflix** (la recherche netflix.com redirige vers `/login`, elle ne permet pas de découvrir les IDs).
 4. **Brave Search** (clé gratuite) : recherche `site:netflix.com/title <titre>` pour la résolution à la demande et l'onglet **Recherche** du dashboard. Sans clé, ou si le quota est atteint, DuckDuckGo prend le relais.
 5. **API iTunes Search** (publique, sans clé) : secours pour retrouver une fiche tv.apple.com quand l'API web de tv.apple.com ne renvoie rien — l'URL renvoyée contient déjà l'ID `umc.cmc.*`.
@@ -63,7 +63,8 @@ Six onglets : **Stockage** (couverture des bandes-annonces, état des sources �
 - Sécurité : 10 essais échoués par minute et par IP maximum (protection basique contre le bruteforce).
 
 ## Synchronisation TMDB
-Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix de la région `REGION`.
+Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix et Apple TV+ de la région `REGION`.
+Les plateformes listées se règlent avec `CATALOG_PROVIDERS` (identifiants TMDB : `8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime Video, combinables `8,337` ; `all` = tout TMDB sans filtre, réservé à un usage ponctuel avec `SYNC_PAGES` élevé).
 Les fiches sont complétées (épisodes, casting, trailer) à la première ouverture. Manuel : `npm run sync`.
 
 ## Association des IDs Netflix (JustWatch)

@@ -72,7 +72,8 @@ async function work(imdb, type, existing) {
   if (net.nid) id = (await ingestNetflix(net.nid, { html: net.html })).id;
   else id = existing ? existing.id : `imdb:${imdb}`;
 
-  const base = { id, imdb_id: imdb, tmdb_id: info.tmdbId, tmdb_type: info.tmdbType, vf_checked: Date.now() };
+  const base = { id, imdb_id: imdb, tmdb_id: info.tmdbId, tmdb_type: info.tmdbType, vf_checked: Date.now(),
+    ...(b.trailer_yt ? { trailer_yt: b.trailer_yt } : {}) };   // clé YouTube : sert de repli si aucune bande-annonce
   if (net.nid) { const row = store.getTitle(id); store.upsertTitle({ ...base, type: row.type, name: row.name }); }   // on garde les infos Netflix
   else store.upsertTitle({ ...base, type: info.type, name: info.name, year: info.year, release_date: info.release_date || b.release_date,
     synopsis: info.synopsis, poster: info.poster, background: info.background, genres: b.genres, runtime: b.runtime });

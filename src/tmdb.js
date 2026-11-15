@@ -91,24 +91,36 @@ async function fetchFull(tmdbType, id) {
   return out;
 }
 
-async function discover(tmdbType, page = 1) {
-  return call(`/discover/${tmdbType}`, {
-    language: config.lang, watch_region: config.region, with_watch_providers: 8,
-    with_watch_monetization_types: 'flatrate', sort_by: 'popularity.desc', page,
-  });
+/**
+ * Titres d'une plateforme (par défaut Netflix : 8) sur la région configurée.
+ * `providers` : identifiants TMDB séparés par « | » (Netflix 8, Apple TV+ 337, Apple TV 2, Prime 119),
+ * ou `null` pour ne filtrer sur aucune plateforme (« tout TMDB »).
+ */
+async function discover(tmdbType, page = 1, { providers = '8' } = {}) {
+  const params = { language: config.lang, sort_by: 'popularity.desc', page };
+  if (providers) {
+    params.watch_region = config.region;
+    params.with_watch_providers = providers;
+    params.with_watch_monetization_types = 'flatrate';
+  }
+  return call(`/discover/${tmdbType}`, params);
 }
 
-/** Sorties récentes sur Netflix (région config.region), de la plus récente à la plus ancienne. */
-async function discoverRecent(tmdbType, { since, until, page = 1 } = {}) {
+/** Sorties récentes sur les plateformes configurées (région config.region), de la plus récente à la plus ancienne. */
+async function discoverRecent(tmdbType, { since, until, page = 1, providers = '8' } = {}) {
   const dateFilter = tmdbType === 'tv' ? 'first_air_date' : 'primary_release_date';
-  return call(`/discover/${tmdbType}`, {
-    language: config.lang, watch_region: config.region, with_watch_providers: 8,
-    with_watch_monetization_types: 'flatrate',
-    sort_by: `${dateFilter}.desc`,
+  const params = {
+    language: config.lang, sort_by: `${dateFilter}.desc`,
     [`${dateFilter}.gte`]: since,
     [`${dateFilter}.lte`]: until,
     page,
-  });
+  };
+  if (providers) {
+    params.watch_region = config.region;
+    params.with_watch_providers = providers;
+    params.with_watch_monetization_types = 'flatrate';
+  }
+  return call(`/discover/${tmdbType}`, params);
 }
 
 /**

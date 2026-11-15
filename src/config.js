@@ -42,4 +42,7 @@ module.exports = {
   braveApiKey: process.env.BRAVE_API_KEY || '',
   braveCountry: (process.env.BRAVE_COUNTRY || process.env.REGION || 'FR').toUpperCase(),
   braveLang: (process.env.BRAVE_LANG || String(process.env.TMDB_LANG || 'fr-FR').slice(0, 2)).toLowerCase(),
+  // Plateformes dont on liste le catalogue dans TMDB : 8 = Netflix, 337 = Apple TV+, 2 = Apple TV,
+  // 119 = Prime Video, « all » = aucune filtre (tout TMDB, plusieurs centaines de milliers de titres).
+  catalogProviders: (process.env.CATALOG_PROVIDERS || '8,337').trim(),
 };

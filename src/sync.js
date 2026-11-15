@@ -5,6 +5,17 @@ const tmdb = require('./tmdb');
 
 const isoDay = (ts) => new Date(ts).toISOString().slice(0, 10);
 
+/**
+ * Filtre de plateformes pour /discover (CATALOG_PROVIDERS) :
+ * « 8,337 » → "8|337" (OR) ; « all » ou vide → null, donc tout TMDB sans filtre.
+ */
+function providerFilter(raw = config.catalogProviders) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (!v || v === 'all' || v === 'tous' || v === '*') return null;
+  const ids = v.split(/[\s,;|]+/).map((s) => s.trim()).filter((s) => /^\d+$/.test(s));
+  return ids.length ? ids.join('|') : '8';
+}
+
 /** Enregistre les résultats TMDB d'une page ; renvoie le nombre de titres ajoutés. */
 function addResults(results, tmdbType, genres) {
   let added = 0;
@@ -25,32 +36,34 @@ function addResults(results, tmdbType, genres) {
   return added;
 }
 
-/** Remplit le catalogue avec les titres disponibles sur Netflix (région config.region) via TMDB. */
+/** Remplit le catalogue avec les titres des plateformes configurées (région config.region) via TMDB. */
 async function syncCatalog({ pages = config.syncPages } = {}) {
   if (!config.tmdbKey) { const msg = 'TMDB_API_KEY manquant'; log.error('sync', msg); throw new Error(msg); }
+  const providers = providerFilter();
   let added = 0;
   for (const tmdbType of ['tv', 'movie']) {
     const genres = await tmdb.genreMap(tmdbType);
     for (let p = 1; p <= pages; p++) {
-      const data = await tmdb.discover(tmdbType, p);
+      const data = await tmdb.discover(tmdbType, p, { providers });
       added += addResults(data.results, tmdbType, genres);
       if (p >= data.total_pages) break;
     }
   }
-  log.info('sync', `Catalogue synchronisé : +${added} titres`);
+  log.info('sync', `Catalogue synchronisé : +${added} titres`, { providers: providers || 'tout TMDB' });
   return added;
 }
 
-/** Alimente les catalogues « Dernières sorties » : titres Netflix sortis ces RECENT_DAYS derniers jours. */
+/** Alimente les catalogues « Dernières sorties » : titres des plateformes sortis ces RECENT_DAYS derniers jours. */
 async function syncRecent({ pages = config.recentPages, days = config.recentDays } = {}) {
   if (!config.tmdbKey) { const msg = 'TMDB_API_KEY manquant'; log.error('sync', msg); throw new Error(msg); }
   const now = Date.now();
+  const providers = providerFilter();
   const range = { since: isoDay(now - days * 86400000), until: isoDay(now) };
   let added = 0;
   for (const tmdbType of ['tv', 'movie']) {
     const genres = await tmdb.genreMap(tmdbType);
     for (let p = 1; p <= pages; p++) {
-      const data = await tmdb.discoverRecent(tmdbType, { ...range, page: p });
+      const data = await tmdb.discoverRecent(tmdbType, { ...range, page: p, providers });
       added += addResults(data.results, tmdbType, genres);
       if (p >= data.total_pages) break;
     }
