@@ -139,7 +139,7 @@ défauts.
 
 | Variable | Rôle |
 |---|---|
-| `API_KEY` | clé exigée par `/api/trailers` (vide = API ouverte) |
+| `API_KEY` | clé historique exigée par `/api/trailers` — préfère les clés de l'onglet API (vide + aucune clé créée = API ouverte) |
 | `UPSTREAM_URL` · `UPSTREAM_API_KEY` | instance amont dont on récupère les bandes-annonces |
 
 ## D'où viennent les vidéos, et en quelle qualité
@@ -174,8 +174,11 @@ rien.
 
 ## API
 
-**Fédération** — ouverte par défaut. Une clé se génère en un clic dans **Paramètres → API de fédération**
-(elle n'est affichée qu'une fois) et s'envoie en `x-api-key`, `Authorization: Bearer <clé>` ou `?key=`.
+**Fédération** — ouverte par défaut. Dès qu'une clé existe, elle devient obligatoire. Les clés se gèrent dans
+l'onglet **API** du dashboard : jusqu'à 5 clés avec un libellé, date de création et de dernière utilisation,
+révocation individuelle. Une clé (`wtr_…`) n'est affichée qu'une fois à la création (seule son empreinte SHA-256
+est stockée) et s'envoie en `Authorization: Bearer <clé>`, `x-api-key` ou `?key=`. L'ancienne variable `API_KEY`
+continue de fonctionner.
 
 ```bash
 curl "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"

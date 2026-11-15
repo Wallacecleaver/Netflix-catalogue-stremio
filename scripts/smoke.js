@@ -354,6 +354,29 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal((await fetch(`${base}/api/status`)).status, 200);
   cfg.apiKey = 'test-api-key';
 
+  // ---- Clés API multiples (onglet API) ----
+  const hdrJson = { ...auth, 'content-type': 'application/json' };
+  assert.equal((await fetch(`${base}/admin/api/keys`)).status, 401);
+  const k1 = await (await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: JSON.stringify({ label: '  Instance   VPS ' }) })).json();
+  assert.ok(/^wtr_[0-9a-f]{48}$/.test(k1.key)); assert.equal(k1.label, 'Instance VPS');
+  let keyList = await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json();
+  assert.equal(keyList.keys.length, 1); assert.equal(keyList.keys[0].last4, k1.key.slice(-4));
+  assert.equal(keyList.keys[0].last_used_at, null); assert.equal(JSON.stringify(keyList).includes(k1.key), false);   // jamais renvoyée une 2e fois
+  assert.equal((await fetch(`${base}/api/status`, { headers: { authorization: `Bearer ${k1.key}` } })).status, 200);
+  assert.equal((await fetch(`${base}/api/status`, { headers: { 'x-api-key': k1.key } })).status, 200);
+  assert.equal((await fetch(`${base}/api/status?key=${k1.key}`)).status, 200);
+  assert.equal((await fetch(`${base}/api/status`, { headers: { 'x-api-key': 'wtr_faux' } })).status, 401);
+  assert.equal((await fetch(`${base}/api/status`, { headers: apiKey })).status, 200);       // la clé historique reste valable
+  keyList = await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json();
+  assert.ok(keyList.keys[0].last_used_at > 0); assert.equal(keyList.legacy, true);
+  for (let i = 0; i < 4; i++) assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 200);
+  assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 400);   // 5 clés maximum
+  for (const k of (await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json()).keys) {
+    assert.equal((await fetch(`${base}/admin/api/keys/delete`, { method: 'POST', headers: hdrJson, body: JSON.stringify({ id: k.id }) })).status, 200);
+  }
+  assert.equal((await fetch(`${base}/api/status`, { headers: { authorization: `Bearer ${k1.key}` } })).status, 401);   // révoquée
+  assert.equal((await fetch(`${base}/admin/api/keys/delete`, { method: 'POST', headers: hdrJson, body: JSON.stringify({ id: 9999 }) })).status, 404);
+
   // Client amont : récupère les trailers d'une autre instance (avec sa clé)
   const federation = require('../src/federation');
   const config = require('../src/config');

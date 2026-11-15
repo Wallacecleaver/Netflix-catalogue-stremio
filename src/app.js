@@ -61,17 +61,23 @@ function auth(req, res, next) {
   next();
 }
 
-// ---- API de fédération : clé API (en-tête x-api-key, Authorization: Bearer, ou ?key=) ----
-// API_KEY vide = API ouverte : une autre instance peut alors utiliser l'URL seule
-// (sécurité par obscurité de l'adresse). Dès qu'une clé est configurée, elle redevient obligatoire.
+// ---- API de fédération : clés API (en-tête x-api-key, Authorization: Bearer, ou ?key=) ----
+// Aucune clé configurée (ni clé créée dans l'onglet API, ni API_KEY historique) = API ouverte : une autre
+// instance n'a besoin que de l'URL. Dès qu'une clé existe, une clé valide devient obligatoire.
+const MAX_API_KEYS = 5;
+const keyHash = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
+const apiIsOpen = () => !config.apiKey && store.countApiKeys() === 0;
+
 function apiAuth(req, res, next) {
-  if (!config.apiKey) return next();
+  if (apiIsOpen()) return next();
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
   const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
-  if (!federation.keyOk(given)) {
-    return res.status(401).json({ error: 'Clé API invalide', hint: "en-tête x-api-key, ou Authorization: Bearer <clé>" });
+  if (given) {
+    const hit = store.findApiKey(keyHash(given));
+    if (hit) { store.touchApiKey(hit.id); return next(); }
+    if (federation.keyOk(given)) return next();          // clé historique (API_KEY du .env / des réglages)
   }
-  next();
+  return res.status(401).json({ error: 'Clé API invalide', hint: "en-tête x-api-key, ou Authorization: Bearer <clé>" });
 }
 
 // Génère une clé API et l'enregistre (elle n'est affichée qu'une fois, dans la réponse).
@@ -82,12 +88,33 @@ app.post('/admin/api-key', auth, (_req, res) => {
   res.json({ ok: true, key });
 });
 
+// Gestion des clés API (onglet « API ») : liste, création (la clé n'est renvoyée qu'ici, une seule fois), révocation.
+app.get('/admin/api/keys', auth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json({ keys: store.listApiKeys(), max: MAX_API_KEYS, legacy: !!config.apiKey, open: apiIsOpen(), baseUrl: config.publicUrl });
+});
+app.post('/admin/api/keys', auth, (req, res) => {
+  if (store.countApiKeys() >= MAX_API_KEYS) return res.status(400).json({ error: `Limite de ${MAX_API_KEYS} clés atteinte : révoque-en une d'abord` });
+  const label = String((req.body && req.body.label) || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Sans nom';
+  const key = `wtr_${crypto.randomBytes(24).toString('hex')}`;
+  const id = store.createApiKey({ label, hash: keyHash(key), last4: key.slice(-4) });
+  log.info('admin', `Clé API créée : ${label}`, { id });
+  res.json({ ok: true, id, label, key });
+});
+app.post('/admin/api/keys/delete', auth, (req, res) => {
+  const id = Number(req.body && req.body.id);
+  const label = (store.listApiKeys().find((k) => k.id === id) || {}).label;
+  if (!label || !store.deleteApiKey(id)) return res.status(404).json({ error: 'Clé introuvable' });
+  log.warn('admin', `Clé API révoquée : ${label}`, { id });
+  res.json({ ok: true, id });
+});
+
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
 app.get('/admin/api/summary', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json({
     version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view(),
-    addon: { resolve: !!(config.resolveEnabled && config.tmdbKey), publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: !config.apiKey },
+    addon: { resolve: !!(config.resolveEnabled && config.tmdbKey), publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: apiIsOpen() },
     // État des sources : ce qui, dans ce projet, casse en premier (clé TMDB, moteur de recherche, Apple TV, ffmpeg).
     sources: {
       tmdb: !!config.tmdbKey,
@@ -97,7 +124,7 @@ app.get('/admin/api/summary', auth, (_req, res) => {
       ffmpeg: hls.ffmpegAvailable(),
       resolve: !!(config.resolveEnabled && config.tmdbKey),
       upstream: config.upstreamUrl || '',
-      apiOpen: !config.apiKey,
+      apiOpen: apiIsOpen(),
     },
   });
 });
@@ -408,7 +435,7 @@ app.get('/api/trailers', apiAuth, wrap(async (req, res) => {
       manual: (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers.length : 0,
     } : null,
     resolveActive: !!(config.resolveEnabled && config.tmdbKey),
-    apiOpen: !config.apiKey,
+    apiOpen: apiIsOpen(),
   } : undefined;
   res.json({
     found: trailers.length > 0,

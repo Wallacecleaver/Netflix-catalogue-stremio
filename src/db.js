@@ -68,6 +68,15 @@ CREATE TABLE IF NOT EXISTS logs (
   meta TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  last4 TEXT NOT NULL,
+  scopes TEXT NOT NULL DEFAULT 'trailers:read',
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
 `);
 
 for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER', 'appletv_json TEXT', 'appletv_checked INTEGER', 'trailers_checked INTEGER', 'link_checked INTEGER']) {
@@ -296,6 +305,17 @@ const setSettings = db.transaction((entries) => {
 });
 const deleteSetting = (key) => db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes;
 
+// ---- Clés API de fédération : seule l'empreinte SHA-256 est stockée (la clé n'est montrée qu'à la création) ----
+const listApiKeys = () => db.prepare('SELECT id, label, last4, scopes, created_at, last_used_at FROM api_keys ORDER BY id').all();
+const countApiKeys = () => db.prepare('SELECT COUNT(*) c FROM api_keys').get().c;
+const createApiKey = ({ label, hash, last4, scopes = 'trailers:read' }) => Number(db.prepare(
+  'INSERT INTO api_keys (label, key_hash, last4, scopes, created_at) VALUES (?, ?, ?, ?, ?)').run(label, hash, last4, scopes, Date.now()).lastInsertRowid);
+const deleteApiKey = (id) => db.prepare('DELETE FROM api_keys WHERE id = ?').run(Number(id)).changes;
+const findApiKey = (hash) => db.prepare('SELECT id, label, scopes FROM api_keys WHERE key_hash = ?').get(String(hash));
+// « Dernière utilisation » : une écriture par minute et par clé au plus (l'API peut être très sollicitée).
+const touchApiKey = (id) => db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)')
+  .run(Date.now(), Number(id), Date.now() - 60000);
+
 // ---- Journal d'événements (erreurs liage/synchro/relais, actions admin…) ----
 const LOG_KEEP = 2000;
 function addLog({ level = 'info', source = null, message, meta = null }) {
@@ -318,4 +338,5 @@ const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, getLookup, setLookup, listUnlinked, listLinked, listVfPending,
   listNetflixTrailerPending, deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
-  allSettings, setSettings, deleteSetting, deleteTitle, resetChecks, addLog, listLogs, clearLogs };
+  allSettings, setSettings, deleteSetting, deleteTitle, resetChecks,
+  listApiKeys, countApiKeys, createApiKey, deleteApiKey, findApiKey, touchApiKey, addLog, listLogs, clearLogs };
