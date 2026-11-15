@@ -17,6 +17,7 @@
     "vf": "node scripts/vf-check.js",
     "test": "node scripts/smoke.js",
     "test:search": "node test/search-brave-itunes.test.js",
+    "test:youtube": "node test/youtube.test.js",
     "seed": "node scripts/seed.js",
     "inspect-prime": "node scripts/inspect-prime.js"
   },

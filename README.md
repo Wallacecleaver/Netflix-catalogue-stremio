@@ -264,6 +264,21 @@ Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navi
 > recompresse rien : c'est la source. Pour avoir mieux, `YOUTUBE_AS_SOURCE=1` ajoute la vidéo YouTube de
 > TMDB (1080p) **à côté** de Netflix, sur les fiches qui ont déjà une bande-annonce Netflix/Apple.
 
+## Bande-annonce YouTube (dernier recours)
+
+Quand TMDB ne fournit **aucune** vidéo pour un titre, `src/youtube.js` cherche « `<titre>` bande annonce VF » sur YouTube
+(sans clé API : `ytInitialData` est extrait de la page de résultats) puis filtre sévèrement :
+
+- le titre du film doit apparaître dans celui de la vidéo, et la vidéo doit être une bande-annonce ;
+- sont rejetés : réactions, critiques, extraits, making-of, parodies, spots de moins de 40 s ;
+- la VF est privilégiée, les chaînes officielles (Netflix, Allociné…) et l'année rapportent des points.
+
+La clé retenue est stockée comme `trailer_yt` / `vf_trailer` : elle sert de bouton **Bande-annonce** sur les fiches sans
+flux Netflix/Apple, de repli dans la liste des sources, et de source si `YOUTUBE_AS_SOURCE=1`.
+
+Déclenchée par la tâche « IDs IMDb / TMDB » et par la résolution à la demande. Les recherches sont espacées d'1,2 s
+(YouTube bloque vite) ; `YOUTUBE_SEARCH=0` désactive tout.
+
 ## Prime Video (métadonnées)
 
 `src/primevideo.js` lit une page `https://www.primevideo.com/-/fr/detail/<id>` (JSON embarqué `dv-web-page-hydration-data`) :

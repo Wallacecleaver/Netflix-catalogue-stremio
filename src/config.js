@@ -50,4 +50,7 @@ module.exports = {
   // l'intégration YouTube de Stremio (clé `ytId`), pas comme un fichier relayé par ce serveur.
   // '1' / '0' (chaîne) pour que le réglage du dashboard affiche la bonne valeur.
   youtubeAsSource: process.env.YOUTUBE_AS_SOURCE === '1' ? '1' : '0',
+  // Dernier recours quand TMDB ne fournit aucune bande-annonce : recherche YouTube (sans clé API).
+  // '0' pour désactiver (YouTube peut bloquer un serveur trop bavard).
+  youtubeSearchEnabled: process.env.YOUTUBE_SEARCH === '0' ? '0' : '1',
 };

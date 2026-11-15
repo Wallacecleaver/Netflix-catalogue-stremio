@@ -2,6 +2,7 @@ const config = require('./config');
 const store = require('./db');
 const log = require('./log');
 const tmdb = require('./tmdb');
+const youtube = require('./youtube');
 
 // Job de fond : pour chaque titre, une requête TMDB qui retrouve son ID IMDb et complète
 // affiche, fond, synopsis et genres quand la fiche vient du moissonnage (donc vide).
@@ -51,6 +52,15 @@ async function checkOne(row) {
   const b = await withRetry(() => tmdb.basics(tmdbType, tmdbId));
   if (!b) { store.upsertTitle({ ...base, tmdb_id: tmdbId, tmdb_type: tmdbType }); return { vf: false, match: false }; }
 
+  // TMDB n'a pas de bande-annonce pour ce titre : on tente une recherche YouTube (matching strict).
+  let yt = b.trailer_yt || null;
+  if (!yt) {
+    try {
+      const found = await youtube.findTrailer({ name: row.name, year: row.year || b.year, type: row.type });
+      if (found) yt = found.id;
+    } catch (e) { /* pas bloquant : le titre sera simplement sans vidéo */ }
+  }
+
   // On ne remplace jamais une valeur déjà présente (Netflix/TMDB complet) : on comble seulement les trous.
   // `vf_trailer` / `trailer_yt` : clé YouTube de la bande-annonce (TMDB, VF de préférence) — c'est elle qui
   // sert de bouton « Bande-annonce » sur les fiches sans flux Netflix/Apple (Prime Video notamment).
@@ -63,8 +73,8 @@ async function checkOne(row) {
     genres: row.genres && row.genres.length ? row.genres : b.genres,
     poster: row.poster || b.poster || null, background: row.background || b.background || null,
     runtime: row.runtime || b.runtime || null,
-    vf_trailer: row.vf_trailer || b.trailer_yt || null,
-    trailer_yt: row.trailer_yt || b.trailer_yt || null,
+    vf_trailer: row.vf_trailer || yt || null,
+    trailer_yt: row.trailer_yt || yt || null,
   });
   return { match: true };
 }

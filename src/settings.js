@@ -30,6 +30,7 @@ const DEFS = [
   { key: 'SYNC_PAGES', prop: 'syncPages', label: 'Pages catalogue complet', group: 'Synchronisation', type: 'number', min: 1, max: 500 },
   { key: 'CATALOG_PROVIDERS', prop: 'catalogProviders', label: 'Plateformes du catalogue (8=Netflix, 337=Apple TV+, 2=Apple TV, 119=Prime, all=tout TMDB)', group: 'Synchronisation', type: 'text' },
   { key: 'YOUTUBE_AS_SOURCE', prop: 'youtubeAsSource', label: 'Proposer aussi YouTube à côté de Netflix/Apple (1 = oui, qualité 1080p, 0 = seulement en repli)', group: 'Synchronisation', type: 'select', options: ['0', '1'] },
+  { key: 'YOUTUBE_SEARCH', prop: 'youtubeSearchEnabled', label: 'Chercher la bande-annonce sur YouTube quand TMDB n\'en a pas (1 = oui, 0 = non)', group: 'Synchronisation', type: 'select', options: ['1', '0'] },
   { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties (jours)', group: 'Synchronisation', type: 'number', min: 1, max: 365 },
   { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
   { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés (ex. FR,US,GB,CA)', group: 'Synchronisation', type: 'text', normalize: countryList },
