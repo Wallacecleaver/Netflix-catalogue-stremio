@@ -144,6 +144,7 @@ async function basics(tmdbType, id) {
     poster: img(d.poster_path, 'w500'), background: img(d.backdrop_path, 'w1280'),
     imdb_id: d.external_ids?.imdb_id || null,
     runtime: d.runtime || d.episode_run_time?.[0] || null,
+    trailer_yt: pickTrailer(d.videos),
   };
 }
 

@@ -214,6 +214,11 @@ function stats() {
     withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
     withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
     withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
+    // Bandes-annonces YouTube (TMDB) réellement utilisées : celles des titres sans flux Netflix/Apple,
+    // puisque c'est la seule source qui reste affichée dans ce cas.
+    withYoutube: db.prepare(`SELECT COUNT(*) c FROM titles
+      WHERE ((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))
+        AND NOT ${TR.netflix} AND NOT ${TR.apple}`).get().c,
     appletvChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE appletv_checked IS NOT NULL').get().c,
     appletvPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${appletvPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
     dbBytes,

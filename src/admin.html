@@ -196,7 +196,7 @@ tbody tr:hover{background:#16161d}
       <h3 style="margin-top:16px">API de fédération</h3><p class="muted" style="margin:6px 0 0">Pour partager les bandes-annonces entre instances.</p>
       <div class="url"><code id="api-url">—</code></div>
       <p class="muted" id="api-note" style="margin:8px 0 0"></p></div>
-    <div class="card"><h3>Ordre des flux proposés</h3><p class="muted" style="margin:6px 0 8px">À l'ouverture d'une fiche Stremio, l'addon retrouve le titre sur TMDB, cherche sa fiche Netflix, lit la page et stocke la bande-annonce. Chaque titre n'est cherché qu'une fois.</p><div id="flux"></div><p class="muted" id="lookup-line" style="margin:12px 0 0"></p></div>
+    <div class="card"><h3>Flux et bande-annonce proposés</h3><p class="muted" style="margin:6px 0 8px">À l'ouverture d'une fiche Stremio, l'addon retrouve le titre sur TMDB, cherche sa fiche Netflix, lit la page et stocke la bande-annonce. Chaque titre n'est cherché qu'une fois.</p><div id="flux"></div><p class="muted" id="lookup-line" style="margin:12px 0 0"></p></div>
   </div>
 </section>
 
@@ -283,6 +283,7 @@ tbody tr:hover{background:#16161d}
     var parts = [
       ['Netflix', s.withNetflixTrailer, 'var(--red2)'],
       ['Apple TV', s.withAppletv, 'var(--violet)'],
+      ['YouTube (VF)', s.withYoutube, 'var(--amber)'],
       ['IDs IMDb', s.withImdb, 'var(--blue)'],
       ['IDs Netflix', s.netflixId, 'var(--green)']
     ];
@@ -317,7 +318,8 @@ tbody tr:hover{background:#16161d}
     // flux : ordre réellement proposé par l'addon (miroir de src/addon.js)
     var fl = [
       ['Netflix', 'Bande-annonce de la page Netflix' + (src.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
-      ['Apple TV', src.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg), puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap']
+      ['Apple TV', src.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg), puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap'],
+      ['VF (TMDB)', 'Bouton « Bande-annonce » de la fiche : la vidéo YouTube de TMDB, seulement quand le titre n\'a aucune bande-annonce Netflix/Apple. C\'est ce qui couvre Prime Video, dont le flux est chiffré.', s.withYoutube, 'b-vf']
     ];
     $('flux').innerHTML = fl.map(function (f, i) {
       return '<div class="flux"><div class="num">' + (i + 1) + '</div><div class="t"><b>' + f[0] + '</b> <span class="badge ' + f[3] + '">' + fmt(f[2]) + ' titres</span><div class="muted">' + f[1] + '</div></div></div>';

@@ -197,6 +197,9 @@ async function ingestPrime(input, opts = {}) {
     year: p.year || t?.year, release_date: p.releaseDate || t?.release_date, certification: p.certification || t?.certification,
     genres: p.genres.length ? p.genres : t?.genres, synopsis: p.synopsis || t?.synopsis, cast: p.cast.length ? p.cast : t?.cast,
     poster: t?.poster || p.image, background: p.background || t?.background, logo: p.logo || t?.logo, runtime: t?.runtime,
+    // Le flux Prime Video est chiffré (enveloppe JWE) : on garde la clé YouTube de TMDB pour avoir
+    // au moins le bouton « Bande-annonce » de la fiche Stremio.
+    trailer_yt: t?.trailer_yt || null,
     extra: { primeId: p.primeId || pid, primeTrailer: p.primeTrailer, directors: p.directors, producers: p.producers, studios: p.studios,
       moods: p.moods, related: p.related, posterShape: t?.poster ? 'poster' : 'landscape', fetchedAt: Date.now() },
     enriched: 1,

@@ -247,7 +247,13 @@ Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navi
 
 `src/primevideo.js` lit une page `https://www.primevideo.com/-/fr/detail/<id>` (JSON embarqué `dv-web-page-hydration-data`) :
 titre, synopsis, genres, casting, épisodes, visuels. La bande-annonce n'est stockée que comme référence (`extra.primeTrailer`) :
-son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement.
+son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement. Vérifié : la page ne contient aucun
+`.m3u8`/`.mp4`, et l'`playbackEnvelope` est un JWE chiffré (`A256KW` / `A256CBC-HS512`) — contrairement à Netflix (lien signé
+mais clair) et Apple TV (HLS non chiffré), il n'y a rien à relayer.
+
+En pratique la fiche Prime a quand même une bande-annonce : la clé YouTube de TMDB (`trailer_yt`, remplie à l'import, ou
+`vf_trailer` par la tâche « IDs IMDb / TMDB ») est exposée comme bouton **Bande-annonce** de la fiche Stremio, uniquement
+lorsque le titre n'a aucune bande-annonce Netflix/Apple.
 
 - Déboguer : `npm run inspect-prime -- <url|id>` ou `npm run inspect-prime -- --file page.html`
 - Ajouter en base : onglet **Ajouter** du dashboard, ou `npm run add -- https://www.primevideo.com/-/fr/detail/<id>` (id stocké : `prime:<id>`)

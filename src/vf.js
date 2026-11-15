@@ -52,6 +52,8 @@ async function checkOne(row) {
   if (!b) { store.upsertTitle({ ...base, tmdb_id: tmdbId, tmdb_type: tmdbType }); return { vf: false, match: false }; }
 
   // On ne remplace jamais une valeur déjà présente (Netflix/TMDB complet) : on comble seulement les trous.
+  // `vf_trailer` / `trailer_yt` : clé YouTube de la bande-annonce (TMDB, VF de préférence) — c'est elle qui
+  // sert de bouton « Bande-annonce » sur les fiches sans flux Netflix/Apple (Prime Video notamment).
   store.upsertTitle({
     ...base,
     tmdb_id: tmdbId, tmdb_type: tmdbType,
@@ -61,6 +63,8 @@ async function checkOne(row) {
     genres: row.genres && row.genres.length ? row.genres : b.genres,
     poster: row.poster || b.poster || null, background: row.background || b.background || null,
     runtime: row.runtime || b.runtime || null,
+    vf_trailer: row.vf_trailer || b.trailer_yt || null,
+    trailer_yt: row.trailer_yt || b.trailer_yt || null,
   });
   return { match: true };
 }

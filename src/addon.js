@@ -51,6 +51,11 @@ function buildMeta(row, eps) {
     ...appletv.urls(row).map((t) => ({ title: t.title, url: appleRelay(row, t.index) })),
   ];
   if (trailerStreams.length) meta.trailerStreams = trailerStreams;
+  // Aucun flux Netflix / Apple TV : on expose la bande-annonce YouTube de TMDB (VF de préférence)
+  // comme bouton « Bande-annonce » de la fiche. C'est ce qui donne une bande-annonce aux fiches
+  // Prime Video, dont le flux propre est chiffré (JWE) et donc non relisible.
+  const yt = row.vf_trailer || row.trailer_yt;
+  if (!trailerStreams.length && yt) meta.trailers = [{ source: 'youtube', sourceId: yt }];
   if (row.type === 'series') {
     meta.videos = eps.map((e) => ({
       id: `${row.id}:${e.season}:${e.episode}`,
