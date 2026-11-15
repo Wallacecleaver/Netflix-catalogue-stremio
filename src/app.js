@@ -297,7 +297,16 @@ app.post('/admin/api/logs/clear', auth, (_req, res) => {
   log.info('admin', 'Journal effacé', { removed });
   res.json({ ok: true, removed });
 });
-app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
+app.get('/health', (_req, res) => {
+  const s = store.stats();
+  res.json({
+    ok: true, version: manifest.version, uptime: Math.round(process.uptime()),
+    titles: s.total, withTrailer: s.withTrailer, netflix: s.withNetflixTrailer, appletv: s.withAppletv, youtube: s.withYoutube,
+    pending: { netflixPages: s.netflixTrailerPending, unlinked: s.unlinked, vf: s.vfPending, appletv: s.appletvPending },
+    sources: { tmdb: !!config.tmdbKey, appletv: !!config.appletvEnabled, ffmpeg: hls.ffmpegAvailable(), upstream: !!config.upstreamUrl },
+    errors: s.logErrors,
+  });
+});
 
 // ---- API de fédération : exposer les bandes-annonces à une autre instance ----
 app.get('/api/status', apiAuth, (_req, res) => {
@@ -425,6 +434,12 @@ async function appleTrailerHandler(req, res) {
 }
 app.get('/apple/:id/:idx.mp4', appleTrailerHandler);
 app.head('/apple/:id/:idx.mp4', appleTrailerHandler);
+
+// Stremio relit le manifest régulièrement : un cache court évite de le régénérer à chaque ouverture.
+app.use((req, res, next) => {
+  if (req.path === '/manifest.json') res.set('cache-control', 'public, max-age=300');
+  next();
+});
 
 app.use(getRouter(builder.getInterface()));
 

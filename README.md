@@ -52,7 +52,7 @@ Six onglets : **Stockage** (couverture des bandes-annonces, état des sources �
 - Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
 - Configuration actuelle (lecture seule) avec la provenance de chaque valeur.
 - Actions : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix, **liage des IDs Netflix** (progression en direct).
-- Liens Stremio : manifest, `/health`, relais bande-annonce.
+- Liens Stremio : manifest, `/health` (version, compteurs, travail restant, état des sources, erreurs journalisées — pratique pour une supervision), relais bande-annonce.
 
 **Paramètres**
 - Toutes les variables du `.env` sont **modifiables** : port, URL publique, clé TMDB, région/langue/pays, pages et fréquences de synchro, fenêtre des nouveautés, cache, clé API et instance amont, mot de passe admin.

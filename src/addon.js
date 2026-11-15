@@ -139,7 +139,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
       externalUrl: `https://www.youtube.com/watch?v=${yt}`,
     });
   }
-  return { streams, cacheMaxAge: 60 };
+  return { streams, cacheMaxAge: streams.length ? 300 : 60 };
 });
 
 module.exports = { builder, manifest, buildMeta, baseId };

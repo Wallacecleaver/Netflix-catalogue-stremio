@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS titles (
 CREATE INDEX IF NOT EXISTS idx_titles_type ON titles(type);
 CREATE INDEX IF NOT EXISTS idx_titles_release ON titles(type, release_date);
 CREATE INDEX IF NOT EXISTS idx_titles_tmdb ON titles(tmdb_type, tmdb_id);
+CREATE INDEX IF NOT EXISTS idx_titles_imdb ON titles(imdb_id);
+CREATE INDEX IF NOT EXISTS idx_titles_netflix ON titles(netflix_id);
+CREATE INDEX IF NOT EXISTS idx_titles_added ON titles(added_at DESC);
 CREATE TABLE IF NOT EXISTS episodes (
   title_id TEXT NOT NULL REFERENCES titles(id) ON DELETE CASCADE,
   season INTEGER NOT NULL,

@@ -2,45 +2,57 @@
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0b0e">
 <title>W stockage bande annonce</title>
 <style>
-:root{--bg:#0b0b0e;--card:#14141a;--card2:#1b1b23;--line:#262631;--line2:#32323f;--txt:#ececf1;--muted:#9a9aab;--red:#e50914;--red2:#ff4d57;--green:#43d98b;--amber:#f5b942;--blue:#5aa9ff;--violet:#a78bfa;--off:#6f6f82;color-scheme:dark}
+:root{--bg:#0a0a0d;--card:#14141a;--card2:#1b1b23;--line:#25252f;--line2:#33333f;--txt:#ececf1;--muted:#9a9aab;--red:#e50914;--red2:#ff4d57;--green:#43d98b;--amber:#f5b942;--blue:#5aa9ff;--violet:#a78bfa;--off:#6f6f82;--r:14px;color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(1100px 520px at 50% -160px,#191924 0,var(--bg) 62%) no-repeat,var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+html{scrollbar-color:#3a3a48 transparent;scrollbar-width:thin}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#33333f;border-radius:99px;border:2px solid transparent;background-clip:content-box}
+body{margin:0;background:radial-gradient(1100px 520px at 50% -180px,#1b1b26 0,var(--bg) 62%) no-repeat,var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 a{color:var(--red2);text-decoration:none}a:hover{text-decoration:underline}
-code{font:12.5px/1.4 ui-monospace,Consolas,monospace;color:#cfd0dd}
+code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:#cfd0dd}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--red2);outline-offset:2px}
 .hidden{display:none!important}
-.wrap{max-width:1120px;margin:0 auto;padding:22px 18px 80px}
-.card{background:linear-gradient(180deg,#16161d,#13131a);border:1px solid var(--line);border-radius:14px;padding:18px}
-h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding:26px 18px 90px}
+
+/* barre de chargement globale */
+#busy{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;background:transparent;overflow:hidden}
+#busy::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--red2),transparent);transform:translateX(-100%)}
+body.busy #busy::before{animation:slide 1.1s linear infinite}
+@keyframes slide{to{transform:translateX(100%)}}
+
+.card{background:linear-gradient(180deg,#16161d,#13131a);border:1px solid var(--line);border-radius:var(--r);padding:18px;transition:border-color .18s,transform .18s}
+h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0;letter-spacing:-.1px}
 .muted{color:var(--muted);font-size:13px}
-.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(150deg,var(--red2),#8c0009);font-weight:800;color:#fff;flex:none;box-shadow:0 6px 18px -8px var(--red)}
+.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(150deg,var(--red2),#8c0009);font-weight:800;color:#fff;flex:none;box-shadow:0 8px 22px -10px var(--red)}
 
 /* ---- connexion ---- */
 .login{min-height:100vh;display:grid;place-items:center;padding:20px}
-.login .card{width:min(390px,100%);text-align:center;padding:26px}
+.login .card{width:min(390px,100%);text-align:center;padding:28px}
 .login .logo{margin:0 auto 14px;width:48px;height:48px;font-size:19px}
 .err{color:var(--red2);font-size:13px;min-height:20px;margin-top:10px}
 
 /* ---- en-tête ---- */
-.top{position:sticky;top:0;z-index:5;background:rgba(11,11,14,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:50;background:rgba(10,10,13,.82);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
 .top .in{max-width:1120px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
 .top h1{font-size:16px;margin:0;letter-spacing:-.2px}
-.top .sub{color:var(--muted);font-size:12.5px;display:flex;gap:7px;flex-wrap:wrap}
-.top .sub i{font-style:normal;opacity:.45}
+.top .sub{color:var(--muted);font-size:12.5px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.top .sub i{font-style:normal;opacity:.4}.top .sub b{font-weight:600;color:#d9d9e3}
 .sp{flex:1}
 
 /* ---- onglets ---- */
-.tabs{display:flex;gap:2px;margin:20px 0 22px;border-bottom:1px solid var(--line);overflow-x:auto}
-.tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font:inherit;cursor:pointer;white-space:nowrap;transition:color .15s}
-.tab:hover{color:var(--txt)}
-.tab.active{color:var(--txt);border-color:var(--red2)}
+.tabs{display:flex;gap:2px;margin:22px 0 24px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font:inherit;cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s}
+.tab:hover{color:var(--txt)}.tab.active{color:var(--txt);border-color:var(--red2)}
 
 /* ---- contrôles ---- */
-.btn,.inp,select{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 13px;transition:border-color .15s,background .15s}
+.btn,.inp,select{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 13px;transition:border-color .15s,background .15s,transform .06s}
 .btn{cursor:pointer}.btn:hover:not(:disabled){border-color:var(--line2);background:#20202b}
-.btn.primary{background:var(--red);border-color:var(--red);font-weight:600}.btn.primary:hover:not(:disabled){background:#f3121f;border-color:#f3121f}
-.btn.ghost{background:transparent}.btn.sm{padding:6px 11px;font-size:13px}
-.btn:disabled{opacity:.4;cursor:default}
-.inp{width:100%}.inp::placeholder{color:#6c6c7e}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn.primary{background:var(--red);border-color:var(--red);font-weight:600;box-shadow:0 8px 20px -12px var(--red)}
+.btn.primary:hover:not(:disabled){background:#fa1421;border-color:#fa1421}
+.btn.ghost{background:transparent}.btn.sm{padding:6px 11px;font-size:13px;border-radius:9px}
+.btn:disabled{opacity:.38;cursor:default;box-shadow:none}
+.inp{width:100%}.inp::placeholder{color:#6a6a7c}
 .tools{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}.tools .inp{flex:1;min-width:200px;width:auto}
 
 /* ---- grilles ---- */
@@ -51,52 +63,58 @@ h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0
 .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 
 /* ---- titres de section ---- */
-.sec{display:flex;align-items:baseline;gap:10px;margin:30px 0 12px}
-.sec h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
-.sec .hint{font-size:12.5px;color:var(--muted);opacity:.8}
+.sec{display:flex;align-items:baseline;gap:10px;margin:32px 0 12px;flex-wrap:wrap}
+.sec h2{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+.sec .hint{font-size:12.5px;color:var(--muted);opacity:.75}
 .sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
 
-/* ---- couverture (hero) ---- */
-.hero{display:grid;grid-template-columns:148px 1fr;gap:24px;align-items:center;padding:22px}
-.ring{position:relative;width:148px;height:148px;display:grid;place-items:center}
-.ring svg{position:absolute;inset:0;width:148px;height:148px;transform:rotate(-90deg)}
+/* ---- couverture ---- */
+.hero{display:grid;grid-template-columns:160px 1fr;gap:26px;align-items:center;padding:23px}
+.ring{position:relative;width:160px;height:160px;display:grid;place-items:center}
+.ring svg{position:absolute;inset:0;width:160px;height:160px;transform:rotate(-90deg)}
 .ring circle{fill:none;stroke-linecap:round}
-.ring .bgc{stroke:#22222c;stroke-width:10}
-.ring .fgc{stroke:url(#rg);stroke-width:10;transition:stroke-dashoffset .7s ease}
-.ring .lbl{text-align:center;line-height:1.15}
-.ring .lbl b{display:block;font-size:26px;font-weight:700;letter-spacing:-.6px}
-.ring .lbl span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.hero h2{font-size:17px;margin:0 0 4px}
-.hero .why{color:var(--muted);font-size:13.5px;margin:0 0 14px;max-width:60ch}
-.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.ring .bgc{stroke:#21212b;stroke-width:11}
+.ring .fgc{stroke:url(#rg);stroke-width:11;transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)}
+.ring .lbl{text-align:center;line-height:1.1;z-index:1}
+.ring .lbl b{display:block;font-size:30px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.ring .lbl span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+.ring .lbl em{display:block;font-style:normal;font-size:11.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.hero h2{font-size:18px;margin:0 0 5px;letter-spacing:-.3px}
+.hero .why{color:var(--muted);font-size:13.5px;margin:0 0 16px;max-width:62ch}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px}
 .split .it{font-size:12.5px;color:var(--muted)}
 .split .it .k{display:flex;justify-content:space-between;gap:8px;margin-bottom:5px}
-.split .it b{color:var(--txt);font-weight:600;font-size:13px}
-.bar{height:5px;border-radius:9px;background:#1e1e27;overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--c,var(--red2));transition:width .5s}
+.split .it b{color:var(--txt);font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+.bar{height:5px;border-radius:99px;background:#1e1e27;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--c,var(--red2));border-radius:99px;transition:width .55s cubic-bezier(.2,.8,.2,1)}
 
 /* ---- indicateurs ---- */
-.kpi{padding:15px 16px}
-.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
-.kpi .n{font-size:25px;font-weight:700;letter-spacing:-.7px;margin:3px 0 1px;font-variant-numeric:tabular-nums}
+.kpi{padding:15px 16px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--k,var(--red2));opacity:.85}
+.kpi .l{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.8px;margin:4px 0 1px;font-variant-numeric:tabular-nums}
 .kpi .d{color:var(--muted);font-size:12.5px}
 
 /* ---- état des sources ---- */
 .health{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--card);border-radius:99px;padding:7px 13px;font-size:13px;cursor:default}
-.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--off);flex:none}
-.chip.ok .dot{background:var(--green);box-shadow:0 0 0 3px rgba(67,217,139,.14)}
-.chip.warn .dot{background:var(--amber);box-shadow:0 0 0 3px rgba(245,185,66,.14)}
-.chip.err .dot{background:var(--err,#ff4d57);box-shadow:0 0 0 3px rgba(255,77,87,.14)}
-.chip .k{color:var(--muted)}
-.chip .v{font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);background:linear-gradient(180deg,#16161d,#13131a);border-radius:99px;padding:7px 13px;font-size:13px}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--off);flex:none;transition:box-shadow .2s}
+.chip.ok .dot{background:var(--green);box-shadow:0 0 0 3px rgba(67,217,139,.15)}
+.chip.warn .dot{background:var(--amber);box-shadow:0 0 0 3px rgba(245,185,66,.15)}
+.chip.err .dot{background:var(--red2);box-shadow:0 0 0 3px rgba(255,77,87,.15)}
+.chip .k{color:var(--muted)}.chip .v{font-weight:600}
 
 /* ---- tâches ---- */
-.job{display:flex;flex-direction:column;gap:9px}
-.job .hd{display:flex;align-items:center;gap:8px}
+.job{display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+.job::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--k,var(--line2));opacity:.9}
+.job .hd{display:flex;align-items:center;gap:9px}
+.job .emb{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none;color:var(--k,var(--txt));background:color-mix(in srgb,var(--k,#666) 16%,transparent);border:1px solid color-mix(in srgb,var(--k,#666) 32%,transparent)}
 .job .hd h3{flex:1}
-.job .pill{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 8px;white-space:nowrap}
-.job .why{color:var(--muted);font-size:12.5px;margin:0;min-height:34px}
+.job .pill{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 9px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.job .why{color:var(--muted);font-size:12.5px;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.job .prog{display:flex;align-items:center;gap:10px}
+.job .prog .bar{flex:1}
+.job .pc{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
 .job .row{display:flex;gap:8px;align-items:center;margin-top:auto;flex-wrap:wrap}
 .job .st{font-size:12.5px;color:var(--muted);flex:1;min-width:120px}
 
@@ -109,20 +127,20 @@ h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0
 .field{display:flex;gap:8px}
 .added{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;font-size:13.5px}
 
-/* ---- listes de flux ---- */
+/* ---- listes ---- */
 .flux{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
 .flux:first-of-type{border:0;padding-top:0}
 .flux .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--card2);border:1px solid var(--line);font-size:11.5px;font-weight:700;flex:none;margin-top:1px}
-.flux .t{flex:1;min-width:0}
-.flux b{font-weight:600}
+.flux .t{flex:1;min-width:0}.flux b{font-weight:600}
 .url{display:flex;gap:8px;margin-top:9px}
-.url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+.url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
 
 /* ---- tableaux ---- */
 table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:#14141a;z-index:1}
 td,th{text-align:left;padding:10px 12px;border-top:1px solid var(--line);vertical-align:top}
 th{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;border:0}
-tbody tr:hover{background:#16161d}
+tbody tr{transition:background .12s}tbody tr:hover{background:#17171f}
 
 /* ---- paramètres ---- */
 .set-row{display:grid;grid-template-columns:1fr minmax(160px,250px) 34px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
@@ -130,21 +148,33 @@ tbody tr:hover{background:#16161d}
 .set-row .k{color:var(--muted);font-size:11.5px}
 
 /* ---- journal ---- */
-.logs{max-height:560px;overflow:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace}
-.lg{display:grid;grid-template-columns:96px 52px 70px 1fr;gap:8px;padding:5px 2px;border-top:1px solid var(--line)}
-.lv-error{color:var(--red2)}.lv-warn{color:var(--amber)}.lv-info{color:var(--green)}
+.logs{max-height:560px;overflow:auto;font:12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+.lg{display:grid;grid-template-columns:98px 60px 74px 1fr;gap:9px;padding:5px 2px;border-top:1px solid var(--line);align-items:baseline}
+.lg:first-child{border:0}
+.lv{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:5px;text-align:center;font-weight:700}
+.lv-error{color:var(--red2);background:rgba(255,77,87,.12)}
+.lv-warn{color:var(--amber);background:rgba(245,185,66,.12)}
+.lv-info{color:var(--green);background:rgba(67,217,139,.1)}
 
 /* ---- divers ---- */
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line2);border-radius:10px;padding:10px 16px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;z-index:20;box-shadow:0 12px 32px -12px #000}
-.toast.show{opacity:1}.toast.err{border-color:var(--red)}
-.empty{padding:18px 0;color:var(--muted);font-size:13.5px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(6px);background:var(--card2);border:1px solid var(--line2);border-radius:11px;padding:10px 16px 10px 38px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:90vw;z-index:60;box-shadow:0 16px 40px -16px #000}
+.toast::before{content:"✓";position:absolute;left:14px;color:var(--green);font-weight:700}
+.toast.err::before{content:"!";color:var(--red2)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:var(--red)}
+.spinner{width:14px;height:14px;border:2px solid var(--line2);border-top-color:var(--red2);border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:7px;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 @media (max-width:640px){
   .hero{grid-template-columns:1fr;justify-items:center;text-align:center}
   .hero .why{text-align:left}
-  .ring,.ring svg{width:128px;height:128px}
+  .ring,.ring svg{width:132px;height:132px}
   .set-row{grid-template-columns:1fr;gap:6px}
+  .lg{grid-template-columns:1fr 60px;gap:4px}
+  .lg span:nth-child(3),.lg span:nth-child(4){grid-column:1/-1}
 }
 </style></head><body>
+<div id="busy"></div>
 
 <div id="login" class="login hidden"><div class="card"><div class="logo">W</div><h1 style="font-size:19px;margin:0 0 4px">W stockage bande annonce</h1><p class="muted" style="margin:0 0 20px">Dashboard d'administration</p>
 <form id="login-form"><input id="login-pass" class="inp" type="password" placeholder="Mot de passe" autocomplete="current-password" required style="text-align:center"><button id="login-btn" class="btn primary" style="width:100%;margin-top:10px" type="submit">Se connecter</button></form><div id="login-err" class="err"></div></div></div>
@@ -161,15 +191,15 @@ tbody tr:hover{background:#16161d}
 <section id="tab-home">
   <div class="card hero">
     <div class="ring">
-      <svg viewBox="0 0 148 148" aria-hidden="true">
+      <svg viewBox="0 0 160 160" aria-hidden="true">
         <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4d57"/><stop offset="1" stop-color="#e50914"/></linearGradient></defs>
-        <circle class="bgc" cx="74" cy="74" r="64"/>
-        <circle class="fgc" id="ring-fg" cx="74" cy="74" r="64" stroke-dasharray="402.1" stroke-dashoffset="402.1"/>
+        <circle class="bgc" cx="80" cy="80" r="69"/>
+        <circle class="fgc" id="ring-fg" cx="80" cy="80" r="69" stroke-dasharray="433.5" stroke-dashoffset="433.5"/>
       </svg>
-      <div class="lbl"><b id="ring-pct">—</b><span>couverture</span></div>
+      <div class="lbl"><b id="ring-pct">—</b><span>couverture</span><em id="ring-count">—</em></div>
     </div>
     <div>
-      <h2>Couverture des bandes-annonces</h2>
+      <h2>Bandes-annonces disponibles</h2>
       <p class="why" id="hero-line">Chargement…</p>
       <div class="split" id="hero-split"></div>
     </div>
@@ -183,7 +213,7 @@ tbody tr:hover{background:#16161d}
   <div class="sec"><h2>1 · Collecter</h2><span class="hint">remplir la base de titres</span></div>
   <div class="grid g2">
     <div id="jobs-bulk" class="contents"></div>
-    <div class="card"><h3>Synchro TMDB</h3><p class="why muted" style="margin:6px 0 10px">Récupère les titres des plateformes configurées (Netflix, Apple TV+…) dans la région, puis lance le liage des IDs.</p><div class="row" style="display:flex;gap:8px;margin-top:auto"><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div></div>
+    <div class="card"><h3>Synchro TMDB</h3><p class="muted" style="margin:6px 0 10px">Récupère les titres des plateformes configurées (Netflix, Apple TV+…) dans la région, puis lance le liage des IDs.</p><div class="row" style="display:flex;gap:8px;margin-top:auto"><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div></div>
   </div>
 
   <div class="sec"><h2>2 · Enrichir</h2><span class="hint">un ID par titre, puis la bande-annonce</span></div>
@@ -201,8 +231,8 @@ tbody tr:hover{background:#16161d}
 </section>
 
 <section id="tab-search" class="hidden">
-  <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:6px 0 12px">Tape un titre : les liens Netflix (Brave Search) et Apple TV (API iTunes) trouvés s'affichent. Vérifie que c'est le bon, puis « Ajouter » stocke sa bande-annonce.</p>
-    <div style="display:flex;gap:8px"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
+  <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:6px 0 12px">Tape un titre : les liens Netflix (JustWatch) et Apple TV (API iTunes) trouvés s'affichent. Vérifie que c'est le bon, puis « Ajouter » stocke sa bande-annonce. Tu as déjà l'URL ou l'ID ? Utilise l'onglet <b>Ajouter</b>.</p>
+    <div class="field"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
   <div id="s-res" class="grid g2" style="margin-top:12px"></div>
 </section>
 
@@ -250,19 +280,22 @@ tbody tr:hover{background:#16161d}
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var token = sessionStorage.getItem('nflx_token') || '', toastT, dirty = {}, tab = 'home', sum = null, tOffset = 0, tTimer, logTimer, jobTimer;
+  var token = sessionStorage.getItem('nflx_token') || '', toastT, dirty = {}, tab = 'home', sum = null, tOffset = 0, tTimer, logTimer, jobTimer, busy = 0;
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var fmt = function (n) { return new Intl.NumberFormat('fr-FR').format(n || 0); };
   var pct = function (a, b) { return b ? Math.round(a / b * 100) : 0; };
   var mo = function (b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' Mo' : Math.round(b / 1024) + ' Ko'; };
   var dur = function (s) { if (!s) return '—'; var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600); return d ? d + ' j ' + h + ' h' : h ? h + ' h' : Math.floor(s / 60) + ' min'; };
   function toast(m, kind) { var t = $('toast'); t.textContent = m; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(function () { t.className = 'toast'; }, 4200); }
+  function setBusy(d) { busy = Math.max(0, busy + d); document.body.classList.toggle('busy', busy > 0); }
   function api(path, body) {
     var o = { method: body === undefined ? 'GET' : 'POST', headers: { 'x-admin-token': token } };
     if (body !== undefined) { o.headers['content-type'] = 'application/json'; o.body = JSON.stringify(body); }
+    setBusy(1);
     return fetch(path, o).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) {
       if (r.status === 401) { showLogin('Mot de passe incorrect.'); throw new Error('Non autorisé'); }
-      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }); });
+      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }); })
+      .finally(function () { setBusy(-1); });
   }
   var fail = function (e) { if (e.message !== 'Non autorisé') toast(e.message, 'err'); };
   function showLogin(m) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('login-err').textContent = m || ''; }
@@ -272,11 +305,11 @@ tbody tr:hover{background:#16161d}
   function renderHome(d) {
     var s = d.stats, src = d.sources || {};
     $('version').textContent = 'v' + d.version;
-    $('sub-meta').innerHTML = esc(fmt(s.total)) + ' titres <i>·</i> base ' + esc(mo(s.dbBytes)) + ' <i>·</i> en ligne depuis ' + esc(dur(d.uptime));
+    $('sub-meta').innerHTML = '<b>' + esc(fmt(s.total)) + '</b> titres <i>·</i> base ' + esc(mo(s.dbBytes)) + ' <i>·</i> en ligne depuis ' + esc(dur(d.uptime));
 
-    // couverture : la promesse de l'addon, c'est un titre Stremio qui affiche une bande-annonce
-    var cov = pct(s.withTrailer, s.total), C = 2 * Math.PI * 64;
+    var cov = pct(s.withTrailer, s.total), C = 2 * Math.PI * 69;
     $('ring-pct').textContent = cov + ' %';
+    $('ring-count').textContent = fmt(s.withTrailer) + ' / ' + fmt(s.total);
     $('ring-fg').style.strokeDashoffset = String(C * (1 - cov / 100));
     $('hero-line').innerHTML = fmt(s.withTrailer) + ' titres sur ' + fmt(s.total) + ' ont au moins une bande-annonce, '
       + 'et ' + fmt(s.withImdb) + ' ont un ID IMDb — c\'est ce couple qui fait apparaître un flux dans Stremio.';
@@ -293,13 +326,13 @@ tbody tr:hover{background:#16161d}
     }).join('');
 
     var kp = [
-      ['Titres connus', s.total, fmt(s.movies) + ' films · ' + fmt(s.series) + ' séries'],
-      ['Épisodes', s.episodes, 'saisons détaillées sur les séries'],
-      ['À lier (Netflix)', s.unlinked, s.unlinked ? 'lance « IDs Netflix » ci-dessous' : 'tout est lié'],
-      ['Recherches auto', s.lookups, fmt(s.lookupsFound) + ' ont abouti, ' + fmt(s.lookups - s.lookupsFound) + ' sans résultat']
+      ['Titres connus', s.total, fmt(s.movies) + ' films · ' + fmt(s.series) + ' séries', 'var(--green)'],
+      ['Épisodes', s.episodes, 'saisons détaillées sur les séries', 'var(--blue)'],
+      ['À lier (Netflix)', s.unlinked, s.unlinked ? 'lance « IDs Netflix » ci-dessous' : 'tout est lié', 'var(--amber)'],
+      ['Recherches auto', s.lookups, fmt(s.lookupsFound) + ' ont abouti, ' + fmt(s.lookups - s.lookupsFound) + ' sans résultat', 'var(--violet)']
     ];
     $('kpis').innerHTML = kp.map(function (k) {
-      return '<div class="card kpi"><div class="l">' + k[0] + '</div><div class="n">' + fmt(k[1]) + '</div><div class="d">' + k[2] + '</div></div>';
+      return '<div class="card kpi" style="--k:' + k[3] + '"><div class="l">' + k[0] + '</div><div class="n">' + fmt(k[1]) + '</div><div class="d">' + k[2] + '</div></div>';
     }).join('');
 
     var chips = [
@@ -315,7 +348,6 @@ tbody tr:hover{background:#16161d}
       return '<span class="chip ' + c[2] + '"><span class="dot"></span><span class="k">' + esc(c[0]) + '</span><span class="v">' + esc(c[1]) + '</span></span>';
     }).join('');
 
-    // flux : ordre réellement proposé par l'addon (miroir de src/addon.js)
     var fl = [
       ['Netflix', 'Bande-annonce de la page Netflix' + (src.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur (lien renouvelé à chaque lecture).', s.withNetflixTrailer, 'b-nf'],
       ['Apple TV', src.appletv ? 'Bande-annonce de la page Apple TV, convertie en MP4 (image + son via ffmpeg), puis relayée.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap'],
@@ -335,22 +367,23 @@ tbody tr:hover{background:#16161d}
 
   /* ---- Tâches de fond, groupées par étape ---- */
   var JOBS = [
-    { k: 'harvest', group: 'bulk', t: 'Moissonnage Netflix', d: 'Liste le catalogue Netflix des pays configurés (via JustWatch) pour créer les fiches et récupérer les IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
+    { k: 'harvest', group: 'bulk', t: 'Moissonnage Netflix', color: 'var(--green)', emb: '◇', d: 'Liste le catalogue Netflix des pays configurés (via JustWatch) pour créer les fiches et récupérer les IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
       line: function (s) { return fmt(s.seen) + ' vus · ' + fmt(s.added) + ' ajoutés · ' + fmt(s.linked) + ' liés'; }, pend: function (s) { return fmt(s.total) + ' titres'; } },
-    { k: 'trailers', group: 'enrich', t: 'Bandes-annonces Netflix', d: 'Lit la page Netflix des titres déjà liés à un ID mais sans bande-annonce. C\'est ce job qui remplit vraiment la base : le moissonnage ne pose que les IDs.', st: '/admin/api/netflix-trailers', go: '/admin/netflix-trailers', stop: '/admin/netflix-trailers/stop',
+    { k: 'trailers', group: 'enrich', t: 'Bandes-annonces Netflix', color: 'var(--red2)', emb: 'N', d: 'Lit la page Netflix des titres déjà liés à un ID mais sans bande-annonce. C\'est ce job qui remplit vraiment la base : le moissonnage ne pose que les IDs.', st: '/admin/api/netflix-trailers', go: '/admin/netflix-trailers', stop: '/admin/netflix-trailers/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.found) + ' trouvée(s)' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.netflixTrailerPending) + ' pages à lire'; } },
-    { k: 'link', group: 'enrich', t: 'IDs Netflix', d: 'Associe chaque fiche à son ID Netflix (JustWatch) : c\'est la clé de la bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
+    { k: 'link', group: 'enrich', t: 'IDs Netflix', color: 'var(--red2)', emb: '#', d: 'Associe chaque fiche à son ID Netflix (JustWatch) : c\'est la clé de la bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.linked) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.unlinked) + ' à lier'; } },
-    { k: 'vf', group: 'enrich', t: 'IDs IMDb / TMDB', d: 'Retrouve l\'ID IMDb via TMDB (nécessaire pour apparaître sur une fiche Stremio) et complète affiche, synopsis, genres.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',
+    { k: 'vf', group: 'enrich', t: 'IDs IMDb / TMDB', color: 'var(--blue)', emb: 'T', d: 'Retrouve l\'ID IMDb via TMDB (nécessaire pour apparaître sur une fiche Stremio), complète affiche, synopsis et genres, et cherche la bande-annonce YouTube quand TMDB n\'en a pas.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.matched) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.vfPending) + ' à vérifier'; } },
-    { k: 'appletv', group: 'enrich', t: 'Apple TV', d: 'Cherche la bande-annonce dans le catalogue Apple TV (Apple Originals et chaînes : beaucoup de titres Netflix n\'y sont pas).', st: '/admin/api/appletv', go: '/admin/appletv', stop: '/admin/appletv/stop',
+    { k: 'appletv', group: 'enrich', t: 'Apple TV', color: 'var(--violet)', emb: 'A', d: 'Cherche la bande-annonce dans le catalogue Apple TV (Apple Originals et chaînes : beaucoup de titres Netflix n\'y sont pas).', st: '/admin/api/appletv', go: '/admin/appletv', stop: '/admin/appletv/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.found) + ' trouvée(s)' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.appletvPending) + ' à vérifier'; } }
   ];
   function jobCard(j) {
-    return '<div class="card job"><div class="hd"><h3>' + esc(j.t) + '</h3><span class="pill" id="pend-' + j.k + '">—</span></div>'
-      + '<p class="why">' + esc(j.d) + '</p><div class="bar"><i id="bar-' + j.k + '"></i></div>'
+    return '<div class="card job" style="--k:' + j.color + '"><div class="hd"><span class="emb">' + j.emb + '</span><h3>' + esc(j.t) + '</h3><span class="pill" id="pend-' + j.k + '">—</span></div>'
+      + '<p class="why">' + esc(j.d) + '</p>'
+      + '<div class="prog"><div class="bar"><i id="bar-' + j.k + '" style="--c:' + j.color + '"></i></div><span class="pc" id="pct-' + j.k + '">0 %</span></div>'
       + '<div class="row"><span class="st" id="st-' + j.k + '">Inactif</span>'
-      + (j.recent ? '<button class="btn sm" data-go="' + j.k + '" data-recent="1" type="button">Dernières sorties</button>' : '')
+      + (j.recent ? '<button class="btn sm ghost" data-go="' + j.k + '" data-recent="1" type="button">Dernières sorties</button>' : '')
       + '<button class="btn sm primary" data-go="' + j.k + '" type="button">Lancer</button>'
       + '<button class="btn sm ghost" data-stop="' + j.k + '" type="button" disabled>Arrêter</button></div></div>';
   }
@@ -362,7 +395,9 @@ tbody tr:hover{background:#16161d}
     clearTimeout(jobTimer);
     if (tab !== 'home') return;
     Promise.all(JOBS.map(function (j) { return api(j.st).then(function (s) {
-      $('bar-' + j.k).style.width = (s.running ? s.percent : (s.finishedAt ? 100 : 0)) + '%';
+      var p = s.running ? s.percent : (s.finishedAt ? 100 : 0);
+      $('bar-' + j.k).style.width = p + '%';
+      $('pct-' + j.k).textContent = s.running || s.finishedAt ? p + ' %' : '—';
       $('st-' + j.k).textContent = s.running ? 'En cours — ' + j.line(s) + (s.current ? ' · ' + s.current.name : '') : (s.finishedAt ? 'Terminé — ' + j.line(s) : 'Inactif');
       document.querySelector('[data-stop="' + j.k + '"]').disabled = !s.running;
       Array.prototype.forEach.call(document.querySelectorAll('[data-go="' + j.k + '"]'), function (b) { b.disabled = !!s.running; });
@@ -381,6 +416,8 @@ tbody tr:hover{background:#16161d}
     var b = $('sync-btn'); b.disabled = true; b.textContent = 'Synchronisation…';
     api('/admin/sync', {}).then(function (r) { toast('Synchro terminée : ' + fmt(r.added) + ' ajoutés'); refresh(); }).catch(fail).then(function () { b.disabled = false; b.textContent = 'Synchroniser maintenant'; });
   });
+  $('copy-manifest').addEventListener('click', function () { navigator.clipboard.writeText($('manifest-url').textContent).then(function () { toast('Adresse copiée'); }, function () { toast('Copie impossible', 'err'); }); });
+
   /* ---- Ajouter : Netflix / Prime Video (URL ou ID) et Apple TV (recherche ou URL) ---- */
   var appleResults = [];
 
@@ -395,7 +432,7 @@ tbody tr:hover{background:#16161d}
     var input = $(isPrime ? 'pv-url' : 'nf-url'), btn = $(isPrime ? 'pv-go' : 'nf-go'), out = $(isPrime ? 'pv-res' : 'nf-res');
     var v = input.value.trim();
     if (!v) { input.focus(); return; }
-    btn.disabled = true; out.innerHTML = '<p class="muted">Lecture de la page…</p>';
+    btn.disabled = true; out.innerHTML = '<p class="muted"><span class="spinner"></span>Lecture de la page…</p>';
     api('/admin/add', { url: v }).then(function (r) {
       toast('Ajouté : ' + r.name);
       input.value = '';
@@ -428,10 +465,9 @@ tbody tr:hover{background:#16161d}
     });
   }
 
-  /** URL ou ID Apple collé : type lu dans l'URL, sinon on essaie film puis série. */
   function appleDirect(id, type) {
     var out = $('ap-res');
-    out.innerHTML = '<p class="muted">Ajout de ' + esc(id) + '…</p>';
+    out.innerHTML = '<p class="muted"><span class="spinner"></span>Ajout de ' + esc(id) + '…</p>';
     var types = type ? [type] : ['movie', 'series'], i = 0, last = null;
     function next() {
       if (i >= types.length) { out.innerHTML = ''; fail(last || new Error('ajout impossible')); return; }
@@ -449,7 +485,7 @@ tbody tr:hover{background:#16161d}
     var direct = /umc\.cmc\.[a-z0-9]+/i.exec(q);
     if (direct) { appleDirect(direct[0], /\/show\//i.test(q) ? 'series' : /\/movie\//i.test(q) ? 'movie' : null); return; }
     $('ap-go').disabled = true;
-    $('ap-res').innerHTML = '<p class="muted">Recherche Apple TV…</p>';
+    $('ap-res').innerHTML = '<p class="muted"><span class="spinner"></span>Recherche Apple TV…</p>';
     api('/admin/api/appletv/search?q=' + encodeURIComponent(q)).then(function (d) {
       appleResults = d.results || [];
       $('ap-res').innerHTML = appleResults.length
@@ -468,7 +504,6 @@ tbody tr:hover{background:#16161d}
     var b = e.target.closest('button[data-apple]'); if (!b) return;
     addApple(appleResults[+b.dataset.apple], b).catch(fail);
   });
-  $('copy-manifest').addEventListener('click', function () { navigator.clipboard.writeText($('manifest-url').textContent).then(function () { toast('Adresse copiée'); }, function () { toast('Copie impossible', 'err'); }); });
 
   /* ---- Titres ---- */
   function badges(r) {
@@ -527,7 +562,7 @@ tbody tr:hover{background:#16161d}
     api('/admin/api/logs?level=' + $('log-level').value + '&search=' + encodeURIComponent($('log-search').value.trim()) + '&limit=200').then(function (d) {
       $('logs').innerHTML = d.logs.length ? d.logs.map(function (l) {
         var t = new Date(l.ts); var m = l.meta && Object.keys(l.meta).length ? ' <span class="muted">' + esc(JSON.stringify(l.meta)) + '</span>' : '';
-        return '<div class="lg"><span class="muted">' + t.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + t.toLocaleTimeString('fr-FR') + '</span><span class="lv-' + esc(l.level) + '">' + esc(l.level) + '</span><span class="muted">' + esc(l.source || '—') + '</span><span>' + esc(l.message) + m + '</span></div>'; }).join('') : '<div class="muted">Aucune entrée.</div>';
+        return '<div class="lg"><span class="muted">' + t.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + t.toLocaleTimeString('fr-FR') + '</span><span class="lv lv-' + esc(l.level) + '">' + esc(l.level) + '</span><span class="muted">' + esc(l.source || '—') + '</span><span>' + esc(l.message) + m + '</span></div>'; }).join('') : '<div class="muted">Aucune entrée.</div>';
     }).catch(fail);
   }
   $('log-level').addEventListener('change', loadLogs);
@@ -546,7 +581,8 @@ tbody tr:hover{background:#16161d}
     $('s-res').innerHTML = '<div class="card"><h2><span class="badge b-nf">Netflix</span> Liens trouvés</h2>' + nf + '</div><div class="card"><h2><span class="badge b-ap">Apple TV</span> Résultats</h2>' + ap + '</div>';
   }
   function doSearch() {
-    var q = $('s-q').value.trim(); if (q.length < 2) return; $('s-go').disabled = true; $('s-res').innerHTML = '<p class="muted">Recherche…</p>';
+    var q = $('s-q').value.trim(); if (q.length < 2) return; $('s-go').disabled = true;
+    $('s-res').innerHTML = '<p class="muted"><span class="spinner"></span>Recherche…</p>';
     api('/admin/api/search?q=' + encodeURIComponent(q)).then(renderSearch).catch(function (e) { $('s-res').innerHTML = ''; fail(e); }).then(function () { $('s-go').disabled = false; });
   }
   $('s-go').addEventListener('click', doSearch);
