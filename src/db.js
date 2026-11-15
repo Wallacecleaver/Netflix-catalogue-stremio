@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC);
 `);
 
-for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER', 'appletv_json TEXT', 'appletv_checked INTEGER', 'trailers_checked INTEGER']) {
+for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER', 'appletv_json TEXT', 'appletv_checked INTEGER', 'trailers_checked INTEGER', 'link_checked INTEGER']) {
   try { db.exec(`ALTER TABLE titles ADD COLUMN ${col}`); } catch { /* déjà présente */ }
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
@@ -78,7 +78,7 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
 // vf_trailer = clé YouTube de la bande-annonce en français (TMDB) ; vf_checked = date de la dernière vérification.
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
   'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json',
-  'vf_trailer', 'vf_checked', 'appletv_json', 'appletv_checked', 'trailers_checked'];
+  'vf_trailer', 'vf_checked', 'appletv_json', 'appletv_checked', 'trailers_checked', 'link_checked'];
 
 const upsertSql = db.prepare(`
 INSERT INTO titles (id, ${FIELDS.join(',')}, enriched, added_at, updated_at)
@@ -123,11 +123,18 @@ const count = () => db.prepare('SELECT COUNT(*) c FROM titles').get().c;
 const findByNetflixId = (netflixId) => parse(db.prepare(
   'SELECT * FROM titles WHERE netflix_id = ? ORDER BY enriched DESC, added_at ASC LIMIT 1').get(String(netflixId)));
 
-/** Titres pas encore associés à un ID Netflix (les plus récents d'abord). */
-function listUnlinked({ limit = 0 } = {}) {
-  const sql = `SELECT * FROM titles WHERE netflix_id IS NULL
-    ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT ?' : ''}`;
-  return (limit > 0 ? db.prepare(sql).all(limit) : db.prepare(sql).all()).map(parse);
+/**
+ * Titres pas encore associés à un ID Netflix (les plus récents d'abord).
+ * `link_checked` évite de rejouer indéfiniment les mêmes échecs : les titres Apple TV+ arrivés par la
+ * synchro TMDB ne sont pas sur Netflix, et sans ce marqueur le liage les retentait à chaque passage.
+ */
+const unlinkedWhere = '(netflix_id IS NULL AND (link_checked IS NULL OR link_checked < @before))';
+function listUnlinked({ limit = 0, retryDays = 30 } = {}) {
+  const p = { before: Date.now() - retryDays * 86400000 };
+  if (limit > 0) p.limit = limit;
+  const sql = `SELECT * FROM titles WHERE ${unlinkedWhere}
+    ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT @limit' : ''}`;
+  return db.prepare(sql).all(p).map(parse);
 }
 
 // Titres liés à un ID Netflix mais dont la page n'a jamais été lue (ou sans bande-annonce depuis `retryDays`).
@@ -218,7 +225,7 @@ function stats() {
     series: byType.series || 0,
     enriched: db.prepare('SELECT COUNT(*) c FROM titles WHERE enriched = 1').get().c,
     netflixId: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NOT NULL').get().c,
-    unlinked: db.prepare('SELECT COUNT(*) c FROM titles WHERE netflix_id IS NULL').get().c,
+    unlinked: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${unlinkedWhere}`).get({ before: Date.now() - 30 * 86400000 }).c,
     withImdb: db.prepare('SELECT COUNT(*) c FROM titles WHERE imdb_id IS NOT NULL').get().c,
     vfChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE vf_checked IS NOT NULL').get().c,
     vfPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${vfPendingWhere}`).get({ before: Date.now() - 14 * 86400000 }).c,

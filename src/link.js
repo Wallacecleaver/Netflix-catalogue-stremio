@@ -166,8 +166,12 @@ async function run({ limit = 0, delayMs = 300, onProgress } = {}) {
           log.info('link', `ID Netflix associé : ${row.name}`, { netflix_id: res.netflixId, trailers: res.trailers });
         } else {
           state.skipped++;
-          log.warn('link', `Introuvable : ${row.name}`, { type: row.type, id: row.id });
+          // info, pas warn : « pas sur Netflix » est un résultat normal (titres Apple TV+ arrivés par la
+          // synchro TMDB), pas une erreur. Le résumé de fin donne le total.
+          log.info('link', `Pas sur Netflix : ${row.name}`, { type: row.type, id: row.id });
         }
+        // Marqué dans les deux cas : un titre absent de Netflix n'est pas retenté avant 30 jours.
+        store.upsertTitle({ id: row.id, type: row.type, name: row.name, link_checked: Date.now() });
       } catch (e) {
         state.failed++;
         state.errors.push(`${row.name} : ${e.message}`);
