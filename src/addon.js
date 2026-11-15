@@ -124,21 +124,20 @@ builder.defineStreamHandler(async ({ type, id }) => {
     });
   }
   if (apple.length) hls.prefetch(apple[0].url);   // convertit le flux HLS pendant que l'utilisateur choisit
-  // Repli YouTube : aucune bande-annonce Netflix/Apple → la vidéo YouTube de TMDB (clé `ytId`,
-  // que Stremio sait lire), plus une entrée « ouvrir dans YouTube » pour les lecteurs qui ne
-  // savent pas lire un ytId. Même approche que vf-trailer-wallace.
-  if (!streams.length) {
-    const yt = row.vf_trailer || row.trailer_yt;
-    if (yt) {
-      streams.push({
-        name: 'YouTube', title: `▶ Bande-annonce${suffix}`, ytId: yt,
-        behaviorHints: { notWebReady: false, bingeGroup: `youtube-trailer-${row.id}` },
-      });
-      streams.push({
-        name: 'YouTube', title: `↗ Bande-annonce (ouvrir dans YouTube)${suffix}`,
-        externalUrl: `https://www.youtube.com/watch?v=${yt}`,
-      });
-    }
+  // Vidéo YouTube de TMDB (clé `ytId`, que Stremio sait lire) :
+  //  - en repli quand aucune bande-annonce Netflix/Apple n'existe ;
+  //  - en plus, si YOUTUBE_AS_SOURCE=1, pour avoir la qualité YouTube (1080p) à côté du 432p Netflix.
+  const yt = row.vf_trailer || row.trailer_yt;
+  const ytAlways = config.youtubeAsSource === '1';
+  if (yt && (ytAlways || !streams.length)) {
+    streams.push({
+      name: 'YouTube', title: `▶ Bande-annonce${ytAlways ? ' (qualité YouTube)' : ''}${suffix}`, ytId: yt,
+      behaviorHints: { notWebReady: false, bingeGroup: `youtube-trailer-${row.id}` },
+    });
+    streams.push({
+      name: 'YouTube', title: `↗ Bande-annonce (ouvrir dans YouTube)${suffix}`,
+      externalUrl: `https://www.youtube.com/watch?v=${yt}`,
+    });
   }
   return { streams, cacheMaxAge: 60 };
 });

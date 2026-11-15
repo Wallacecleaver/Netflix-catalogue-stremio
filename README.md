@@ -259,6 +259,11 @@ stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'
 Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`).
 Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
 
+> **Qualité** : Netflix ne sert ses bandes-annonces qu'en **768×432** (≈ 1,26 Mb/s) — vérifié sur plusieurs
+> titres, et la page n'expose aucune variante (`playableVideo` ne contient qu'une `url`). Le relais ne
+> recompresse rien : c'est la source. Pour avoir mieux, `YOUTUBE_AS_SOURCE=1` ajoute la vidéo YouTube de
+> TMDB (1080p) **à côté** de Netflix, sur les fiches qui ont déjà une bande-annonce Netflix/Apple.
+
 ## Prime Video (métadonnées)
 
 `src/primevideo.js` lit une page `https://www.primevideo.com/-/fr/detail/<id>` (JSON embarqué `dv-web-page-hydration-data`) :

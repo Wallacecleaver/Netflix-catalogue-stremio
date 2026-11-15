@@ -45,4 +45,9 @@ module.exports = {
   // Plateformes dont on liste le catalogue dans TMDB : 8 = Netflix, 337 = Apple TV+, 2 = Apple TV,
   // 119 = Prime Video, « all » = aucune filtre (tout TMDB, plusieurs centaines de milliers de titres).
   catalogProviders: (process.env.CATALOG_PROVIDERS || '8,337').trim(),
+  // Proposer AUSSI la vidéo YouTube de TMDB quand une bande-annonce Netflix/Apple existe.
+  // Netflix ne sert ses bandes-annonces qu'en 768x432 ; YouTube monte à 1080p, mais se joue via
+  // l'intégration YouTube de Stremio (clé `ytId`), pas comme un fichier relayé par ce serveur.
+  // '1' / '0' (chaîne) pour que le réglage du dashboard affiche la bonne valeur.
+  youtubeAsSource: process.env.YOUTUBE_AS_SOURCE === '1' ? '1' : '0',
 };
