@@ -183,13 +183,18 @@ Nécessite `TMDB_API_KEY` ; `RESOLVE_ENABLED=0` désactive. Code : `src/resolve.
 
 ## Bandes-annonces Apple TV
 Pour chaque titre, l'addon cherche une bande-annonce sur **tv.apple.com** (API web non documentée) : recherche par titre exact (+ année et type), puis lecture
-de la balise `og:video` de la page. Les autres flux de la page sont des épisodes protégés par FairPlay (DRM) et sont ignorés.
+de la page. La bande-annonce (« Bandes-annonces » de la page) et, à défaut, l'aperçu `og:video` sont des flux **HLS (.m3u8)**.
 - Lancement : bouton **Apple TV** du dashboard (titres jamais vérifiés), ou automatiquement à la première ouverture d'une fiche. Test : `npm run inspect-appletv -- "Ted Lasso" series`.
-- Résultat mis en cache 30 jours (sans résultat : 7 jours). Le flux est du **HLS (.m3u8)** direct : à lire sur Stremio PC ou mobile, pas sur Stremio Web.
+- Le HLS Apple n'est **pas chiffré** (les clés FairPlay de la page ne servent qu'à l'app Apple) : l'addon télécharge les segments et les recolle en vrai **MP4**,
+  mis en cache sur disque (`HLS_CACHE_DIR`, 7 jours), puis le sert comme le relais Netflix : `PUBLIC_URL/apple/<id>/<n>.mp4`, avec support des `Range`.
+  Le résultat se lit donc partout (Stremio PC/mobile **et** Stremio Web, navigateur, VLC).
+- Première lecture : la conversion prend quelques secondes (téléchargement de ~20-50 Mo). Elle est lancée en tâche de fond dès l'affichage de la liste des flux.
+  Réglages : `HLS_MAX_HEIGHT` (720 par défaut), `HLS_MAX_MB` (60), `HLS_CACHE_DAYS` (7).
+- Résultat mis en cache 30 jours (sans résultat : 7 jours).
 - Apple TV ne couvre que son catalogue (Apple Originals et chaînes) : beaucoup de titres Netflix n'y sont pas.
 - Si la recherche renvoie une erreur 400, recopie `v`, `utscf` et `utsk` depuis la requête `/api/uts/v3/search` de tv.apple.com (F12 → Réseau)
   dans `APPLETV_API_VERSION`, `APPLETV_UTSCF`, `APPLETV_UTSK`. `APPLETV_ENABLED=0` désactive tout.
-- `src/appletv.js`. Le scraping de tv.apple.com peut aller à l'encontre de leurs CGU : à utiliser avec modération.
+- `src/appletv.js` (recherche) et `src/hls.js` (HLS → MP4). Le scraping de tv.apple.com peut aller à l'encontre de leurs CGU : à utiliser avec modération.
 
 ## Si le scraping Netflix ne remonte pas tout
 ```bash

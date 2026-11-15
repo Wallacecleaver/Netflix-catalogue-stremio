@@ -6,9 +6,11 @@ const log = require('./log');
 // Apple peut changer les paramètres sans prévenir : `APPLETV_API_VERSION`, `APPLETV_UTSCF` et `APPLETV_UTSK` sont réglables dans .env.
 // Les trailers sont des flux HLS (.m3u8) directs, stockés dans la colonne `appletv_json` (séparée de `trailers`,
 // pour ne pas interférer avec le relais Netflix /trailer/<id>/<n>.mp4 qui indexe `trailers`).
+// Ces flux sont servis en vrai MP4 par `src/hls.js` via /apple/<id>/<n>.mp4 : c'est ce que Stremio reçoit.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const HIT_TTL = 30 * 24 * 3600 * 1000;   // trailer trouvé : revérifié au bout de 30 j
 const MISS_TTL = 7 * 24 * 3600 * 1000;   // rien trouvé : nouvelle tentative au bout de 7 j
+const VER = 2;                           // v2 : vraie bande-annonce (shelf « Bandes-annonces ») et plus seulement l'aperçu og:video
 const inflight = new Map();
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -25,10 +27,15 @@ async function http(url, accept) {
   return res.text();
 }
 
-function walk(node, fn, parent = null, depth = 0) {
+function walk(node, fn, ancestors = [], depth = 0) {
   if (!node || typeof node !== 'object' || depth > 40) return;
-  if (!Array.isArray(node)) fn(node, parent);
-  for (const v of Object.values(node)) walk(v, fn, node, depth + 1);
+  if (Array.isArray(node)) {
+    for (const v of node) walk(v, fn, ancestors, depth + 1);
+    return;
+  }
+  fn(node, ancestors);
+  const next = [...ancestors, node];
+  for (const v of Object.values(node)) walk(v, fn, next, depth + 1);
 }
 
 function apiQuery(extra = {}) {
@@ -69,27 +76,33 @@ function pickMatch(items, row) {
 const decode = (u) => u.replace(/&amp;/g, '&');
 const mediaKey = (u) => { try { return new URL(u).searchParams.get('id') || u; } catch { return u; } };
 
-/** Extrait les flux .m3u8 marqués trailer/preview/bande-annonce d'un JSON (page ou API). Dédoublonne par id de média. */
+/**
+ * Extrait les flux .m3u8 marqués trailer/preview/bande-annonce d'un JSON (page ou API). Dédoublonne par id de média.
+ * Les objets `playable.assets` portent aussi des clés FairPlay (`fpsKeyServerUrl`…) pour l'application Apple,
+ * mais la playlist HLS elle-même n'est pas chiffrée : on ignore ces clés et on garde `hlsUrl`.
+ */
 function extractTrailers(json, debug = false) {
   const out = [];
   const isM3u8 = (v) => typeof v === 'string' && /^https?:\/\/\S+\.m3u8(\?\S*)?$/i.test(v);
-  walk(json, (o, parent) => {
-    if (Object.keys(o).some((k) => /^fps/i.test(k))) return;          // flux FairPlay (DRM) : injouable hors app Apple
+  const label = (o) => [o.type, o.kind, o.contentType, o.assetType, o.title, o.name, o.id]
+    .filter((x) => typeof x === 'string').join(' ');
+  walk(json, (o, ancestors) => {
     const raw = Object.values(o).find(isM3u8);
     if (!raw) return;
     const url = decode(raw);
     if (out.some((t) => mediaKey(t.url) === mediaKey(url))) return;
-    const label = [o.type, o.kind, o.contentType, o.assetType, o.title, o.name].filter((x) => typeof x === 'string').join(' ');
-    const ctx = label + ' ' + (parent && !Array.isArray(parent) ? [parent.type, parent.kind, parent.contentType].filter((x) => typeof x === 'string').join(' ') : '');
+    const ctx = [...ancestors, o].map(label).join(' ');
     if (!/trailer|preview|teaser|bande[- ]?annonce/i.test(ctx)) return;
-    out.push({ title: (typeof o.title === 'string' && o.title) || (typeof o.name === 'string' && o.name) || 'Bande-annonce', url, ...(debug ? { ctx: ctx.trim() } : {}) });
+    const title = [o.title, o.name, ...[...ancestors].reverse().map((a) => a.title || a.name)]
+      .find((x) => typeof x === 'string' && x) || 'Bande-annonce';
+    out.push({ title, url, ...(debug ? { ctx: ctx.slice(-300) } : {}) });
   });
   return out;
 }
 
 /**
- * Page tv.apple.com/<pays>/<movie|show>/<id>. La bande-annonce de la page est déclarée dans la balise <meta property="og:video">.
- * Tous les autres .m3u8 de la page sont des flux d'épisodes protégés par FairPlay (DRM) : on les ignore.
+ * Page tv.apple.com/<pays>/<movie|show>/<id>. On garde d'abord les flux de la page (shelf « Bandes-annonces » :
+ * la vraie bande-annonce), puis la balise <meta property="og:video"> (aperçu court) comme secours.
  */
 async function fetchTrailers(match, debug = false) {
   const kind = match.type === 'series' ? 'show' : 'movie';
@@ -101,7 +114,7 @@ async function fetchTrailers(match, debug = false) {
   let r;
   while ((r = re.exec(html))) {
     const url = decode(r[1]);
-    if (!out.some((t) => mediaKey(t.url) === mediaKey(url))) out.unshift({ title: 'Bande-annonce', url, ...(debug ? { ctx: 'og:video' } : {}) });
+    if (!out.some((t) => mediaKey(t.url) === mediaKey(url))) out.push({ title: 'Bande-annonce', url, ...(debug ? { ctx: 'og:video' } : {}) });
   }
   return out;
 }
@@ -110,14 +123,14 @@ async function lookupTrailers(row) {
   const items = await search(row.name);
   const match = pickMatch(items, row);
   if (!match) return [];
-  return (await fetchTrailers(match)).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId: match.id }));
+  return (await fetchTrailers(match)).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId: match.id, ver: VER }));
 }
 
 /** Rattache la bande-annonce d'un titre Apple TV choisi à la main : à la fiche du même nom si elle existe, sinon nouvelle fiche `apple:<id>`. */
 async function attach({ appleId, type, name, year }) {
   if (!/^umc\.cmc\.[a-z0-9]+$/i.test(String(appleId || ''))) throw new Error('ID Apple TV invalide');
   const kind = type === 'series' ? 'series' : 'movie';
-  const trailers = (await fetchTrailers({ id: appleId, type: kind })).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId }));
+  const trailers = (await fetchTrailers({ id: appleId, type: kind })).slice(0, config.appletvMaxTrailers).map((t) => ({ ...t, source: 'appletv', appleId, ver: VER }));
   if (!trailers.length) throw new Error('Aucune bande-annonce lisible sur la page Apple TV de ce titre');
   const row = store.findByName(name, kind);
   const id = row ? row.id : `apple:${appleId}`;
@@ -129,9 +142,12 @@ async function attach({ appleId, type, name, year }) {
 /** Si la fiche n'a pas encore été vérifiée (ou TTL dépassé), cherche les trailers Apple TV. Ne bloque jamais la fiche en cas d'erreur. */
 async function ensure(row) {
   if (!row || !config.appletvEnabled || !row.name) return row;
-  const has = Array.isArray(row.appletv) && row.appletv.length > 0;
+  const stored = Array.isArray(row.appletv) && row.appletv.length > 0;
+  const fresh = stored && row.appletv.every((t) => t && t.ver === VER);
   const age = Date.now() - (row.appletv_checked || 0);
-  if (row.appletv_checked && age < (has ? HIT_TTL : MISS_TTL)) return row;
+  // Données d'une ancienne version (aperçu 29 s au lieu de la vraie bande-annonce) : on rafraîchit tout de suite.
+  const ttl = fresh ? HIT_TTL : stored ? 0 : MISS_TTL;
+  if (row.appletv_checked && age < ttl) return row;
   if (!inflight.has(row.id)) {
     inflight.set(row.id, (async () => {
       let trailers = [];
@@ -189,6 +205,9 @@ function start(opts = {}) {
 }
 const stop = () => { job.stopRequested = true; return status(); };
 
-const urls = (row) => (Array.isArray(row?.appletv) ? row.appletv : []).filter((t) => t && t.url).map((t) => ({ title: t.title ? `Apple TV — ${t.title}` : 'Bande-annonce Apple TV', url: t.url }));
+const urls = (row) => (Array.isArray(row?.appletv) ? row.appletv : [])
+  .map((t, index) => ({ t, index }))
+  .filter(({ t }) => t && t.url)
+  .map(({ t, index }) => ({ title: t.title ? `Apple TV — ${t.title}` : 'Bande-annonce Apple TV', url: t.url, index }));
 
 module.exports = { ensure, attach, urls, start, stop, status, search, pickMatch, extractTrailers, fetchTrailers, lookupTrailers };

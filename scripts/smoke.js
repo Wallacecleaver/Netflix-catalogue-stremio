@@ -103,12 +103,13 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(streamsImdb.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(streamsImdb[0].url));
   assert.deepEqual((await iface.get('stream', 'movie', 'tt0000001')).streams, []);   // IMDb inconnu
   assert.deepEqual((await iface.get('stream', 'movie', 'kitsu:1')).streams, []);       // ID non géré
-  // Apple TV : flux HLS ajoutés en dernier, jamais relayés
-  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.m3u8', source: 'appletv' }], appletv_checked: Date.now() });
+  // Apple TV : flux HLS stockés, exposés via le relais /apple/<id>/<n>.mp4 (converti en MP4)
+  store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.m3u8', source: 'appletv', ver: 2 }], appletv_checked: Date.now() });
+  const appleUrl = `${require('../src/config').publicUrl}/apple/${encodeURIComponent('nflx:81944880')}/0.mp4`;
   const withApple = (await iface.get('stream', 'series', 'tt9999999')).streams;
-  assert.equal(withApple.length, 2); assert.equal(withApple[1].name, 'Apple TV'); assert.equal(withApple[1].url, 'https://apple.test/a.m3u8');
-  assert.equal(withApple[1].behaviorHints.proxyHeaders.request.Referer, 'https://tv.apple.com/');
-  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, 'https://apple.test/a.m3u8');
+  assert.equal(withApple.length, 2); assert.equal(withApple[1].name, 'Apple TV'); assert.equal(withApple[1].url, appleUrl);
+  assert.equal(withApple[1].behaviorHints.notWebReady, false);
+  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, appleUrl);
   assert.equal(store.listAppletvPending().some((r) => r.id === 'nflx:81944880'), false);
   const ddg = require('../src/search').parse(`<div class="result"><h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.netflix.com%2Ffr%2Ftitle%2F81944880&amp;rut=x">Watch Trouble échange | Netflix Official Site</a></h2><a class="result__snippet" href="x">Un échange de maisons &amp; <b>plus</b></a></div>
     <div class="result"><a rel="nofollow" class="result__a" href="https://www.netflix.com/title/81727408">Autre &#x27;série&#x27;</a></div>
@@ -140,7 +141,9 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal((await require('../src/resolve').findNetflix({ name: 'Trouble échange', type: 'series', year: 2030 })).nid, null);
   cfgR.tmdbKey = oldTmdbKey;
   const ap = require('../src/appletv');
-  assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] }), []);   // DRM FairPlay ignoré
+  // La playlist HLS d'Apple n'est pas chiffrée (les clés FairPlay ne concernent que l'app) : la vraie bande-annonce est gardée.
+  assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] })[0].url, 'https://x/e.m3u8');
+  assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Episode', hlsUrl: 'https://x/ep.m3u8' }] }), []);   // flux d'épisode : ignoré
   assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/t.m3u8?a=1&amp;id=5' }] })[0].url, 'https://x/t.m3u8?a=1&id=5');
   const hv = require('../src/harvest');
   assert.deepEqual(hv.countryList('fr, us;gb  CA fr'), ['FR', 'US', 'GB', 'CA']);   // dédoublonné, majuscules
@@ -177,6 +180,29 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(linked.status, 200); assert.equal(Buffer.from(await linked.arrayBuffer()).toString(), '0123456789abcdef');
   const linkedPart = await fetch(`${base}/trailer/77777777/0.mp4`, { headers: { range: 'bytes=2-5' } });
   assert.equal(linkedPart.status, 206); assert.equal(Buffer.from(await linkedPart.arrayBuffer()).toString(), '2345');
+
+  // Relais Apple TV : la playlist HLS est recollée en MP4 (init + segments) puis servie avec Range.
+  const hlsSrv = http.createServer((rq, rs) => {
+    const p = rq.url.split('?')[0];
+    const body = p === '/master.m3u8' ? '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.64001f,mp4a.40.2"\nmedia.m3u8\n'
+      : p === '/media.m3u8' ? '#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n#EXTINF:1,\n1.m4s\n#EXTINF:1,\n2.m4s\n'
+        : p === '/init.mp4' ? 'INIT' : p === '/1.m4s' ? 'AAA' : p === '/2.m4s' ? 'BBB' : null;
+    if (body === null) { rs.writeHead(404); return rs.end(); }
+    rs.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': Buffer.byteLength(body) });
+    rs.end(body);
+  }).listen(0);
+  await new Promise((r) => hlsSrv.once('listening', r));
+  require('../src/config').hlsCacheDir = require('path').join(require('os').tmpdir(), `nflx-hls-${Date.now()}`);
+  store.upsertTitle({ id: 'apple:umc.cmc.test', type: 'movie', name: 'Film Apple',
+    appletv: [{ title: 'Bande-annonce', url: `http://127.0.0.1:${hlsSrv.address().port}/master.m3u8`, source: 'appletv', ver: 2 }],
+    appletv_checked: Date.now() });
+  const appleRelayUrl = `${base}/apple/${encodeURIComponent('apple:umc.cmc.test')}/0.mp4`;
+  const built = await fetch(appleRelayUrl);
+  assert.equal(built.status, 200); assert.equal(Buffer.from(await built.arrayBuffer()).toString(), 'INITAAABBB');
+  const builtPart = await fetch(appleRelayUrl, { headers: { range: 'bytes=0-3' } });
+  assert.equal(builtPart.status, 206); assert.equal(Buffer.from(await builtPart.arrayBuffer()).toString(), 'INIT');
+  assert.equal((await fetch(`${base}/apple/${encodeURIComponent('apple:umc.cmc.test')}/9.mp4`)).status, 404);
+  hlsSrv.close();
 
   // Doublon d'ID Netflix : la fiche de référence est conservée, l'autre est supprimée.
   store.upsertTitle({ id: 'nflx:77777777', netflix_id: '77777777', type: 'movie', name: 'Doublon' });

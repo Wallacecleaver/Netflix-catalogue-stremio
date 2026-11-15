@@ -16,6 +16,7 @@ const vf = require('./vf');
 const search = require('./search');
 const resolve = require('./resolve');
 const appletv = require('./appletv');
+const hls = require('./hls');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 
@@ -285,6 +286,42 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
 app.get('/', (_req, res) => res.redirect('/admin'));
 
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
+async function relayVideo(req, res, url, { range = true } = {}) {
+  const headers = { 'user-agent': UA };
+  if (range && req.headers.range) headers.range = req.headers.range;
+  const up = await fetch(url, { headers });
+  res.status(up.status);
+  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+    if (up.headers.get(h)) res.set(h, up.headers.get(h));
+  }
+  res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'HEAD' || !up.body) return res.end();
+  const stream = Readable.fromWeb(up.body);
+  stream.on('error', () => res.destroy());
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
+
+/** Sert un flux HLS sous forme de MP4 (converti et mis en cache à la première lecture). */
+async function serveHls(req, res, url) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('accept-ranges', 'bytes');
+  res.set('content-type', 'video/mp4');
+  if (req.method === 'HEAD') {                        // sonde du lecteur : inutile de lancer 30 Mo de téléchargement
+    const ready = await hls.stat(url);
+    if (!ready) return res.end();
+    return res.sendFile(ready.file);
+  }
+  const { file, meta } = await hls.ensure(url);
+  res.set('cache-control', 'public, max-age=3600');
+  if (meta.duration) res.set('x-trailer-duration', String(Math.round(meta.duration)));
+  res.sendFile(file, (err) => {
+    if (!err || err.code === 'ECONNABORTED' || err.code === 'EPIPE' || res.headersSent) return;   // lecteur qui coupe : normal
+    log.warn('trailer', `envoi du MP4 impossible : ${err.message}`);
+    if (!res.headersSent) res.status(500).end();
+  });
+}
+
 async function trailerHandler(req, res) {
   const nid = req.params.nid;
   const idx = Number(req.params.idx);
@@ -295,12 +332,11 @@ async function trailerHandler(req, res) {
     let url = t.url;
     if (!url || (t.expires && t.expires < Date.now() + 120000)) url = (await refreshTrailers(nid))[idx]?.url;
     if (!url) throw new Error('lien vidéo indisponible');
-    const headers = { 'user-agent': UA };
-    if (req.headers.range) headers.range = req.headers.range;
-    let up = await fetch(url, { headers });
+    if (hls.isHls(url)) return await serveHls(req, res, url);
+    let up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } });
     if (up.status === 403 || up.status === 410) {            // lien périmé côté Netflix : on le renouvelle une fois
       const fresh = (await refreshTrailers(nid))[idx]?.url;
-      if (fresh) up = await fetch(fresh, { headers });
+      if (fresh) { url = fresh; up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } }); }
     }
     res.status(up.status);
     for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
@@ -320,6 +356,25 @@ async function trailerHandler(req, res) {
 }
 app.get('/trailer/:nid/:idx.mp4', trailerHandler);
 app.head('/trailer/:nid/:idx.mp4', trailerHandler);
+
+// ---- Bande-annonce Apple TV : la page fournit un flux HLS, on sert un MP4 converti ----
+async function appleTrailerHandler(req, res) {
+  const id = String(req.params.id);
+  const idx = Number(req.params.idx);
+  const t = store.getTitle(id)?.appletv?.[idx];
+  if (!t || !t.url) return res.status(404).send('bande-annonce Apple TV inconnue');
+  console.log(`[apple] ${req.method} ${id}/${idx}${req.headers.range ? ' ' + req.headers.range : ''}`);
+  try {
+    if (hls.isHls(t.url)) return await serveHls(req, res, t.url);
+    return await relayVideo(req, res, t.url);          // trailer Apple déjà en MP4 : relais direct
+  } catch (e) {
+    console.warn('[apple]', id, e.message);
+    log.error('trailer', `Apple TV ${id}/${idx} : ${e.message}`);
+    if (!res.headersSent) res.status(502).send(`bande-annonce Apple TV indisponible : ${e.message}`);
+  }
+}
+app.get('/apple/:id/:idx.mp4', appleTrailerHandler);
+app.head('/apple/:id/:idx.mp4', appleTrailerHandler);
 
 app.use(getRouter(builder.getInterface()));
 

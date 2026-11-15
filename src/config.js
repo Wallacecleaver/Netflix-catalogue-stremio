@@ -31,5 +31,11 @@ module.exports = {
   appletvUtsk: process.env.APPLETV_UTSK || '6e3013c6d6fae3c2::::::235656c069bb0efb',
   appletvMaxTrailers: num(process.env.APPLETV_MAX_TRAILERS, 2),
   appletvTimeoutMs: num(process.env.APPLETV_TIMEOUT_MS, 6000),
+  // Bandes-annonces HLS (Apple TV) recollées en MP4 dans un cache disque, pour qu'elles se lisent partout.
+  hlsCacheDir: process.env.HLS_CACHE_DIR || './data/hls',
+  hlsMaxHeight: num(process.env.HLS_MAX_HEIGHT, 720),      // hauteur maximale des variantes téléchargées
+  hlsMaxMB: num(process.env.HLS_MAX_MB, 60),               // poids maximal estimé d'une bande-annonce
+  hlsCacheDays: num(process.env.HLS_CACHE_DAYS, 7),        // au-delà, la conversion est refaite
+  hlsTimeoutMs: num(process.env.HLS_TIMEOUT_MS, 30000),
   harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
 };
