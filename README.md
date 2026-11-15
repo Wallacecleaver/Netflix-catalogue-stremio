@@ -197,6 +197,17 @@ Ajoute `&debug=1` pour savoir pourquoi une fiche ne donne rien : la réponse con
 (`id`, `imdb_id`, `tmdb_id`, `netflix_id`), le nombre de bandes-annonces par source et l'état de la
 résolution. Chaque appel est aussi journalisé (source `federation`).
 
+En ligne de commande, depuis le conteneur (`docker` n'y existe pas) :
+
+```bash
+npm run api-check -- tt26598805              # la fiche est-elle en base ? que contient-elle ?
+npm run api-check -- 81763154 --type movie   # par ID Netflix
+npm run api-check -- tt26598805 --url https://netflix.mondomaine.fr --key <clé>
+```
+
+Il affiche la fiche, ses identifiants, les bandes-annonces par source et une conclusion :
+fiche absente, recherche en cours, ou fiche présente sans bande-annonce.
+
 **Supervision** — `GET /health` renvoie la version, l'uptime, les compteurs par source, le travail
 restant et l'état des sources. `GET /manifest.json` est mis en cache 5 min.
 
@@ -207,6 +218,8 @@ npm test              # parseurs, fusion, SQL, handlers Stremio — sans réseau
 npm run test:search   # recherche des IDs (JustWatch, secours web) + API iTunes
 npm run test:youtube  # extraction YouTube, notation, refus du bruit
 ```
+
+L'image Docker embarque `test/` : ces commandes fonctionnent aussi dans le conteneur.
 
 ## Limites et bon usage
 

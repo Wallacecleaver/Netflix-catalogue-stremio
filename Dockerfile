@@ -12,6 +12,7 @@ RUN npm ci --omit=dev --ignore-scripts \
  && node -e "const D=require('better-sqlite3');const db=new D(':memory:');db.prepare('select 1').get();db.close();console.log('better-sqlite3 OK')"
 COPY src ./src
 COPY scripts ./scripts
+COPY test ./test
 ENV NODE_ENV=production DB_PATH=/app/data/netflix.db PORT=7000
 VOLUME /app/data
 EXPOSE 7000

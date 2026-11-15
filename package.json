@@ -12,6 +12,7 @@
     "sync": "node scripts/sync.js",
     "netflix-ids": "node scripts/netflix-ids.js",
     "netflix-trailers": "node scripts/netflix-trailers.js",
+    "api-check": "node scripts/api-check.js",
     "harvest": "node scripts/harvest-all.js",
     "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",
