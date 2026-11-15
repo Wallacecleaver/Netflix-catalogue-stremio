@@ -187,6 +187,15 @@ tbody tr:hover{background:#12121a}
 .rrow:first-child{border-top:0}
 .rrow .when{font-size:11px;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
 
+/* voyant de santé + alertes */
+.hdot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(61,220,151,.12);flex:none;margin-right:2px}
+.hdot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(240,180,41,.12)}
+.hdot.err{background:var(--red2);box-shadow:0 0 0 3px rgba(255,77,87,.12)}
+.errrow{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px}
+.errrow:first-child{border:0}
+.errrow .t{color:var(--dim);font-variant-numeric:tabular-nums;font-size:11.5px}
+.errrow .s{color:var(--dim);font-size:11px;white-space:nowrap}
+
 /* divers */
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(6px);background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:9px 15px 9px 34px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:90vw;z-index:60;font-size:13px;box-shadow:0 16px 40px -16px #000}
 .toast::before{content:"✓";position:absolute;left:13px;color:var(--green);font-weight:700}
@@ -214,7 +223,7 @@ tbody tr:hover{background:#12121a}
 
 <div id="app" class="hidden">
 <header class="top"><div class="in"><div class="logo">W</div>
-  <div><h1>W stockage bande annonce</h1><div class="sub"><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
+  <div><h1>W stockage bande annonce</h1><div class="sub"><span id="health-dot" class="hdot" title=""></span><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
   <div class="sp"></div>
   <a class="btn sm" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
   <button id="logout" class="btn sm ghost" type="button">Déconnexion</button></div></header>
@@ -258,6 +267,9 @@ tbody tr:hover{background:#12121a}
       <button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div>
     <div class="card"><h3>Ce qui sort sur une fiche</h3><div id="flux" style="margin-top:10px"></div><p class="muted" id="lookup-line" style="margin:12px 0 0"></p></div>
   </div>
+
+  <div class="sec"><b>Dernières alertes</b><span>erreurs et avertissements récents — le détail est dans l'onglet Journal</span></div>
+  <div class="panel" style="padding:2px 16px"><div id="err-list"><div class="muted" style="padding:12px 0">Chargement…</div></div></div>
 </section>
 
 <section id="tab-search" class="hidden">
@@ -415,6 +427,15 @@ tbody tr:hover{background:#12121a}
       return '<span class="chip ' + c[2] + '"><i></i><span class="k">' + esc(c[0]) + '</span> <span class="v">' + esc(c[1]) + '</span></span>';
     }).join('');
 
+    // Voyant global : le pire état des sources, visible depuis tous les onglets.
+    var worst = chips.some(function (c) { return c[2] === 'err'; }) ? 'err'
+      : chips.some(function (c) { return c[2] === 'warn'; }) ? 'warn' : 'ok';
+    var dot = $('health-dot');
+    dot.className = 'hdot' + (worst === 'ok' ? '' : ' ' + worst);
+    dot.title = worst === 'ok'
+      ? 'Toutes les sources sont opérationnelles'
+      : chips.filter(function (c) { return c[2] !== 'ok'; }).map(function (c) { return c[0] + ' : ' + c[1]; }).join('\n');
+
     var fl = [
       ['Netflix', 'Bande-annonce de la page Netflix' + (src.upstream ? ' ou d\'une instance amont' : '') + ', relayée par ton serveur.', s.withNetflixTrailer, 'b-nf'],
       ['Apple TV', src.appletv ? 'HLS Apple converti en MP4 (ffmpeg), puis relayé.' : 'Désactivé (APPLETV_ENABLED=0).', s.withAppletv, 'b-ap'],
@@ -434,6 +455,19 @@ tbody tr:hover{background:#12121a}
     var ko = $('api-key-out');
     if (ko) ko.placeholder = d.addon.apiOpen ? 'aucune clé — API ouverte' : 'clé définie (masquée) — régénère pour en obtenir une autre';
     JOBS.forEach(function (j) { var p = $('pill-' + j.k); if (p) p.textContent = j.pend(s); });
+  }
+
+  /* ---- Stockage : alertes récentes ---- */
+  function loadErrors() {
+    api('/admin/api/logs?limit=40').then(function (d) {
+      var rows = (d.logs || []).filter(function (l) { return l.level === 'error' || l.level === 'warn'; }).slice(0, 6);
+      $('err-list').innerHTML = rows.length ? rows.map(function (l) {
+        var t = new Date(l.ts);
+        return '<div class="errrow"><span class="t">' + t.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '</span>'
+          + '<span><span class="lv lv-' + esc(l.level) + '">' + esc(l.level) + '</span> ' + esc(l.message) + '</span>'
+          + '<span class="s">' + esc(l.source || '') + '</span></div>';
+      }).join('') : '<div class="muted" style="padding:12px 0">Aucune alerte — tout va bien.</div>';
+    }).catch(function () { $('err-list').innerHTML = '<div class="muted" style="padding:12px 0">Journal indisponible.</div>'; });
   }
 
   /* ---- Tâches ---- */
@@ -695,6 +729,14 @@ tbody tr:hover{background:#12121a}
     var txt = $('logs').innerText || $('logs').textContent || '';
     navigator.clipboard.writeText(txt).then(function () { toast('Journal copié'); }, function () { toast('Copie impossible', 'err'); });
   });
+  // Les compteurs servent de filtre : erreurs, avertissements, ou tout.
+  [['j-err', 'error'], ['j-warn', 'warn'], ['j-total', '']].forEach(function (p) {
+    var el = $(p[0]);
+    if (!el) return;
+    el.style.cursor = 'pointer';
+    el.title = p[1] ? 'Afficher seulement les ' + p[1] + 's' : 'Afficher tous les niveaux';
+    el.addEventListener('click', function () { $('log-level').value = p[1]; loadLogs(); });
+  });
   $('log-level').addEventListener('change', loadLogs);
   $('log-search').addEventListener('input', function () { clearTimeout(tTimer); tTimer = setTimeout(loadLogs, 300); });
   $('log-clear').addEventListener('click', function () { api('/admin/api/logs/clear', {}).then(function () { toast('Journal effacé'); loadLogs(); }).catch(fail); });
@@ -736,13 +778,21 @@ tbody tr:hover{background:#12121a}
     tab = n; clearInterval(logTimer); clearTimeout(jobTimer);
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) { b.classList.toggle('active', b.dataset.tab === n); });
     ['home', 'search', 'add', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
-    if (n === 'home') { jobTimer = null; pollJobs(); }
+    if (n === 'home') { jobTimer = null; pollJobs(); loadErrors(); }
     if (n === 'search') { if (!$('s-res').innerHTML) searchIdle(); setTimeout(function () { $('s-q').focus(); }, 50); }
     if (n === 'titles') loadTitles(false);
     if (n === 'add') loadRecent();
     if (n === 'journal') { loadLogs(); logTimer = setInterval(loadLogs, 4000); }
   }
   document.querySelector('.tabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab); });
+  // Raccourcis : 1-6 pour les onglets, « / » pour la recherche (ignorés quand on saisit du texte).
+  document.addEventListener('keydown', function (e) {
+    var tag = e.target && e.target.tagName || '';
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === '/' || e.key === ':') { e.preventDefault(); showTab('search'); return; }
+    var i = '123456'.indexOf(e.key);
+    if (i >= 0) { e.preventDefault(); showTab(['home', 'search', 'add', 'titles', 'settings', 'journal'][i]); }
+  });
   function refresh() { return api('/admin/api/summary').then(function (d) { sum = d; renderHome(d); if (tab !== 'settings' || !Object.keys(dirty).length) renderSettings(d); }); }
   function boot() { return refresh().then(function () { showApp(); buildJobs(); renderHome(sum); showTab('home'); }).catch(function (e) { if (e.message !== 'Non autorisé') showLogin(e.message); }); }
   $('login-form').addEventListener('submit', function (e) {
