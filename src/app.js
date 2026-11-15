@@ -10,6 +10,7 @@ const settings = require('./settings');
 const log = require('./log');
 const federation = require('./federation');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
+const { ingestPrime } = require('./primevideo');
 const link = require('./link');
 const harvest = require('./harvest');
 const vf = require('./vf');
@@ -82,8 +83,9 @@ app.post('/admin/api/settings', auth, (req, res) => {
 });
 app.post('/admin/add', auth, async (req, res) => {
   try {
-    const r = await ingestNetflix(req.body.url || req.body.id);
-    log.info('admin', `Titre ajouté : ${r.name}`, { id: r.id, netflix_id: r.id.replace(/^nflx:/, '') });
+    const input = req.body.url || req.body.id;
+    const r = /primevideo\.com|amazon\.[a-z.]+\/.*detail/i.test(String(input)) ? await ingestPrime(input) : await ingestNetflix(input);
+    log.info('admin', `Titre ajouté : ${r.name}`, { id: r.id });
     res.json(r);
   } catch (e) {
     log.error('admin', `Ajout échoué (${req.body.url || req.body.id}) : ${e.message}`);

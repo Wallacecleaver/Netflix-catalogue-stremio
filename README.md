@@ -246,4 +246,5 @@ titre, synopsis, genres, casting, épisodes, visuels. La bande-annonce n'est sto
 son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement.
 
 - Déboguer : `npm run inspect-prime -- <url|id>` ou `npm run inspect-prime -- --file page.html`
-- Ajouter en base : `require('./src/primevideo').ingestPrime(<url|id>)` (id stocké : `prime:<id>`)
+- Ajouter en base : dashboard /admin (champ « Ajouter un titre ») ou `npm run add -- https://www.primevideo.com/-/fr/detail/<id>` (id stocké : `prime:<id>`)
+- Sur le VPS : `docker compose exec netflix-catalogue node scripts/add.js <url>`

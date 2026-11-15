@@ -18,11 +18,11 @@ const appleRelay = (row, index) => `${config.publicUrl}/apple/${encodeURICompone
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.netflix-catalogue',
-  version: '2.2.0',
+  version: '2.3.0',
   name: 'W stockage bande annonce',
   description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
-    { name: 'meta', types: TYPES, idPrefixes: ['nflx:'] },
+    { name: 'meta', types: TYPES, idPrefixes: ['nflx:', 'prime:'] },
     { name: 'stream', types: TYPES, idPrefixes: ['nflx:', 'tt'] },
   ],
   types: TYPES,
