@@ -1,296 +1,235 @@
 # W stockage bande annonce — addon Stremio
 
-> Le nom affiché est **W stockage bande annonce**. Le nom technique du dépôt, de l'image Docker et l'identifiant
-> de l'addon (`community.wallacecleaver.netflix-catalogue`) restent inchangés pour ne pas casser les installations existantes.
+Un addon Stremio qui **stocke et relaie des bandes-annonces**. Aucun film, aucune série, aucun catalogue :
+pour chaque titre, il garde la bande-annonce Netflix et Apple TV, et la propose comme source sur n'importe
+quelle fiche Stremio dont l'ID IMDb est connu — films, séries, épisodes.
 
-Addon Stremio **de stockage de bandes-annonces** (aucun film/épisode, **aucun catalogue**). Il stocke pour chaque titre ses bandes-annonces
-**Netflix** et **Apple TV**, et les propose comme flux sur n'importe quelle fiche Stremio dont l'ID IMDb est connu
-(film, série, épisodes), plus sur les anciennes fiches `nflx:`. Il garde aussi, pour chaque titre,
-synopsis, année, classification (16+), genres, casting, **bande-annonce**, **épisodes avec synopsis, durée et images**.
+> Le nom affiché est **W stockage bande annonce**. Le dépôt, l'image Docker et l'identifiant d'addon
+> (`community.wallacecleaver.netflix-catalogue`) gardent leur ancien nom pour ne pas casser les
+> installations existantes.
 
-Stack : Node.js · `stremio-addon-sdk` · Express · **SQLite** (`better-sqlite3`) · Docker.
+Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqlite3`) · Docker.
 
-## Sources de données
-1. **Page Netflix** (`netflix.com/fr/title/<id>`) : titre, synopsis, casting, classification, épisodes (JSON-LD + `netflix.reactContext`).
-2. **TMDB** (clé gratuite) : affiches verticales, fonds, logos, épisodes/stills de secours, liste automatique des titres des plateformes choisies (synchronisation) et bande-annonce YouTube de secours.
-3. **JustWatch** (API GraphQL publique) : correspondance nom → **ID Netflix** (la recherche netflix.com redirige vers `/login`, elle ne permet pas de découvrir les IDs).
-4. **JustWatch** (déjà utilisé pour le liage) : recherche nom → ID Netflix pour l'onglet **Recherche** et la résolution à la demande — gratuit et sans clé. Un moteur de recherche web (Brave Search, clé facultative, ou DuckDuckGo) ne sert plus que de secours si JustWatch est indisponible.
-5. **API iTunes Search** (publique, sans clé) : secours pour retrouver une fiche tv.apple.com quand l'API web de tv.apple.com ne renvoie rien — l'URL renvoyée contient déjà l'ID `umc.cmc.*`.
-6. **Autre instance** (optionnel) : API de fédération pour récupérer les bandes-annonces par TMDB/IMDb.
+---
 
-> La bande-annonce de la page Netflix est relayée par ton addon (`PUBLIC_URL/trailer/<id>/<n>.mp4`) : Stremio reçoit une URL
-> stable, et le lien signé Netflix est renouvelé à chaque lecture.
-> Le scraping de netflix.com va à l'encontre de leurs CGU et peut casser si la page change : à utiliser avec modération (le cache SQL limite les requêtes).
+## Ce qu'il fait
 
-## Installation (VPS)
+| | |
+|---|---|
+| **Stocke** | synopsis, année, classification, genres, casting, épisodes, affiches et bandes-annonces |
+| **Relaie** | `/trailer/<id>/<n>.mp4` renouvelle le lien Netflix signé à chaque lecture ; `/apple/<id>/<n>.mp4` convertit le HLS Apple en MP4 (avec le son) |
+| **Trouve** | un titre absent de la base est résolu à la volée : TMDB → JustWatch → page Netflix → Apple TV → YouTube |
+| **Partage** | une instance peut exposer ses bandes-annonces à une autre (`/api/trailers`) |
+
+## Installation
+
+**Docker (VPS)**
+
 ```bash
 git clone https://github.com/Wallacecleaver/Netflix-catalogue-stremio.git && cd Netflix-catalogue-stremio
-cp .env.example .env   # renseigne TMDB_API_KEY et ADMIN_TOKEN
+cp .env.example .env      # renseigne ADMIN_TOKEN et TMDB_API_KEY
 docker compose up -d --build
 ```
-Reverse proxy HTTPS obligatoire pour Stremio (exemple Caddy) :
+
+Le reverse proxy HTTPS est obligatoire pour Stremio :
+
 ```
 netflix.mondomaine.fr {
   reverse_proxy 127.0.0.1:7000
 }
 ```
+
 Puis dans Stremio : *Addons → Install from URL* → `https://netflix.mondomaine.fr/manifest.json`.
 
-## Ajouter un titre depuis sa page Netflix
-```bash
-docker compose exec netflix-catalogue node scripts/add.js https://www.netflix.com/fr/title/81944880
-# ou en local : npm run add -- 81944880
-```
-Ou via l'onglet **Ajouter** du dashboard (`https://netflix.mondomaine.fr/admin`, protégé par `ADMIN_TOKEN`).
-
-## Dashboard d'administration
-`https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
-
-Six onglets : **Stockage** (couverture des bandes-annonces, état des sources — TMDB, JustWatch, Apple TV, ffmpeg —, puis les trois étapes *collecter → enrichir → brancher Stremio*), **Recherche** (tape un titre : liens Netflix trouvés via JustWatch et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Ajouter** (ajout direct, sans passer par la recherche : URL ou ID Netflix, URL ou ID Prime Video, et recherche par titre ou URL `tv.apple.com` pour Apple TV), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
-
-**Vue d'ensemble**
-- Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
-- Configuration actuelle (lecture seule) avec la provenance de chaque valeur.
-- Actions : synchronisation TMDB complète + dernières sorties, ajout/rafraîchissement d'un titre Netflix, **liage des IDs Netflix** (progression en direct).
-- Liens Stremio : manifest, `/health` (version, compteurs, travail restant, état des sources, erreurs journalisées — pratique pour une supervision), relais bande-annonce.
-
-**Paramètres**
-- Toutes les variables du `.env` sont **modifiables** : port, URL publique, clé TMDB, région/langue/pays, pages et fréquences de synchro, fenêtre des nouveautés, cache, clé API et instance amont, mot de passe admin.
-- Les valeurs sont validées (nombres, listes) et enregistrées dans la table `settings` de SQLite, donc **persistées dans le volume `./data`** et conservées à chaque redéploiement. Le conteneur ne voyant pas le `.env` de l'hôte, c'est la base qui porte les surcharges.
-- Priorité : **dashboard > `.env` > valeur par défaut**. Le bouton ↺ d'un champ restaure la valeur du `.env` ; la provenance est affichée pour chaque paramètre.
-- `PORT`, `DB_PATH` et `SYNC_EVERY_HOURS` sont marqués **⟳ redémarrage** : ils ne s'appliquent qu'après `docker compose restart`.
-- Modifier `ADMIN_TOKEN` prend effet immédiatement et met à jour la session du dashboard ; les autres sessions devront se reconnecter.
-- Sécurité : 10 essais échoués par minute et par IP maximum (protection basique contre le bruteforce).
-
-## Synchronisation TMDB
-Avec `TMDB_API_KEY`, l'addon synchronise au démarrage puis toutes les `SYNC_EVERY_HOURS` h les titres Netflix et Apple TV+ de la région `REGION`.
-Les plateformes listées se règlent avec `CATALOG_PROVIDERS` (identifiants TMDB : `8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime Video, combinables `8,337` ; `all` = tout TMDB sans filtre, réservé à un usage ponctuel avec `SYNC_PAGES` élevé).
-Les fiches sont complétées (épisodes, casting, trailer) à la première ouverture. Manuel : `npm run sync`.
-
-## Association des IDs Netflix (JustWatch)
-Chaque fiche du catalogue reçoit son `netflix_id`, ses bandes-annonces Netflix (jusqu'à plusieurs par titre) et les identifiants TMDB/IMDb manquants.
-La correspondance passe par **JustWatch** (nom + année + type + offre Netflix réelle).
-- Dans le dashboard : bouton **Lier les titres manquants**, avec progression en direct et bouton d'arrêt.
-- Automatiquement après chaque synchronisation TMDB, puis au démarrage s'il reste des fiches non liées.
-- En ligne de commande : `npm run netflix-ids -- --limit 50` (tout par défaut).
-
-Chaque titre est stocké avec `netflix_id`, `name`, `tmdb_id`, `tmdb_type`, `imdb_id`.
-Export JSON depuis le dashboard (**Exporter les IDs**) ; le relais `/trailer/<id>/...` recherche la fiche par `netflix_id`
-(et non par ID Stremio), donc les fiches venues des catalogues TMDB diffusent aussi la bande-annonce Netflix.
-
-## Moissonnage complet des IDs Netflix
-`npm run harvest` liste **tout** le catalogue Netflix de la région `REGION` (films + séries) via les offres JustWatch :
-l'ID Netflix est lu directement dans l'URL de l'offre, sans appariement par nom. Le catalogue est découpé par type et par année
-de sortie (plus de limite de pagination), puis chaque titre est enregistré (nouvelle fiche, ou lié à la fiche TMDB existante).
-```bash
-npm run harvest                          # tout le catalogue
-npm run harvest:recent                   # dernières sorties (année précédente, en cours et suivante)
-npm run harvest -- --from 2020 --to 2026 # plage d'années
-npm run harvest -- --type series         # movie | series
-npm run harvest -- --dry                 # ne touche pas à la base, exporte seulement
-```
-Dans le dashboard (`/admin`), la carte **Moissonnage du catalogue Netflix** lance la même chose en un clic (tout le catalogue ou seulement les dernières sorties),
-avec barre de progression (année en cours, IDs vus / nouveaux / liés / déjà connus), bouton d'arrêt et résumé final. Les erreurs vont dans le **Journal** (source `harvest`).
-
-Sortie : `data/netflix-ids.json` et `data/netflix-ids.csv` (`netflix_id, name, type, year, tmdb_id, imdb_id`).
-Ensuite `npm run netflix-ids` complète TMDB/IMDb, bandes-annonces et épisodes. Pour garder les « Dernières sorties » à jour,
-planifie `npm run harvest:recent` (cron) en plus de la synchro TMDB.
-
-## Remplir les bandes-annonces Netflix
-
-Le moissonnage et le liage ne posent que les `netflix_id`. Cette tâche lit ensuite la page Netflix de chaque
-titre déjà lié qui n'a pas encore de bande-annonce, et stocke la vidéo, les épisodes et le casting — c'est
-elle qui fait passer la couverture de quelques pour cent à l'essentiel du catalogue.
+**En local (Windows/macOS/Linux)**
 
 ```bash
-npm run netflix-trailers                  # tout le gisement (≈ 1,2 s par page)
-npm run netflix-trailers -- --limit 50    # pour tester
+npm ci
+copy .env.example .env    # ou : cp .env.example .env
+npm run seed              # une fiche de démo
+npm start                 # http://localhost:7000
 ```
 
-Dans le dashboard : carte **Bandes-annonces Netflix** (progression, bouton d'arrêt, compteur « pages à lire »).
-Une page lue sans bande-annonce n'est pas relue avant 7 jours ; 8 échecs consécutifs arrêtent la tâche
-(Netflix bloque). Le Journal (source `netflix`) garde la trace des erreurs.
+## Comment la base se remplit
 
-## Catalogue mondial et bandes-annonces VF
-- **Plusieurs pays** : `HARVEST_COUNTRIES` (défaut `FR,US,GB,CA`, modifiable dans *Paramètres*) ou `npm run harvest -- --countries FR,US,DE`.
-  L'ID Netflix est identique dans tous les pays : le moissonnage fait l'union dédoublonnée, donc les titres exclusifs aux États-Unis sont inclus.
-- **Liaison TMDB / IMDb** : `npm run vf` (ou le bouton du dashboard) interroge TMDB, une requête par titre, pour retrouver l'ID IMDb et compléter affiche, fond, synopsis et genres. Nécessite `TMDB_API_KEY`.
-- Les titres sans résultat sont revérifiés après 14 jours.
-- Ordre conseillé : `npm run harvest` → `npm run vf` → `npm run netflix-ids` (bande-annonce Netflix, casting, épisodes).
+Quatre étapes, dans cet ordre. Les trois premières sont dans l'onglet **Stockage** du dashboard
+(`/admin`), chacune a son équivalent en ligne de commande.
 
-## Journal d'événements
-Un journal persistant capture les actions clés (liage, synchronisation, erreurs de bande-annonce, etc.).
-- Accessible depuis le dashboard via l'onglet **Journal**.
-- Filtrable par niveau (`error`, `warn`, `info`) et recherche libre.
-- API : `GET /admin/api/logs`, `POST /admin/api/logs/clear`.
-- Historique conservé en base SQLite (`logs`), limité à 2000 entrées.
+**1 · Collecter** — lister les titres et récupérer les IDs Netflix.
 
-## API de fédération (partage de bandes-annonces)
-Une instance peut **exposer** ses bandes-annonces, et une autre peut les **récupérer automatiquement** par TMDB/IMDb.
-
-### Instance source
-Dans le `.env` (ou l'onglet Paramètres) :
-```env
-# Facultatif : sans API_KEY, l'API est ouverte (seule l'URL sert de secret)
-API_KEY=
-PUBLIC_URL=https://netflix.mondomaine.fr
-```
-Si `API_KEY` est vide, l'API répond **sans clé** : une autre instance n'a besoin que de l'URL.
-Si `API_KEY` est renseignée, la clé est exigée en en-tête `x-api-key` (ou `?key=` en dépannage) :
 ```bash
-# Par IMDb
-curl -H "x-api-key: une-longue-cle-secrete" \
-  "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
-
-# Par TMDB (type facultatif : movie ou series)
-curl -H "x-api-key: une-longue-cle-secrete" \
-  "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
-
-# Par ID Netflix
-curl -H "x-api-key: une-longue-cle-secrete" \
-  "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
-
-# État de l'instance
-curl -H "x-api-key: une-longue-cle-secrete" \
-  "https://netflix.mondomaine.fr/api/status"
+npm run harvest                          # tout le catalogue Netflix des pays configurés (JustWatch)
+npm run harvest:recent                   # seulement les sorties récentes
+npm run sync                             # titres des plateformes TMDB (Netflix, Apple TV+…)
+docker compose exec netflix-catalogue node scripts/add.js 81944880   # un titre à la main
 ```
-Réponse :
-```json
-{
-  "found": true,
-  "title": {
-    "id": "nflx:mv-777", "name": "Film lié", "type": "movie", "year": 2024,
-    "netflix_id": "77777777", "tmdb_id": 777, "tmdb_type": "movie", "imdb_id": "tt7777777"
-  },
-  "trailers": [
-    { "title": "Bande-annonce", "url": "https://netflix.mondomaine.fr/trailer/77777777/0.mp4",
-      "runtime": 120, "source": "netflix" }
-  ]
-}
-```
-Si aucune fiche ne correspond : `{ "found": false, "trailers": [] }`.
 
-> Sans `API_KEY`, les exemples `curl` ci-dessus fonctionnent sans l'en-tête `x-api-key`.
+**2 · Lire les pages** — c'est ce qui donne vraiment les vidéos : le moissonnage ne pose que les
+`netflix_id`, et une fiche sans page lue n'a aucune bande-annonce.
 
-### Instance qui récupère
-Dans son `.env` (ou l'onglet Paramètres) :
-```env
-UPSTREAM_URL=https://netflix.mondomaine.fr
-UPSTREAM_API_KEY=une-longue-cle-secrete
-```
-Quand une fiche possède un `imdb_id` ou un `tmdb_id` mais **aucune bande-annonce**, l'addon interroge l'instance amont
-au moment de l'ouverture de la fiche (et lors d'une demande de flux), puis stocke les URLs reçues.
-- Si la fiche a un `netflix_id`, les URLs sont relayées par **son propre** `/trailer/...`.
-- Sinon, l'URL de l'instance amont est utilisée directement.
-- Nouvelle tentative au bout de 6 h en cas d'échec.
-
-> L'API ne renvoie que les bandes-annonces Netflix déjà associées dans la base.
-> `PUBLIC_URL` doit être l'URL publique réellement accessible par l'autre instance.
-
-## Recherche automatique (à l'ouverture d'une fiche)
-Quand Stremio demande les flux d'une fiche (ID IMDb `tt…`) que l'addon ne connaît pas encore, il la résout tout seul :
-1. **TMDB** : IMDb → titre, année, type (+ bande-annonce VF au passage) ;
-2. **Web** : recherche de l'ID Netflix via **JustWatch** (gratuit, sans clé) — un moteur de recherche (Brave si clé, sinon DuckDuckGo) ne sert que si JustWatch tombe ;
-3. **Page Netflix** : lecture de la page, vérification du nom, du type et de l'année (pour une série, l'année Netflix est celle de la dernière saison), puis stockage de sa bande-annonce ;
-4. **Apple TV** : recherche par titre.
-Chaque titre n'est cherché qu'une fois (cache SQLite : 30 jours si trouvé, 7 jours sinon). Les recherches sont espacées d'une seconde (`resolve.js`) et mises en pause 10 min en cas d'échec.
-Si la recherche dépasse 15 s, elle continue en arrière-plan : la bande-annonce apparaîtra à la prochaine ouverture de la fiche.
-La même résolution est déclenchée par l'API `GET /api/trailers?imdb=tt…&type=movie|series` (utilisée par vf-trailer-wallace) : attente de 5 s au plus,
-puis `pending: true` dans la réponse si la recherche continue en arrière-plan. Garde-fou : 20 nouvelles recherches par minute au maximum.
-Nécessite `TMDB_API_KEY` ; `RESOLVE_ENABLED=0` désactive. Code : `src/resolve.js`. Les onglets Recherche / Titres du dashboard restent utiles pour ajouter ou vérifier à la main.
-
-## Bandes-annonces Apple TV
-Pour chaque titre, l'addon cherche une bande-annonce sur **tv.apple.com** (API web non documentée) : recherche par titre exact (+ année et type), puis lecture
-de la page. La bande-annonce (« Bandes-annonces » de la page) et, à défaut, l'aperçu `og:video` sont des flux **HLS (.m3u8)**.
-- Lancement : bouton **Apple TV** du dashboard (titres jamais vérifiés), ou automatiquement à la première ouverture d'une fiche. Test : `npm run inspect-appletv -- "Ted Lasso" series`.
-- Si l'API web ne renvoie rien (paramètres périmés), le secours passe par l'**API iTunes Search** (publique, sans clé) : l'URL renvoyée contient déjà le type et l'ID `umc.cmc.*` de la fiche.
-- Le HLS Apple n'est **pas chiffré** (les clés FairPlay de la page ne servent qu'à l'app Apple) : l'addon télécharge les segments et les recolle en vrai **MP4**,
-  mis en cache sur disque (`HLS_CACHE_DIR`, 7 jours), puis le sert comme le relais Netflix : `PUBLIC_URL/apple/<id>/<n>.mp4`, avec support des `Range`.
-  Le résultat se lit donc partout (Stremio PC/mobile **et** Stremio Web, navigateur, VLC).
-- **Le son** : Apple sépare l'image et l'audio en deux flux HLS. L'addon prend la piste de la langue de `TMDB_LANG` (`fr-FR` par défaut, sinon VO),
-  en évitant les pistes d'audio-description, et recolle le tout avec **ffmpeg** (`-c copy`, sans réencodage). Sans ffmpeg, la bande-annonce reste
-  **muette** et le journal l'indique. Installation : `apt install ffmpeg` (Debian/Ubuntu), `brew install ffmpeg` (macOS), `winget install Gyan.FFmpeg`
-  (Windows), ou `FFMPEG_PATH` dans `.env` vers le binaire. L'image Docker l'installe déjà.
-- Première lecture : la conversion prend quelques secondes (téléchargement de ~20-50 Mo). Elle est lancée en tâche de fond dès l'affichage de la liste des flux.
-  Réglages : `HLS_MAX_HEIGHT` (720 par défaut), `HLS_MAX_MB` (60), `HLS_CACHE_DAYS` (7).
-- Résultat mis en cache 30 jours (sans résultat : 7 jours).
-- Apple TV ne couvre que son catalogue (Apple Originals et chaînes) : beaucoup de titres Netflix n'y sont pas.
-- Si la recherche renvoie une erreur 400, recopie `v`, `utscf` et `utsk` depuis la requête `/api/uts/v3/search` de tv.apple.com (F12 → Réseau)
-  dans `APPLETV_API_VERSION`, `APPLETV_UTSCF`, `APPLETV_UTSK`. `APPLETV_ENABLED=0` désactive tout.
-- `src/appletv.js` (recherche) et `src/hls.js` (HLS → MP4). Le scraping de tv.apple.com peut aller à l'encontre de leurs CGU : à utiliser avec modération.
-
-## Si le scraping Netflix ne remonte pas tout
 ```bash
-npm run inspect -- 81944880
+npm run netflix-trailers                 # ≈ 1,2 s par page ; reprise possible, arrêtable
+npm run netflix-trailers -- --limit 50   # pour tester
 ```
-Sauvegarde la page dans `data/inspect-81944880.html` et affiche ce que le parseur a extrait (utile pour ajuster `src/netflix.js`).
-Sans épisodes Netflix, ceux de TMDB sont utilisés.
+
+**3 · Compléter les identifiants** — sans ID IMDb, un titre n'apparaît sur aucune fiche Stremio.
+
+```bash
+npm run netflix-ids                      # nom → ID Netflix (JustWatch) pour les fiches non liées
+npm run vf                               # TMDB : ID IMDb, affiche, synopsis, genres, bande-annonce YouTube
+```
+
+**4 · Apple TV (optionnel)** — bandes-annonces du catalogue Apple, converties en MP4.
+
+Depuis le dashboard, la même chose en un clic, avec progression et bouton d'arrêt.
+
+## Dashboard
+
+`https://netflix.mondomaine.fr/admin` — mot de passe = `ADMIN_TOKEN`. Six onglets :
+
+| Onglet | Rôle |
+|---|---|
+| **Stockage** | couverture réelle, état des sources, et les tâches : collecter → enrichir → brancher |
+| **Recherche** | trouve un titre par son nom (JustWatch, Apple TV) puis l'ajoute |
+| **Ajouter** | ajout direct par URL ou ID : Netflix, Prime Video, Apple TV ; derniers ajouts en bas |
+| **Titres** | liste filtrable, avec les sources et la présence d'un ID IMDb |
+| **Paramètres** | toutes les variables ci-dessous, filtrables, persistées en base |
+| **Journal** | les 2 000 derniers événements, filtrables par niveau et par texte |
+
+Les valeurs enregistrées depuis le dashboard vivent dans SQLite (`./data`) et survivent aux
+redéploiements. Priorité : **dashboard > `.env` > valeur par défaut**.
+
+## Configuration
+
+Toutes ces variables sont aussi modifiables dans **Paramètres**. Les valeurs entre parenthèses sont les
+défauts.
+
+**Essentiel**
+
+| Variable | Rôle |
+|---|---|
+| `ADMIN_TOKEN` | mot de passe du dashboard — **obligatoire**, sinon `/admin` répond 503 |
+| `TMDB_API_KEY` | clé TMDB v3 ou jeton v4 — active la synchro, les IDs IMDb et les bandes-annonces YouTube |
+| `PUBLIC_URL` | adresse publique (`https://…`) servant les relais `/trailer/…` |
+| `PORT` (7000) · `DB_PATH` (`./data/netflix.db`) | écoute et base SQLite |
+
+**Catalogues**
+
+| Variable | Rôle |
+|---|---|
+| `REGION` (FR) · `TMDB_LANG` (fr-FR) · `NETFLIX_COUNTRY` (fr) | région et langues |
+| `CATALOG_PROVIDERS` (`8,337`) | plateformes listées par TMDB : `8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime ; `all` = tout TMDB |
+| `SYNC_PAGES` (5) · `SYNC_EVERY_HOURS` (24) | ampleur et fréquence de la synchro |
+| `RECENT_DAYS` (90) · `RECENT_PAGES` (3) | fenêtre des « dernières sorties » |
+| `HARVEST_COUNTRIES` (`FR,US,GB,CA`) | pays moissonnés (l'ID Netflix est le même partout, on fait l'union) |
+| `RESOLVE_ENABLED` (1) | résolution à la demande à l'ouverture d'une fiche inconnue |
+
+**Bandes-annonces**
+
+| Variable | Rôle |
+|---|---|
+| `APPLETV_ENABLED` (1) | bandes-annonces Apple TV |
+| `HLS_MAX_HEIGHT` (720) · `HLS_MAX_MB` (60) · `HLS_CACHE_DAYS` (7) | conversion HLS → MP4 et cache disque |
+| `FFMPEG_PATH` | chemin de `ffmpeg` s'il n'est pas dans le `PATH` — sans lui, les vidéos Apple sont muettes |
+| `YOUTUBE_SEARCH` (1) | chercher sur YouTube quand TMDB n'a aucune vidéo |
+| `YOUTUBE_AS_SOURCE` (0) | proposer YouTube **en plus** de Netflix/Apple (1080p au lieu du 432p Netflix) |
+| `BRAVE_API_KEY` | inutile en pratique : JustWatch suffit, Brave n'est qu'un secours |
+
+**Fédération**
+
+| Variable | Rôle |
+|---|---|
+| `API_KEY` | clé exigée par `/api/trailers` (vide = API ouverte) |
+| `UPSTREAM_URL` · `UPSTREAM_API_KEY` | instance amont dont on récupère les bandes-annonces |
+
+## D'où viennent les vidéos, et en quelle qualité
+
+| Source | Mécanisme | Qualité |
+|---|---|---|
+| **Netflix** | lien signé en clair, renouvelé à chaque lecture | **768×432** (≈ 1,26 Mb/s) — mesuré, aucune variante dans la page |
+| **Apple TV** | HLS non chiffré, segments recollés en MP4 par ffmpeg | jusqu'à `HLS_MAX_HEIGHT` (720p par défaut) |
+| **YouTube** | clé `ytId` de TMDB, ou recherche filtrée strictement | selon la vidéo, souvent 1080p |
+
+La bande-annonce YouTube sert de **repli** (bouton « Bande-annonce » et source quand rien d'autre
+n'existe) ; `YOUTUBE_AS_SOURCE=1` l'ajoute à côté de Netflix pour avoir le choix.
+
+**Prime Video** ne peut pas être relayé : sa page n'expose aucun flux, seulement une enveloppe chiffrée
+(JWE). L'addon stocke donc les métadonnées, et la bande-annonce vient de TMDB/YouTube.
+
+## API
+
+**Fédération** (`x-api-key: …` ou `?key=` si `API_KEY` est défini)
+
+```bash
+curl "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
+curl "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
+curl "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
+curl "https://netflix.mondomaine.fr/api/status"
+```
+
+Réponse : `{ found, pending, title: {…}, trailers: [{ title, url, runtime, source }] }`.
+Un titre inconnu déclenche la résolution à la demande (réponse au plus tard après 5 s, `pending: true`
+si elle continue en arrière-plan).
+
+**Supervision** — `GET /health` renvoie la version, l'uptime, les compteurs par source, le travail
+restant et l'état des sources. `GET /manifest.json` est mis en cache 5 min.
 
 ## Tests
-`npm test` : parseur + SQL + handlers Stremio, sans réseau.
-`npm run test:search` : recherche des IDs (JustWatch, secours web) + API iTunes, réseau simulé, 10 cas.
+
+```bash
+npm test              # parseurs, fusion, SQL, handlers Stremio — sans réseau
+npm run test:search   # recherche des IDs (JustWatch, secours web) + API iTunes
+npm run test:youtube  # extraction YouTube, notation, refus du bruit
+```
+
+## Limites et bon usage
+
+- **Scraping** : `netflix.com` et `tv.apple.com` sont lus à contre-courant de leurs CGU. À usage personnel
+  et modéré ; le cache SQLite limite fortement les requêtes.
+- **Fragilité** : les parseurs dépendent du HTML et du JSON embarqués. En cas de changement, `npm run
+  inspect`, `npm run inspect-appletv` et `npm run inspect-prime -- <url|id>` affichent ce qui a été lu.
+- **Quotas** : JustWatch pour les IDs, TMDB pour les métadonnées, YouTube pour le repli (1 recherche à la
+  fois, espacées d'1,2 s).
+- **Couverture** : beaucoup de titres n'ont aucune bande-annonce exploitable — c'est normal, l'addon ne
+  fabrique rien.
+
+## Dépannage
+
+| Symptôme | Piste |
+|---|---|
+| `/admin` répond 503 | `ADMIN_TOKEN` absent du `.env` |
+| Stremio refuse d'installer l'addon | HTTPS obligatoire pour un addon distant |
+| Les bandes-annonces ne se lisent pas | `PUBLIC_URL` doit être l'adresse réellement accessible par Stremio |
+| Vidéos Apple muettes | `ffmpeg` absent : installe-le ou renseigne `FFMPEG_PATH` |
+| Recherche Apple TV en erreur 400 | les paramètres du client web Apple ont changé : recopie `v`, `utscf` et `utsk` depuis tv.apple.com (F12 → Réseau) dans `APPLETV_API_VERSION`, `APPLETV_UTSCF`, `APPLETV_UTSK` |
+| Vérifier un relais à la main | ouvre `PUBLIC_URL/trailer/<id_netflix>/0.mp4` dans un navigateur |
+| Recherche : « réseau injoignable » | JustWatch est tombé ; DuckDuckGo est bloqué (ECONNRESET), Brave nécessite une clé |
+| Un titre n'est jamais trouvé | pas sur Netflix dans `REGION`, ou sorti trop récemment pour être indexé |
+| Aucune source sur une fiche | le titre n'a ni bande-annonce Netflix/Apple ni clé YouTube : lance `npm run netflix-trailers` puis `npm run vf` |
 
 ## Structure
-`src/netflix.js` scraper · `src/justwatch.js` correspondance nom → ID Netflix · `src/link.js` liage en arrière-plan · `src/tmdb.js` · `src/enrich.js` fusion Netflix+TMDB · `src/sync.js` catalogue · `src/federation.js` API/partage des bandes-annonces · `src/addon.js` manifest/handlers · `src/db.js` SQLite.
 
-## Test en local (Windows / PC)
-```powershell
-git clone https://github.com/Wallacecleaver/Netflix-catalogue-stremio.git
-cd Netflix-catalogue-stremio
-npm install
-copy .env.example .env      # optionnel : TMDB_API_KEY, ADMIN_TOKEN
-npm run seed                # fiche de démo "Trouble échange"
-npm start
 ```
-Dans Stremio : *Addons → barre de recherche → coller* `http://localhost:7000/manifest.json`.
-Test du scraping réel depuis ta connexion : `npm run inspect -- 81944880` puis `npm run add -- 81944880`.
-
-## Si Netflix répond 500 / bloque Node
-Enregistre la page depuis ton navigateur (Ctrl+S → « Page web, HTML uniquement », ou Ctrl+U puis copier dans un fichier `page.html`), puis :
-```powershell
-npm run inspect -- --file page.html
-npm run add -- 81944880 --file page.html
+src/addon.js            manifest, handlers meta et stream
+src/app.js              routes Express : dashboard, relais, API, /health
+src/netflix.js          scraper de la page Netflix
+src/primevideo.js       parseur de la page Prime Video (métadonnées)
+src/appletv.js          recherche Apple TV + HLS → MP4 (src/hls.js)
+src/youtube.js          recherche YouTube (dernier recours)
+src/justwatch.js        nom → ID Netflix, et catalogue paginé
+src/tmdb.js             métadonnées, IDs IMDb, vidéos
+src/enrich.js           fusion Netflix + TMDB
+src/link.js             liage des IDs et lecture des pages
+src/netflix-trailers.js tâche « remplir les bandes-annonces Netflix »
+src/sync.js · src/harvest.js   catalogues TMDB et JustWatch
+src/resolve.js          résolution à la demande d'une fiche inconnue
+src/federation.js       API/partage entre instances
+src/db.js               SQLite, schéma et requêtes
+src/admin.html          dashboard (une page, sans build)
+scripts/                CLI : add, sync, harvest, netflix-ids, netflix-trailers, vf, inspect…
 ```
 
-## Bande-annonce de la page Netflix
-La vidéo de la page (≈1 min 40) est enregistrée avec le titre. Ses liens Netflix expirent en quelques heures, donc Stremio reçoit une URL
-stable de **ton** addon : `PUBLIC_URL/trailer/<id>/0.mp4`. À chaque lecture, l'addon renouvelle le lien Netflix si besoin et relaie la vidéo
-(avec support des `Range`). La bande-annonce est aussi exposée comme ressource `stream`, donc elle apparaît également dans la liste des flux.
-Réglages dans `.env` : `PUBLIC_URL` (obligatoire sur le VPS, ex. `https://netflix.mondomaine.fr`).
-Test direct : ouvre `http://localhost:7000/trailer/81944880/0.mp4` dans ton navigateur.
+## Licence et mentions
 
-> **Qualité** : Netflix ne sert ses bandes-annonces qu'en **768×432** (≈ 1,26 Mb/s) — vérifié sur plusieurs
-> titres, et la page n'expose aucune variante (`playableVideo` ne contient qu'une `url`). Le relais ne
-> recompresse rien : c'est la source. Pour avoir mieux, `YOUTUBE_AS_SOURCE=1` ajoute la vidéo YouTube de
-> TMDB (1080p) **à côté** de Netflix, sur les fiches qui ont déjà une bande-annonce Netflix/Apple.
-
-## Bande-annonce YouTube (dernier recours)
-
-Quand TMDB ne fournit **aucune** vidéo pour un titre, `src/youtube.js` cherche « `<titre>` bande annonce VF » sur YouTube
-(sans clé API : `ytInitialData` est extrait de la page de résultats) puis filtre sévèrement :
-
-- le titre du film doit apparaître dans celui de la vidéo, et la vidéo doit être une bande-annonce ;
-- sont rejetés : réactions, critiques, extraits, making-of, parodies, spots de moins de 40 s ;
-- la VF est privilégiée, les chaînes officielles (Netflix, Allociné…) et l'année rapportent des points.
-
-La clé retenue est stockée comme `trailer_yt` / `vf_trailer` : elle sert de bouton **Bande-annonce** sur les fiches sans
-flux Netflix/Apple, de repli dans la liste des sources, et de source si `YOUTUBE_AS_SOURCE=1`.
-
-Déclenchée par la tâche « IDs IMDb / TMDB » et par la résolution à la demande. Les recherches sont espacées d'1,2 s
-(YouTube bloque vite) ; `YOUTUBE_SEARCH=0` désactive tout.
-
-## Prime Video (métadonnées)
-
-`src/primevideo.js` lit une page `https://www.primevideo.com/-/fr/detail/<id>` (JSON embarqué `dv-web-page-hydration-data`) :
-titre, synopsis, genres, casting, épisodes, visuels. La bande-annonce n'est stockée que comme référence (`extra.primeTrailer`) :
-son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement. Vérifié : la page ne contient aucun
-`.m3u8`/`.mp4`, et l'`playbackEnvelope` est un JWE chiffré (`A256KW` / `A256CBC-HS512`) — contrairement à Netflix (lien signé
-mais clair) et Apple TV (HLS non chiffré), il n'y a rien à relayer.
-
-En pratique la fiche Prime a quand même une bande-annonce : la clé YouTube de TMDB (`trailer_yt`, remplie à l'import, ou
-`vf_trailer` par la tâche « IDs IMDb / TMDB ») est exposée comme bouton **Bande-annonce** de la fiche Stremio, uniquement
-lorsque le titre n'a aucune bande-annonce Netflix/Apple.
-
-- Déboguer : `npm run inspect-prime -- <url|id>` ou `npm run inspect-prime -- --file page.html`
-- Ajouter en base : onglet **Ajouter** du dashboard, ou `npm run add -- https://www.primevideo.com/-/fr/detail/<id>` (id stocké : `prime:<id>`)
-- Sur le VPS : `docker compose exec netflix-catalogue node scripts/add.js <url>`
+Aucune licence déclarée : tous droits réservés. Ce produit utilise l'API TMDB mais n'est ni approuvé ni
+certifié par TMDB.
