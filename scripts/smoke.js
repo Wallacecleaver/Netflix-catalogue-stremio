@@ -65,7 +65,9 @@ assert.equal(p.trailers.length, 1); assert.equal(p.releaseDate, '2026-10-30');
       metadata: { [G]: { moods: ['Réconfortant'] } },
       action: { atf: { [G]: { secondaryActions: [{ payload: { playback: { isTrailer: true, playbackID: 'amzn1.dv.gti.f08c707b', playbackEnvelope: 'ENV',
         expiryTime: 1794933326863, playbackURL: '/-/fr/detail/0TEACR92ZF4DLOOKOZN4EMAU1T?autoplay=trailer' } } }] } } } } },
-    btf: { state: { detail: { detail: { [E2]: epd(2, '2. Elle a l\u2019air célib et bi', 2660), [E1]: epd(1, '1. Mais je viens de prendre un somnifère', 3084), [G]: { titleType: 'season' } } },
+    btf: { state: { containers: { [G]: [{ entities: [{ displayTitle: 'Une vie rêvée', entityType: 'TV Show', releaseYear: '2024',
+        link: { url: '/-/fr/detail/0JKRQTOVD15FIGW6OIALSWGV73' }, images: { cover: { url: 'https://img.prime/rel.jpg' } } }, { displayTitle: 'sans lien' }] }] },
+      detail: { detail: { [E2]: epd(2, '2. Elle a l\u2019air célib et bi', 2660), [E1]: epd(1, '1. Mais je viens de prendre un somnifère', 3084), [G]: { titleType: 'season' } } },
       episodeList: { cardTitleIds: [E1, E2] }, self: { [E1]: { sequenceNumber: 1, compactGTI: '0R2I1RKZFG6WWC5CH1D03XMOQ0' } } } } } } } };
   const ph = '<html><head><title>Prime Video: Sterling Point - S1</title><link rel="canonical" href="https://www.primevideo.com/-/fr/detail/0K94N2UBORZCLPIC46VTJQ093E"/></head><body>'
     + '<script id="dv-web-page-hydration-data" type="application/json">' + JSON.stringify(hyd) + '</script></body></html>';
@@ -79,6 +81,7 @@ assert.equal(p.trailers.length, 1); assert.equal(p.releaseDate, '2026-10-30');
   assert.equal(pv.episodes[0].name, 'Mais je viens de prendre un somnifère'); assert.equal(pv.episodes[0].runtime, 51); assert.equal(pv.episodes[0].released, '2026-08-05');
   assert.equal(pv.episodes[1].episode, 2); assert.equal(pv.primeTrailer.playbackId, 'amzn1.dv.gti.f08c707b');
   assert.equal(pv.primeTrailer.page, 'https://www.primevideo.com/-/fr/detail/0TEACR92ZF4DLOOKOZN4EMAU1T?autoplay=trailer');
+  assert.equal(pv.related.length, 1); assert.equal(pv.related[0].primeId, '0JKRQTOVD15FIGW6OIALSWGV73'); assert.equal(pv.related[0].type, 'series');
   assert.equal(frDateToIso('1er février 2026'), '2026-02-01');
   // Secours DOM : sans JSON embarqué, le titre et le synopsis restent lisibles
   const pd = parsePrimeHtml('<html><head><title>Prime Video: Sterling Point - S1</title><meta name="description" content="Synopsis"/></head><body></body></html>');

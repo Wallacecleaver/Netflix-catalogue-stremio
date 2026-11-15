@@ -103,6 +103,20 @@ function fromHydration(h, out) {
     out.primeTrailer = { playbackId: t.playbackId, playbackEnvelope: t.playbackEnvelope, expires: null, page: null };
   }
 
+  // Titres similaires (carrousel « Les clients ont également regardé ») : btf.containers[gti][*].entities
+  for (const c of btf?.containers?.[gti] || []) {
+    for (const en of c.entities || []) {
+      const m = String(en.link?.url || '').match(/detail\/([0-9A-Z]{20,})/i);
+      if (!en.displayTitle || !m) continue;
+      out.related.push({
+        primeId: m[1].toUpperCase(), name: clean(en.displayTitle), type: en.entityType === 'Movie' ? 'movie' : 'series',
+        year: en.releaseYear || null, image: en.images?.cover?.url || null, certification: en.maturityRatingBadge?.displayText || null,
+        synopsis: clean(en.synopsis) || null, badge: clean(en.titleMetadataBadge?.text || en.titleMetadataBadge) || null,
+        message: clean(en.highValueMessage?.message || en.highValueMessage) || null,
+      });
+    }
+  }
+
   // Épisodes : btf.detail.detail contient une entrée par épisode, l'ordre vient de btf.self[*].sequenceNumber / episodeList
   const eps = btf?.detail?.detail || {};
   const order = btf?.episodeList?.cardTitleIds || Object.keys(eps);
@@ -148,7 +162,7 @@ function parsePrimeHtml(html) {
     primeId: parsePrimeId(canon), primeGti: null, name: null, seasonNumber: null, type: null, synopsis: null, year: null, releaseDate: null,
     certification: null, genres: [], cast: [], directors: [], producers: [], studios: [], moods: [], audio: [], subtitles: [],
     image: $('meta[property="og:image"]').attr('content') || null, background: null, logo: null, flags: {}, primeTrailer: null,
-    episodes: [], warnings: [],
+    episodes: [], related: [], warnings: [],
   };
   const h = readHydration($);
   if (!h || !fromHydration(h, out)) out.warnings.push('JSON embarqué (dv-web-page-hydration-data) introuvable ou changé : lecture HTML de secours');
@@ -184,7 +198,7 @@ async function ingestPrime(input, opts = {}) {
     genres: p.genres.length ? p.genres : t?.genres, synopsis: p.synopsis || t?.synopsis, cast: p.cast.length ? p.cast : t?.cast,
     poster: t?.poster || p.image, background: p.background || t?.background, logo: p.logo || t?.logo, runtime: t?.runtime,
     extra: { primeId: p.primeId || pid, primeTrailer: p.primeTrailer, directors: p.directors, producers: p.producers, studios: p.studios,
-      moods: p.moods, posterShape: t?.poster ? 'poster' : 'landscape', fetchedAt: Date.now() },
+      moods: p.moods, related: p.related, posterShape: t?.poster ? 'poster' : 'landscape', fetchedAt: Date.now() },
     enriched: 1,
   });
   if (type === 'series' && p.episodes.length) {
