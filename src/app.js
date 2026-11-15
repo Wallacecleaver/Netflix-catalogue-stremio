@@ -53,16 +53,26 @@ function auth(req, res, next) {
   next();
 }
 
-// ---- API de fédération : clé API (en-tête x-api-key ou ?key=) ----
+// ---- API de fédération : clé API (en-tête x-api-key, Authorization: Bearer, ou ?key=) ----
 // API_KEY vide = API ouverte : une autre instance peut alors utiliser l'URL seule
 // (sécurité par obscurité de l'adresse). Dès qu'une clé est configurée, elle redevient obligatoire.
 function apiAuth(req, res, next) {
   if (!config.apiKey) return next();
-  if (!federation.keyOk(req.get('x-api-key') || req.query.key)) {
-    return res.status(401).json({ error: 'Clé API invalide' });
+  const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
+  const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
+  if (!federation.keyOk(given)) {
+    return res.status(401).json({ error: 'Clé API invalide', hint: "en-tête x-api-key, ou Authorization: Bearer <clé>" });
   }
   next();
 }
+
+// Génère une clé API et l'enregistre (elle n'est affichée qu'une fois, dans la réponse).
+app.post('/admin/api-key', auth, (_req, res) => {
+  const key = crypto.randomBytes(24).toString('hex');
+  settings.save({ API_KEY: key });
+  log.info('admin', 'Clé API de fédération régénérée');
+  res.json({ ok: true, key });
+});
 
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
 app.get('/admin/api/summary', auth, (_req, res) => {
@@ -339,6 +349,19 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
   const asked = imdb || `tmdb:${tmdb}` || `netflix:${netflix}`;
   if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(',') });
   else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending });
+
+  // `?debug=1` : explique pourquoi une instance cliente ne reçoit rien (même sans bande-annonce).
+  const debug = String(req.query.debug || '') === '1' ? {
+    query: { imdb, tmdb, netflix, type },
+    fiche: row ? { id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id, netflix_id: row.netflix_id } : null,
+    counts: row ? {
+      netflix: (row.trailers || []).length,
+      appletv: (row.appletv || []).length,
+      manual: (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers.length : 0,
+    } : null,
+    resolveActive: !!(config.resolveEnabled && config.tmdbKey),
+    apiOpen: !config.apiKey,
+  } : undefined;
   res.json({
     found: trailers.length > 0,
     pending: pending && !trailers.length,
@@ -347,6 +370,7 @@ app.get('/api/trailers', apiAuth, async (req, res) => {
       netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
     },
     trailers,
+    ...(debug ? { debug } : {}),
   });
 });
 

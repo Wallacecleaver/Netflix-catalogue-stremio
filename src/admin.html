@@ -252,6 +252,7 @@ tbody tr:hover{background:#12121a}
       <div class="url"><code id="manifest-url">—</code><button class="btn sm" id="copy-manifest" type="button">Copier</button></div>
       <h3 style="margin-top:16px">API de fédération</h3>
       <div class="url"><code id="api-url">—</code></div>
+      <div class="field" style="margin-top:8px"><input id="api-key-out" class="inp" placeholder="aucune clé — API ouverte" readonly><button id="gen-key" class="btn sm" type="button">Générer une clé</button></div>
       <p class="muted" id="api-note" style="margin:7px 0 0"></p>
       <h3 style="margin-top:16px">Synchro TMDB</h3><p class="muted" style="margin:5px 0 8px">Titres des plateformes configurées dans la région.</p>
       <button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div>
@@ -427,7 +428,11 @@ tbody tr:hover{background:#12121a}
     var base = (d.addon.publicUrl || location.origin).replace(/\/+$/, '');
     $('manifest-url').textContent = base + '/manifest.json';
     $('api-url').textContent = base + '/api/trailers?imdb=tt…';
-    $('api-note').textContent = d.addon.apiOpen ? 'API ouverte : aucune clé configurée (Paramètres → API & fédération).' : 'API protégée par une clé (en-tête x-api-key).';
+    $('api-note').textContent = d.addon.apiOpen
+      ? 'API ouverte : n\'importe qui connaissant l\'URL peut appeler. Génère une clé pour la fermer.'
+      : 'API fermée : en-tête x-api-key, Authorization: Bearer, ou ?key=.';
+    var ko = $('api-key-out');
+    if (ko) ko.placeholder = d.addon.apiOpen ? 'aucune clé — API ouverte' : 'clé définie (masquée) — régénère pour en obtenir une autre';
     JOBS.forEach(function (j) { var p = $('pill-' + j.k); if (p) p.textContent = j.pend(s); });
   }
 
@@ -487,6 +492,15 @@ tbody tr:hover{background:#12121a}
     api('/admin/sync', {}).then(function (r) { toast('Synchro terminée : ' + fmt(r.added) + ' ajoutés'); refresh(); }).catch(fail).then(function () { b.disabled = false; b.textContent = 'Synchroniser maintenant'; });
   });
   $('copy-manifest').addEventListener('click', function () { navigator.clipboard.writeText($('manifest-url').textContent).then(function () { toast('Adresse copiée'); }, function () { toast('Copie impossible', 'err'); }); });
+  $('gen-key').addEventListener('click', function () {
+    var b = $('gen-key'); b.disabled = true;
+    api('/admin/api-key', {}).then(function (r) {
+      var out = $('api-key-out');
+      out.value = r.key; out.focus(); out.select();
+      toast('Clé générée — copie-la, elle ne sera plus affichée');
+      refresh();
+    }).catch(fail).then(function () { b.disabled = false; });
+  });
 
   /* ---- Ajouter ---- */
   var appleResults = [];
