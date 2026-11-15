@@ -41,12 +41,12 @@ Puis dans Stremio : *Addons → Install from URL* → `https://netflix.mondomain
 docker compose exec netflix-catalogue node scripts/add.js https://www.netflix.com/fr/title/81944880
 # ou en local : npm run add -- 81944880
 ```
-Ou via `https://netflix.mondomaine.fr/admin` (protégé par `ADMIN_TOKEN`).
+Ou via l'onglet **Ajouter** du dashboard (`https://netflix.mondomaine.fr/admin`, protégé par `ADMIN_TOKEN`).
 
 ## Dashboard d'administration
 `https://netflix.mondomaine.fr/admin` (ou juste `/`, qui redirige) — mot de passe : la valeur `ADMIN_TOKEN` du `.env`.
 
-Cinq onglets : **Stockage** (couverture des bandes-annonces, état des sources — TMDB, moteur de recherche, Apple TV, ffmpeg —, puis les trois étapes *collecter → enrichir → brancher Stremio*), **Recherche** (tape un titre : liens Netflix trouvés via Brave Search et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
+Six onglets : **Stockage** (couverture des bandes-annonces, état des sources — TMDB, moteur de recherche, Apple TV, ffmpeg —, puis les trois étapes *collecter → enrichir → brancher Stremio*), **Recherche** (tape un titre : liens Netflix trouvés via Brave Search et titres Apple TV via l'API iTunes, puis « Ajouter » pour stocker la bande-annonce après vérification à l'œil), **Ajouter** (ajout direct, sans passer par la recherche : URL ou ID Netflix, URL ou ID Prime Video, et recherche par titre ou URL `tv.apple.com` pour Apple TV), **Titres** (liste filtrable par source de bande-annonce), **Paramètres** et **Journal**. Détail historique :
 
 **Vue d'ensemble**
 - Statistiques : titres, films, séries, épisodes, sorties récentes, **IDs Netflix liés**, taille de la base, uptime.
@@ -250,5 +250,5 @@ titre, synopsis, genres, casting, épisodes, visuels. La bande-annonce n'est sto
 son flux est protégé (DRM + jeton lié à la session) et n'est pas lisible directement.
 
 - Déboguer : `npm run inspect-prime -- <url|id>` ou `npm run inspect-prime -- --file page.html`
-- Ajouter en base : dashboard /admin (champ « Ajouter un titre ») ou `npm run add -- https://www.primevideo.com/-/fr/detail/<id>` (id stocké : `prime:<id>`)
+- Ajouter en base : onglet **Ajouter** du dashboard, ou `npm run add -- https://www.primevideo.com/-/fr/detail/<id>` (id stocké : `prime:<id>`)
 - Sur le VPS : `docker compose exec netflix-catalogue node scripts/add.js <url>`

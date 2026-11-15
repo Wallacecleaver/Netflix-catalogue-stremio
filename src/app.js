@@ -215,6 +215,24 @@ app.get('/admin/api/search', auth, async (req, res) => {
     apple, appleError: ap.status === 'rejected' ? ap.reason.message : null,
   });
 });
+// Recherche Apple TV seule (onglet « Ajouter ») : API tv.apple.com, puis secours API iTunes.
+app.get('/admin/api/appletv/search', auth, async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.status(400).json({ error: 'Saisis au moins 2 caractères' });
+  try {
+    const found = await appletv.search(q).then((r) => (r.length ? r : search.apple(q))).catch((e) => search.apple(q).catch(() => { throw e; }));
+    const want = normName(q);
+    const results = found
+      .map((r) => ({ ...r, score: normName(r.title) === want ? 2 : normName(r.title).includes(want) ? 1 : 0 }))
+      .sort((a, b) => b.score - a.score).slice(0, 8)
+      .map((r) => ({ ...r, stored: !!(store.findByName(r.title, r.type)?.appletv || []).length }));
+    res.json({ results });
+  } catch (e) {
+    log.warn('search', `Apple TV : ${e.message}`);
+    res.status(502).json({ error: e.message });
+  }
+});
 app.post('/admin/api/search/apple', auth, async (req, res) => {
   try {
     const b = req.body || {};

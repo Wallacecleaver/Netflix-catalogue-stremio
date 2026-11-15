@@ -105,6 +105,9 @@ h2{font-size:15px;margin:0 0 3px;letter-spacing:-.1px}h3{font-size:14px;margin:0
 .b-vf{color:var(--amber);border-color:#5a4720}.b-nf{color:var(--red2);border-color:#5a1f24}
 .b-up{color:var(--blue);border-color:#1f3d5a}.b-ap{color:var(--violet);border-color:#3d315e}
 .b-no{color:var(--muted)}.b-ok{color:var(--green);border-color:#1d4535}
+.b-prime{color:#4db8e8;border-color:#1d4356}
+.field{display:flex;gap:8px}
+.added{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;font-size:13.5px}
 
 /* ---- listes de flux ---- */
 .flux{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
@@ -153,7 +156,7 @@ tbody tr:hover{background:#16161d}
   <a class="btn sm" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
   <button id="logout" class="btn sm ghost" type="button">Déconnexion</button></div></header>
 <div class="wrap">
-<nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="search">Recherche</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
+<nav class="tabs"><button class="tab active" data-tab="home">Stockage</button><button class="tab" data-tab="search">Recherche</button><button class="tab" data-tab="add">Ajouter</button><button class="tab" data-tab="titles">Titres</button><button class="tab" data-tab="settings">Paramètres</button><button class="tab" data-tab="journal">Journal</button></nav>
 
 <section id="tab-home">
   <div class="card hero">
@@ -178,11 +181,9 @@ tbody tr:hover{background:#16161d}
   <div id="health" class="health"></div>
 
   <div class="sec"><h2>1 · Collecter</h2><span class="hint">remplir la base de titres</span></div>
-  <div class="grid g3">
+  <div class="grid g2">
     <div id="jobs-bulk" class="contents"></div>
     <div class="card"><h3>Synchro TMDB</h3><p class="why muted" style="margin:6px 0 10px">Récupère les titres Netflix de la région puis lance le liage des IDs.</p><div class="row" style="display:flex;gap:8px;margin-top:auto"><button id="sync-btn" class="btn" type="button">Synchroniser maintenant</button></div></div>
-    <div class="card"><h3>Ajouter un titre</h3><p class="why muted" style="margin:6px 0 10px">Colle une URL <code>netflix.com/…/title/&lt;id&gt;</code>, un ID, ou une page <code>primevideo.com/…/detail/&lt;id&gt;</code>.</p>
-      <div style="display:flex;gap:8px"><input id="add-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880"><button id="add-btn" class="btn primary" type="button">Ajouter</button></div></div>
   </div>
 
   <div class="sec"><h2>2 · Enrichir</h2><span class="hint">un ID par titre, puis la bande-annonce</span></div>
@@ -203,6 +204,29 @@ tbody tr:hover{background:#16161d}
   <div class="card"><h2>Chercher une bande-annonce</h2><p class="muted" style="margin:6px 0 12px">Tape un titre : les liens Netflix (Brave Search) et Apple TV (API iTunes) trouvés s'affichent. Vérifie que c'est le bon, puis « Ajouter » stocke sa bande-annonce.</p>
     <div style="display:flex;gap:8px"><input id="s-q" class="inp" placeholder="Ex. Trouble échange"><button id="s-go" class="btn primary" type="button">Chercher</button></div></div>
   <div id="s-res" class="grid g2" style="margin-top:12px"></div>
+</section>
+
+<section id="tab-add" class="hidden">
+  <div class="grid g2">
+    <div class="card">
+      <h3><span class="badge b-nf">Netflix</span> Ajouter un titre Netflix</h3>
+      <p class="muted" style="margin:6px 0 10px">Colle l'URL de la page Netflix ou son ID numérique. La page est lue tout de suite : titre, synopsis, casting, épisodes et bande-annonce.</p>
+      <div class="field"><input id="nf-url" class="inp" placeholder="https://www.netflix.com/fr/title/81944880"><button id="nf-go" class="btn primary" type="button">Ajouter</button></div>
+      <div id="nf-res"></div>
+    </div>
+    <div class="card">
+      <h3><span class="badge b-prime">Prime Video</span> Ajouter un titre Prime Video</h3>
+      <p class="muted" style="margin:6px 0 10px">Colle l'URL <code>primevideo.com/…/detail/&lt;id&gt;</code> ou l'ID. Seules les métadonnées sont stockées : la bande-annonce Prime est protégée (DRM), elle n'est pas relisible par l'addon.</p>
+      <div class="field"><input id="pv-url" class="inp" placeholder="https://www.primevideo.com/-/fr/detail/0ABC123"><button id="pv-go" class="btn primary" type="button">Ajouter</button></div>
+      <div id="pv-res"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h3><span class="badge b-ap">Apple TV</span> Ajouter une bande-annonce Apple TV</h3>
+    <p class="muted" style="margin:6px 0 10px">Cherche par titre, ou colle une URL <code>tv.apple.com/…</code> (l'ID <code>umc.cmc.*</code> est lu automatiquement). Le flux HLS est converti en MP4 par ton serveur, avec le son via ffmpeg.</p>
+    <div class="field"><input id="ap-q" class="inp" placeholder="Ex. Ted Lasso — ou https://tv.apple.com/fr/show/ted-lasso/umc.cmc.…"><button id="ap-go" class="btn primary" type="button">Chercher</button></div>
+    <div id="ap-res" style="margin-top:12px"></div>
+  </div>
 </section>
 
 <section id="tab-titles" class="hidden">
@@ -353,9 +377,92 @@ tbody tr:hover{background:#16161d}
     var b = $('sync-btn'); b.disabled = true; b.textContent = 'Synchronisation…';
     api('/admin/sync', {}).then(function (r) { toast('Synchro terminée : ' + fmt(r.added) + ' ajoutés'); refresh(); }).catch(fail).then(function () { b.disabled = false; b.textContent = 'Synchroniser maintenant'; });
   });
-  $('add-btn').addEventListener('click', function () {
-    var u = $('add-url').value.trim(); if (!u) return; var b = $('add-btn'); b.disabled = true;
-    api('/admin/add', { url: u }).then(function (r) { toast('Ajouté : ' + r.name); $('add-url').value = ''; refresh(); }).catch(fail).then(function () { b.disabled = false; });
+  /* ---- Ajouter : Netflix / Prime Video (URL ou ID) et Apple TV (recherche ou URL) ---- */
+  var appleResults = [];
+
+  function addedCard(name, type, year, detail) {
+    return '<div class="added"><b>' + esc(name) + '</b>'
+      + (type || year ? ' <span class="muted">' + (type === 'series' ? 'Série' : type === 'movie' ? 'Film' : '') + (year ? ' · ' + year : '') + '</span>' : '')
+      + '<div class="muted">' + detail + '</div></div>';
+  }
+
+  function addByUrl(kind) {
+    var isPrime = kind === 'prime';
+    var input = $(isPrime ? 'pv-url' : 'nf-url'), btn = $(isPrime ? 'pv-go' : 'nf-go'), out = $(isPrime ? 'pv-res' : 'nf-res');
+    var v = input.value.trim();
+    if (!v) { input.focus(); return; }
+    btn.disabled = true; out.innerHTML = '<p class="muted">Lecture de la page…</p>';
+    api('/admin/add', { url: v }).then(function (r) {
+      toast('Ajouté : ' + r.name);
+      input.value = '';
+      if (isPrime) {
+        out.innerHTML = addedCard(r.name, r.type, r.year, 'Métadonnées enregistrées' + (r.episodes ? ' · ' + fmt(r.episodes) + ' épisode(s)' : '') + '. Bande-annonce non relisible (DRM Prime) : rien à relayer.');
+      } else {
+        var n = (r.trailers || []).length;
+        out.innerHTML = addedCard(r.name, r.type, r.year, n ? fmt(n) + ' bande(s)-annonce(s) Netflix stockée(s).' : 'Fiche créée, mais aucune bande-annonce lisible sur la page.');
+      }
+      refresh();
+    }).catch(function (e) { out.innerHTML = ''; fail(e); }).then(function () { btn.disabled = false; });
+  }
+
+  function appleRow(r, i) {
+    var b = r.stored ? '<button class="btn sm" disabled>Stocké ✓</button>'
+      : '<button class="btn sm primary" data-apple="' + i + '" type="button">Ajouter</button>';
+    return '<div class="flux"><div class="t"><b>' + esc(r.title) + '</b><div class="muted">' + (r.type === 'series' ? 'Série' : 'Film') + (r.year ? ' · ' + r.year : '') + '</div></div>' + b + '</div>';
+  }
+
+  function addApple(item, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Ajout…'; }
+    return api('/admin/api/search/apple', item).then(function (r) {
+      toast('Apple TV ajouté : ' + r.name);
+      if (btn) btn.textContent = 'Stocké ✓';
+      refresh();
+      return r;
+    }).catch(function (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Ajouter'; }
+      throw e;
+    });
+  }
+
+  /** URL ou ID Apple collé : type lu dans l'URL, sinon on essaie film puis série. */
+  function appleDirect(id, type) {
+    var out = $('ap-res');
+    out.innerHTML = '<p class="muted">Ajout de ' + esc(id) + '…</p>';
+    var types = type ? [type] : ['movie', 'series'], i = 0, last = null;
+    function next() {
+      if (i >= types.length) { out.innerHTML = ''; fail(last || new Error('ajout impossible')); return; }
+      var t = types[i++];
+      addApple({ id: id, type: t }).then(function (r) {
+        out.innerHTML = addedCard(r.name, t, null, fmt(r.trailers) + ' bande(s)-annonce(s) Apple TV stockée(s).');
+      }).catch(function (e) { last = e; next(); });
+    }
+    next();
+  }
+
+  function appleSearch() {
+    var q = $('ap-q').value.trim();
+    if (q.length < 2) { $('ap-q').focus(); return; }
+    var direct = /umc\.cmc\.[a-z0-9]+/i.exec(q);
+    if (direct) { appleDirect(direct[0], /\/show\//i.test(q) ? 'series' : /\/movie\//i.test(q) ? 'movie' : null); return; }
+    $('ap-go').disabled = true;
+    $('ap-res').innerHTML = '<p class="muted">Recherche Apple TV…</p>';
+    api('/admin/api/appletv/search?q=' + encodeURIComponent(q)).then(function (d) {
+      appleResults = d.results || [];
+      $('ap-res').innerHTML = appleResults.length
+        ? '<div class="grid g2">' + appleResults.map(appleRow).join('') + '</div>'
+        : '<p class="muted">Aucun résultat : le catalogue Apple TV se limite aux Apple Originals et aux chaînes.</p>';
+    }).catch(function (e) { $('ap-res').innerHTML = ''; fail(e); }).then(function () { $('ap-go').disabled = false; });
+  }
+
+  $('nf-go').addEventListener('click', function () { addByUrl('netflix'); });
+  $('pv-go').addEventListener('click', function () { addByUrl('prime'); });
+  $('nf-url').addEventListener('keydown', function (e) { if (e.key === 'Enter') addByUrl('netflix'); });
+  $('pv-url').addEventListener('keydown', function (e) { if (e.key === 'Enter') addByUrl('prime'); });
+  $('ap-go').addEventListener('click', appleSearch);
+  $('ap-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') appleSearch(); });
+  $('ap-res').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-apple]'); if (!b) return;
+    addApple(appleResults[+b.dataset.apple], b).catch(fail);
   });
   $('copy-manifest').addEventListener('click', function () { navigator.clipboard.writeText($('manifest-url').textContent).then(function () { toast('Adresse copiée'); }, function () { toast('Copie impossible', 'err'); }); });
 
@@ -451,7 +558,7 @@ tbody tr:hover{background:#16161d}
   function showTab(n) {
     tab = n; clearInterval(logTimer); clearTimeout(jobTimer);
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) { b.classList.toggle('active', b.dataset.tab === n); });
-    ['home', 'search', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
+    ['home', 'search', 'add', 'titles', 'settings', 'journal'].forEach(function (x) { $('tab-' + x).classList.toggle('hidden', x !== n); });
     if (n === 'home') { jobTimer = null; pollJobs(); }
     if (n === 'search') setTimeout(function () { $('s-q').focus(); }, 50);
     if (n === 'titles') loadTitles(false);
