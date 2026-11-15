@@ -273,7 +273,7 @@ app.get('/admin/api/titles', auth, (req, res) => {
   res.json({
     total,
     rows: rows.map((r) => ({
-      id: r.id, name: r.name, type: r.type, year: r.year, imdb: r.imdb_id || null,
+      id: r.id, name: r.name, type: r.type, year: r.year, imdb: r.imdb_id || null, added: r.added_at || null,
       netflix: r.trailers.filter((t) => t && t.source !== 'upstream').length,
       upstream: r.trailers.filter((t) => t && t.source === 'upstream').length,
       apple: r.appletv.length,
