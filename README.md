@@ -91,7 +91,7 @@ Depuis le dashboard, la même chose en un clic, avec progression et bouton d'arr
 |---|---|
 | **Stockage** | couverture réelle, état des sources, et les tâches : collecter → enrichir → brancher |
 | **Recherche** | trouve un titre par son nom (JustWatch, Apple TV) puis l'ajoute |
-| **Ajouter** | ajout direct par URL ou ID : Netflix, Prime Video, Apple TV ; derniers ajouts en bas |
+| **Ajouter** | ajout direct par URL ou ID : Netflix, Prime Video, Apple TV, et **n'importe quelle vidéo par son URL** ; derniers ajouts en bas |
 | **Titres** | liste filtrable, avec les sources et la présence d'un ID IMDb |
 | **Paramètres** | toutes les variables ci-dessous, filtrables, persistées en base |
 | **Journal** | les 2 000 derniers événements, filtrables par niveau et par texte |
@@ -155,6 +155,22 @@ n'existe) ; `YOUTUBE_AS_SOURCE=1` l'ajoute à côté de Netflix pour avoir le ch
 
 **Prime Video** ne peut pas être relayé : sa page n'expose aucun flux, seulement une enveloppe chiffrée
 (JWE). L'addon stocke donc les métadonnées, et la bande-annonce vient de TMDB/YouTube.
+
+### Ajouter une vidéo d'une autre plateforme
+
+Plutôt qu'un scraper par site, l'onglet **Ajouter** accepte n'importe quelle **URL de vidéo publique** (MP4 ou
+HLS `.m3u8`) pour un titre déjà en base :
+
+```bash
+curl -X POST https://netflix.mondomaine.fr/admin/add/trailer \
+  -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"id":"81944880","url":"https://exemple/bande-annonce.mp4","title":"Bande-annonce VF"}'
+```
+
+Le fichier est relayé par `/media/<id>/<n>.mp4` ; un HLS est converti en MP4 comme pour Apple TV, avec le
+même cache disque. C'est ce qui permet de couvrir Arte, Dailymotion, un MP4 de distributeur… sans écrire de
+code par plateforme. **Aucun DRM** : un flux protégé (Disney+, Max, Prime) échouera — l'addon ne contourne
+rien.
 
 ## API
 

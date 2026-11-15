@@ -124,6 +124,18 @@ builder.defineStreamHandler(async ({ type, id }) => {
     });
   }
   if (apple.length) hls.prefetch(apple[0].url);   // convertit le flux HLS pendant que l'utilisateur choisit
+  // Liens ajoutés à la main (n'importe quelle plateforme) : relayés par /media/<id>/<n>.mp4,
+  // qui convertit le HLS en MP4 au besoin. C'est la porte d'entrée pour tout ce qui n'a pas
+  // de source dédiée (Arte, Dailymotion, un MP4 de distributeur…).
+  const manual = (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers : [];
+  manual.forEach((t, i) => {
+    if (!t || !t.url) return;
+    streams.push({
+      name: 'Lien', title: `▶ ${t.title || 'Bande-annonce'}${suffix}`,
+      url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
+      behaviorHints: { notWebReady: false, bingeGroup: `manual-trailer-${row.id}` },
+    });
+  });
   // Vidéo YouTube de TMDB (clé `ytId`, que Stremio sait lire) :
   //  - en repli quand aucune bande-annonce Netflix/Apple n'existe ;
   //  - en plus, si YOUTUBE_AS_SOURCE=1, pour avoir la qualité YouTube (1080p) à côté du 432p Netflix.

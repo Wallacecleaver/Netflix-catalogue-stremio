@@ -301,6 +301,18 @@ tbody tr:hover{background:#12121a}
     <div id="ap-res" style="margin-top:12px"></div>
   </div>
 
+  <div class="card addcard" style="--c:var(--green);margin-top:12px">
+    <div class="h"><span class="badge b-ok">Lien direct</span><h3>Ajouter une vidéo par son URL</h3></div>
+    <p class="muted">Pour tout ce qui n'a pas de source dédiée : un MP4 ou un HLS (m3u8) accessible publiquement. Le serveur relaie le fichier et convertit le HLS en MP4 au besoin. Le titre doit déjà exister.</p>
+    <div class="grid g2" style="gap:8px">
+      <input id="man-target" class="inp" placeholder="Titre cible : ID Netflix, ID IMDb (tt…), URL">
+      <input id="man-url" class="inp" placeholder="https://…/bande-annonce.mp4 — ou .m3u8">
+    </div>
+    <div class="field" style="margin-top:8px"><input id="man-title" class="inp" placeholder="Libellé affiché (facultatif)"><button id="man-go" class="btn primary sm" type="button">Ajouter</button></div>
+    <div class="note"><b>!</b> Aucun contournement de DRM : un flux protégé (Disney+, Max, Prime Video) ne fonctionnera pas.</div>
+    <div id="man-res"></div>
+  </div>
+
   <div class="sec"><b>Derniers ajouts</b><span>ce qui vient d'entrer en base</span></div>
   <div class="panel" style="padding:2px 16px"><div class="recent" id="recent-list"><div class="muted" style="padding:12px 0">Chargement…</div></div></div>
 </section>
@@ -570,6 +582,24 @@ tbody tr:hover{background:#12121a}
     var b = e.target.closest('button[data-apple]'); if (!b) return;
     addApple(appleResults[+b.dataset.apple], b).catch(fail);
   });
+
+  /* ---- Ajouter : lien direct (MP4 ou HLS) ---- */
+  function addManual() {
+    var target = $('man-target').value.trim(), url = $('man-url').value.trim(), label = $('man-title').value.trim();
+    if (!target || !url) { (!target ? $('man-target') : $('man-url')).focus(); return; }
+    $('man-go').disabled = true;
+    $('man-res').innerHTML = '<p class="muted"><span class="spinner"></span>Enregistrement…</p>';
+    api('/admin/add/trailer', { id: target, url: url, title: label }).then(function (r) {
+      toast('Bande-annonce ajoutée');
+      $('man-url').value = ''; $('man-title').value = '';
+      $('man-res').innerHTML = '<div class="added"><b>' + esc(r.name || target) + '</b>'
+        + '<div class="muted">' + fmt(r.count) + ' lien(s) enregistré(s) — visible dans les sources de la fiche.</div></div>';
+      refresh(); loadRecent();
+    }).catch(function (e) { $('man-res').innerHTML = ''; fail(e); }).then(function () { $('man-go').disabled = false; });
+  }
+  $('man-go').addEventListener('click', addManual);
+  $('man-target').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('man-url').focus(); });
+  $('man-url').addEventListener('keydown', function (e) { if (e.key === 'Enter') addManual(); });
 
   /* ---- Titres ---- */
   function badges(r) {

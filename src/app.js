@@ -436,6 +436,45 @@ async function appleTrailerHandler(req, res) {
 app.get('/apple/:id/:idx.mp4', appleTrailerHandler);
 app.head('/apple/:id/:idx.mp4', appleTrailerHandler);
 
+// ---- Bandes-annonces ajoutées à la main : n'importe quelle URL publique (MP4 ou HLS) ----
+// Couvre les plateformes sans source dédiée (Arte, Dailymotion, MP4 de distributeur…), stockées dans
+// `extra.manualTrailers` de la fiche ciblée. Aucun contournement de DRM : un flux protégé échouera.
+app.post('/admin/add/trailer', auth, (req, res) => {
+  try {
+    const url = String((req.body && req.body.url) || '').trim();
+    if (!/^https?:\/\//i.test(url)) throw new Error('URL http(s) attendue');
+    const key = String((req.body && (req.body.id || req.body.imdb || req.body.netflix)) || '').trim();
+    if (!key) throw new Error('Titre cible manquant (ID Netflix, ID IMDb ou URL)');
+    let row = store.getTitle(key) || (/^tt\d+$/.test(key) ? store.findByImdbId(key) : null) || store.findByNetflixId(key);
+    if (!row && /netflix\.com\/title\/(\d+)/.test(key)) row = store.findByNetflixId(/netflix\.com\/title\/(\d+)/.exec(key)[1]);
+    if (!row) throw new Error(`Titre inconnu : ${key} — ajoute-le d'abord (onglet Ajouter)`);
+    const extra = { ...(row.extra || {}) };
+    const list = Array.isArray(extra.manualTrailers) ? extra.manualTrailers : [];
+    list.push({ title: String((req.body && req.body.title) || 'Bande-annonce').slice(0, 120), url, addedAt: Date.now() });
+    extra.manualTrailers = list.slice(-5);
+    store.upsertTitle({ id: row.id, type: row.type, name: row.name, extra });
+    log.info('admin', `Bande-annonce ajoutée à la main : ${row.name}`, { url: url.slice(0, 90) });
+    res.json({ ok: true, id: row.id, name: row.name, count: extra.manualTrailers.length });
+  } catch (e) {
+    log.warn('admin', `Bande-annonce refusée : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get('/media/:id/:idx.mp4', async (req, res) => {
+  const row = store.getTitle(String(req.params.id));
+  const list = row && row.extra && Array.isArray(row.extra.manualTrailers) ? row.extra.manualTrailers : [];
+  const t = list[Number(req.params.idx)];
+  if (!t || !t.url) return res.status(404).send('bande-annonce inconnue');
+  try {
+    if (hls.isHls(t.url)) return await serveHls(req, res, t.url);   // HLS → MP4 (même pipeline qu'Apple TV)
+    return await relayVideo(req, res, t.url);
+  } catch (e) {
+    log.error('trailer', `lien manuel ${row.id}/${req.params.idx} : ${e.message}`);
+    if (!res.headersSent) res.status(502).send(`bande-annonce indisponible : ${e.message}`);
+  }
+});
+
 // Stremio relit le manifest régulièrement : un cache court évite de le régénérer à chaque ouverture.
 app.use((req, res, next) => {
   if (req.path === '/manifest.json') res.set('cache-control', 'public, max-age=300');
