@@ -3,11 +3,17 @@ const config = require('./config');
 const store = require('./db');
 const log = require('./log');
 const hls = require('./hls');
+const { assertSafeUrlSync, safeFetch } = require('./security');
 
 // Petite couche « fédération » : une instance peut exposer ses bandes-annonces
 // (API /api/trailers) et/ou en récupérer depuis une instance amont configurée.
 const UPSTREAM_TTL = 6 * 3600 * 1000; // nouvelle tentative au bout de 6 h
 const attempts = new Map();
+
+// Une URL stockée puis relue par le serveur ne doit jamais viser le réseau interne.
+function usableUrl(raw) {
+  try { return assertSafeUrlSync(raw).href; } catch { return null; }
+}
 
 function keyOk(given) {
   if (!config.apiKey) return false;
@@ -39,7 +45,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false } = {}) 
     // URL d'origine. Sinon, sur une fiche à la fois liée à Netflix et enrichie par l'amont, l'index
     // pointait vers le relais Netflix et servait une autre vidéo (ou une 404).
     if (row.netflix_id && t.source !== 'upstream') url = `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`;
-    else if (t.url && /^https?:\/\//i.test(String(t.url))) url = t.url;
+    else if (t.url) url = usableUrl(t.url);
     if (!url) return;
     const item = {
       title: t.title || 'Bande-annonce',
@@ -47,7 +53,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false } = {}) 
       runtime: t.runtime || null,
       source: t.source === 'upstream' ? 'upstream' : 'netflix',
     };
-    if (t.source === 'upstream' && t.url) item.directUrl = t.url;
+    if (t.source === 'upstream' && url) item.directUrl = url;
     out.push(item);
   });
 
@@ -99,6 +105,9 @@ function lookup({ imdb = '', tmdb = '', type = '', netflix = '' } = {}) {
 /** Récupère les trailers d'une instance amont (config UPSTREAM_URL / UPSTREAM_API_KEY). */
 async function fetchFromUpstream({ imdbId, tmdbId, type } = {}) {
   if (!config.upstreamUrl) return [];
+  let base;
+  try { base = assertSafeUrlSync(config.upstreamUrl).href.replace(/\/+$/, ''); }
+  catch (e) { log.warn('upstream', `URL amont refusée (${e.message})`); return []; }
   const params = new URLSearchParams();
   if (imdbId) params.set('imdb', imdbId);
   if (tmdbId) params.set('tmdb', String(tmdbId));
@@ -110,12 +119,13 @@ async function fetchFromUpstream({ imdbId, tmdbId, type } = {}) {
   const options = { headers };
   if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) options.signal = AbortSignal.timeout(8000);
 
-  const res = await fetch(`${config.upstreamUrl}/api/trailers?${params.toString()}`, options);
+  const res = await safeFetch(`${base}/api/trailers?${params.toString()}`, options);
   if (!res.ok) throw new Error(`amont HTTP ${res.status}`);
   const data = await res.json();
   return (Array.isArray(data.trailers) ? data.trailers : [])
-    .filter((t) => t && /^https?:\/\//i.test(String(t.url || '')))
-    .map((t) => ({ title: t.title || 'Bande-annonce', url: t.url, runtime: t.runtime || null, source: 'upstream' }));
+    // On ne garde que des URLs fetchables sans risque (pas d'IP interne, pas de javascript:…).
+    .map((t) => ({ title: t?.title || 'Bande-annonce', url: usableUrl(t?.url), runtime: t?.runtime || null, source: 'upstream' }))
+    .filter((t) => t.url);
 }
 
 /** Si la fiche n'a aucun trailer, tente de les récupérer depuis l'instance amont. */

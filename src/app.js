@@ -21,10 +21,19 @@ const netflixTrailers = require('./netflix-trailers');
 const hls = require('./hls');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
+const { safeFetch, assertSafeUrlSync, securityHeaders, rateLimit } = require('./security');
 
 const app = express();
-app.use(express.json());
-app.set('trust proxy', 'loopback');       // derrière Caddy/Nginx : req.ip = IP réelle du client
+app.disable('x-powered-by');
+app.use(securityHeaders);
+app.use(express.json({ limit: '64kb' }));
+// Derrière Caddy/Nginx : TRUST_PROXY_HOPS=1 donne req.ip = IP réelle du client.
+// 'loopback' = comportement historique (l'en-tête n'est lu que si le pair est local).
+app.set('trust proxy', config.trustProxy);
+
+// Limiteurs dédiés : les routes publiques coûteuses (résolution, relais vidéo) sont bornées.
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, name: 'api' });
+const mediaLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'media' });
 
 // ---- Accès admin : mot de passe = ADMIN_TOKEN (.env) ----
 const attempts = new Map();               // borne les essais : 10 échecs / minute / IP
@@ -62,14 +71,21 @@ function auth(req, res, next) {
 }
 
 // ---- API de fédération : clés API (en-tête x-api-key, Authorization: Bearer, ou ?key=) ----
-// Aucune clé configurée (ni clé créée dans l'onglet API, ni API_KEY historique) = API ouverte : une autre
-// instance n'a besoin que de l'URL. Dès qu'une clé existe, une clé valide devient obligatoire.
+// Fermée par défaut : sans clé créée dans l'onglet API (ni API_KEY historique), les appels sont
+// refusés. ALLOW_OPEN_API=1 ouvre volontairement l'API (une autre instance n'a alors besoin que
+// de l'URL) — déconseillé : n'importe qui peut lire le catalogue et déclencher des résolutions.
 const MAX_API_KEYS = 5;
 const keyHash = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
-const apiIsOpen = () => !config.apiKey && store.countApiKeys() === 0;
+const apiHasKey = () => !!config.apiKey || store.countApiKeys() > 0;
+const apiIsOpen = () => !!config.allowOpenApi;
 
 function apiAuth(req, res, next) {
   if (apiIsOpen()) return next();
+  if (!apiHasKey()) {
+    return res.status(403).json({
+      error: 'API de fédération désactivée : crée une clé dans l\'onglet API (ou ALLOW_OPEN_API=1 pour l\'ouvrir explicitement)',
+    });
+  }
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
   const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
   if (given) {
@@ -382,24 +398,18 @@ app.post('/admin/api/logs/clear', auth, (_req, res) => {
   log.info('admin', 'Journal effacé', { removed });
   res.json({ ok: true, removed });
 });
+// Sonde de santé : volontairement minimale (pas d'inventaire des sources ni des erreurs).
 app.get('/health', (_req, res) => {
-  const s = store.stats();
-  res.json({
-    ok: true, version: manifest.version, uptime: Math.round(process.uptime()),
-    titles: s.total, withTrailer: s.withTrailer, netflix: s.withNetflixTrailer, appletv: s.withAppletv, youtube: s.withYoutube,
-    pending: { netflixPages: s.netflixTrailerPending, unlinked: s.unlinked, vf: s.vfPending, appletv: s.appletvPending },
-    sources: { tmdb: !!config.tmdbKey, appletv: !!config.appletvEnabled, ffmpeg: hls.ffmpegAvailable(), upstream: !!config.upstreamUrl },
-    errors: s.logErrors,
-  });
+  res.json({ ok: true, version: manifest.version, uptime: Math.round(process.uptime()), titles: store.stats().total });
 });
 
 // ---- API de fédération : exposer les bandes-annonces à une autre instance ----
-app.get('/api/status', apiAuth, (_req, res) => {
+app.get('/api/status', apiLimiter, apiAuth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json({ ok: true, version: manifest.version, stats: store.stats() });
 });
 
-app.get('/api/trailers', apiAuth, wrap(async (req, res) => {
+app.get('/api/trailers', apiLimiter, apiAuth, wrap(async (req, res) => {
   res.set('cache-control', 'no-store');
   const imdb = String(req.query.imdb || '').trim();
   const tmdb = String(req.query.tmdb || '').trim();
@@ -454,19 +464,24 @@ app.get('/', (_req, res) => res.redirect('/admin'));
 
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
 const UPSTREAM_HEADERS_TIMEOUT = 15000;
-const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
+// `content-type` est volontairement exclu : voir pipeUpstream().
+const PASS_HEADERS = ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
 
 /** fetch dont le délai ne couvre que l'attente des en-têtes (le corps d'une vidéo se lit pendant des minutes). Coupé si le client part. */
 async function fetchHead(url, headers, res) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), UPSTREAM_HEADERS_TIMEOUT);
   res.once('close', () => ctl.abort());
-  try { return await fetch(url, { headers, signal: ctl.signal }); } finally { clearTimeout(timer); }
+  // safeFetch : URL validée (pas d'adresse interne) et redirections revalidées une par une.
+  try { return await safeFetch(url, { headers, signal: ctl.signal }); } finally { clearTimeout(timer); }
 }
 
 function pipeUpstream(req, res, up) {
   res.status(up.status);
   for (const h of PASS_HEADERS) if (up.headers.get(h)) res.set(h, up.headers.get(h));
+  // Ne JAMAIS relayer le content-type amont : une réponse HTML serait interprétée par le
+  // navigateur et pourrait exécuter du script sur l'origine de l'addon.
+  res.set('content-type', 'video/mp4');
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'HEAD' || !up.body) return res.end();
   const stream = Readable.fromWeb(up.body);
@@ -522,11 +537,11 @@ async function trailerHandler(req, res) {
   } catch (e) {
     console.warn('[trailer]', nid, e.message);
     log.error('trailer', `${nid}/${idx} : ${e.message}`);
-    if (!res.headersSent) res.status(502).send(`bande-annonce indisponible : ${e.message}`);
+    if (!res.headersSent) res.status(502).send('bande-annonce indisponible');
   }
 }
-app.get('/trailer/:nid/:idx.mp4', trailerHandler);
-app.head('/trailer/:nid/:idx.mp4', trailerHandler);
+app.get('/trailer/:nid/:idx.mp4', mediaLimiter, trailerHandler);
+app.head('/trailer/:nid/:idx.mp4', mediaLimiter, trailerHandler);
 
 // ---- Bande-annonce Apple TV : la page fournit un flux HLS, on sert un MP4 converti ----
 async function appleTrailerHandler(req, res) {
@@ -541,11 +556,11 @@ async function appleTrailerHandler(req, res) {
   } catch (e) {
     console.warn('[apple]', id, e.message);
     log.error('trailer', `Apple TV ${id}/${idx} : ${e.message}`);
-    if (!res.headersSent) res.status(502).send(`bande-annonce Apple TV indisponible : ${e.message}`);
+    if (!res.headersSent) res.status(502).send('bande-annonce Apple TV indisponible');
   }
 }
-app.get('/apple/:id/:idx.mp4', appleTrailerHandler);
-app.head('/apple/:id/:idx.mp4', appleTrailerHandler);
+app.get('/apple/:id/:idx.mp4', mediaLimiter, appleTrailerHandler);
+app.head('/apple/:id/:idx.mp4', mediaLimiter, appleTrailerHandler);
 
 // ---- Bandes-annonces ajoutées à la main : n'importe quelle URL publique (MP4 ou HLS) ----
 // Couvre les plateformes sans source dédiée (Arte, Dailymotion, MP4 de distributeur…), stockées dans
@@ -554,6 +569,8 @@ app.post('/admin/add/trailer', auth, (req, res) => {
   try {
     const url = String((req.body && req.body.url) || '').trim();
     if (!/^https?:\/\//i.test(url)) throw new Error('URL http(s) attendue');
+    // Refuse les adresses internes dès l'ajout (le relais les refuserait de toute façon).
+    assertSafeUrlSync(url);
     const key = String((req.body && (req.body.id || req.body.imdb || req.body.netflix)) || '').trim();
     if (!key) throw new Error('Titre cible manquant (ID Netflix, ID IMDb ou URL)');
     let row = store.getTitle(key) || (/^tt\d+$/.test(key) ? store.findByImdbId(key) : null) || store.findByNetflixId(key);
@@ -572,7 +589,7 @@ app.post('/admin/add/trailer', auth, (req, res) => {
   }
 });
 
-app.get('/media/:id/:idx.mp4', async (req, res) => {
+app.get('/media/:id/:idx.mp4', mediaLimiter, async (req, res) => {
   const row = store.getTitle(String(req.params.id));
   const list = row && row.extra && Array.isArray(row.extra.manualTrailers) ? row.extra.manualTrailers : [];
   const t = list[Number(req.params.idx)];
@@ -582,7 +599,7 @@ app.get('/media/:id/:idx.mp4', async (req, res) => {
     return await relayVideo(req, res, t.url);
   } catch (e) {
     log.error('trailer', `lien manuel ${row.id}/${req.params.idx} : ${e.message}`);
-    if (!res.headersSent) res.status(502).send(`bande-annonce indisponible : ${e.message}`);
+    if (!res.headersSent) res.status(502).send('bande-annonce indisponible');
   }
 });
 

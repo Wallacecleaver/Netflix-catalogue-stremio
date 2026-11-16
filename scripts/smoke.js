@@ -3,6 +3,9 @@ process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-$
 process.env.ADMIN_TOKEN = 'test-token';
 process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
 process.env.API_KEY = 'test-api-key';
+// Le test utilise des serveurs locaux (127.0.0.1) : on autorise explicitement les adresses
+// internes, que le garde-fou anti-SSRF refuse par défaut en production.
+process.env.ALLOW_PRIVATE_URLS = '1';
 const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
@@ -346,13 +349,20 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const apiStatus = await (await fetch(`${base}/api/status`, { headers: apiKey })).json();
   assert.equal(apiStatus.ok, true); assert.ok(apiStatus.stats.total >= 1);
 
-  // API_KEY vide = API ouverte : une autre instance n'a besoin que de l'URL (aucune clé).
+  // Sans aucune clé (ni historique ni créée), l'API est FERMÉE par défaut : 403 explicite.
   const cfg = require('../src/config');
+  const savedApiKey = cfg.apiKey;
   cfg.apiKey = '';
+  const closed = await fetch(`${base}/api/trailers?imdb=tt7777777`);
+  assert.equal(closed.status, 403);
+  assert.match((await closed.json()).error, /désactivée/);
+  // ALLOW_OPEN_API=1 l'ouvre volontairement : une autre instance n'a besoin que de l'URL.
+  cfg.allowOpenApi = true;
   const openApi = await (await fetch(`${base}/api/trailers?imdb=tt7777777`)).json();
   assert.equal(openApi.found, true); assert.equal(openApi.title.netflix_id, '77777777');
   assert.equal((await fetch(`${base}/api/status`)).status, 200);
-  cfg.apiKey = 'test-api-key';
+  cfg.allowOpenApi = false;
+  cfg.apiKey = savedApiKey;
 
   // ---- Clés API multiples (onglet API) ----
   const hdrJson = { ...auth, 'content-type': 'application/json' };

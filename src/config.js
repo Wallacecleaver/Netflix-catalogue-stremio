@@ -7,9 +7,19 @@ module.exports = {
   publicUrl: (process.env.PUBLIC_URL || `http://localhost:${num(process.env.PORT, 7000)}`).replace(/\/+$/, ''),
   metaCacheSeconds: num(process.env.META_CACHE_SECONDS, 300),
   apiKey: process.env.API_KEY || '',
+  // API de fédération ouverte uniquement sur demande explicite (sinon une clé est obligatoire).
+  allowOpenApi: process.env.ALLOW_OPEN_API === '1',
   upstreamUrl: (process.env.UPSTREAM_URL || '').replace(/\/+$/, ''),
   upstreamApiKey: process.env.UPSTREAM_API_KEY || '',
   adminToken: process.env.ADMIN_TOKEN || '',
+  // Nombre de reverse proxies de confiance devant l'app ('loopback' = comportement historique).
+  trustProxy: (() => {
+    const raw = process.env.TRUST_PROXY_HOPS;
+    if (raw === undefined || raw === '') return 'loopback';
+    if (raw === '0' || raw === 'false') return false;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 0 ? n : 'loopback';
+  })(),
   region: process.env.REGION || 'FR',
   lang: process.env.TMDB_LANG || 'fr-FR',
   netflixCountry: (process.env.NETFLIX_COUNTRY || 'fr').toLowerCase(),
@@ -36,6 +46,8 @@ module.exports = {
   hlsMaxHeight: num(process.env.HLS_MAX_HEIGHT, 720),      // hauteur maximale des variantes téléchargées
   hlsMaxMB: num(process.env.HLS_MAX_MB, 60),               // poids maximal estimé d'une bande-annonce
   hlsCacheDays: num(process.env.HLS_CACHE_DAYS, 7),        // au-delà, la conversion est refaite
+  hlsMaxDiskMB: num(process.env.HLS_MAX_DISK_MB, 2048),    // plafond du cache disque
+  hlsMaxConcurrent: num(process.env.HLS_MAX_CONCURRENT, 2), // conversions ffmpeg simultanées max
   hlsTimeoutMs: num(process.env.HLS_TIMEOUT_MS, 30000),
   harvestCountries: (process.env.HARVEST_COUNTRIES || 'FR,US,GB,CA').toUpperCase(),
   // Recherche web des fiches Netflix : Brave Search si une clé est fournie, sinon DuckDuckGo (sans clé).

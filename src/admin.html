@@ -572,9 +572,13 @@ tbody tr:hover{background:#12121a}
         + '<button class="btn sm ghost" type="button" data-del="' + k.id + '" data-name="' + esc(k.label) + '" title="Révoquer cette clé">🗑</button></div>';
     });
     if (d.legacy) rows.push('<div class="keyrow"><div><code>clé historique</code><div class="meta"><b>API_KEY</b>définie dans le .env ou dans Paramètres</div><span class="badge">Bandes-annonces (lecture)</span></div></div>');
-    $('k-list').innerHTML = rows.join('') || '<div class="emptystate"><b>Aucune clé</b>L\'API est ouverte : crée une première clé pour la protéger.</div>';
+    $('k-list').innerHTML = rows.join('') || '<div class="emptystate"><b>Aucune clé</b>L\'API est désactivée : crée une première clé pour activer la fédération.</div>';
     $('k-create').disabled = d.keys.length >= d.max;
-    $('k-note').textContent = d.open ? '⚠ API ouverte : toute personne qui connaît l\'URL peut interroger /api/trailers. Crée une clé pour la fermer.' : 'API protégée : une clé valide est requise sur /api/trailers et /api/status.';
+    $('k-note').textContent = d.open
+      ? '⚠ API ouverte (ALLOW_OPEN_API=1) : toute personne qui connaît l\'URL peut interroger /api/trailers. Crée une clé et retire ALLOW_OPEN_API pour la fermer.'
+      : (d.keys.length || d.legacy)
+        ? 'API protégée : une clé valide est requise sur /api/trailers et /api/status.'
+        : 'API désactivée : aucune clé n\'existe, les appels à /api/trailers répondent 403. Crée une clé pour activer la fédération.';
     var base = d.baseUrl || location.origin;
     $('c-base').textContent = base;
     $('c-ep').textContent = 'GET ' + base + '/api/trailers?imdb=tt0111161&type=movie';

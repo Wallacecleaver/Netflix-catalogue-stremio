@@ -31,5 +31,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "stremio-addon-sdk": "^1.6.10"
+  },
+  "overrides": {
+    "path-to-regexp": "^0.1.13",
+    "tmp": "^0.2.6"
   }
 }

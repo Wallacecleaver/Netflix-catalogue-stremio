@@ -130,6 +130,7 @@ défauts.
 |---|---|
 | `APPLETV_ENABLED` (1) | bandes-annonces Apple TV |
 | `HLS_MAX_HEIGHT` (720) · `HLS_MAX_MB` (60) · `HLS_CACHE_DAYS` (7) | conversion HLS → MP4 et cache disque |
+| `HLS_MAX_DISK_MB` (2048) · `HLS_MAX_CONCURRENT` (2) | plafond du cache disque et conversions ffmpeg simultanées |
 | `FFMPEG_PATH` | chemin de `ffmpeg` s'il n'est pas dans le `PATH` — sans lui, les vidéos Apple sont muettes |
 | `YOUTUBE_SEARCH` (1) | chercher sur YouTube quand TMDB n'a aucune vidéo |
 | `YOUTUBE_AS_SOURCE` (0) | proposer YouTube **en plus** de Netflix/Apple (1080p au lieu du 432p Netflix) |
@@ -139,8 +140,11 @@ défauts.
 
 | Variable | Rôle |
 |---|---|
-| `API_KEY` | clé historique exigée par `/api/trailers` — préfère les clés de l'onglet API (vide + aucune clé créée = API ouverte) |
+| `API_KEY` | clé historique exigée par `/api/trailers` - préfère les clés de l'onglet API (sans clé, l'API est fermée ; `ALLOW_OPEN_API=1` l'ouvre sans clé) |
+| `ALLOW_OPEN_API` | `1` = ouvrir `/api/trailers` sans clé (déconseillé) |
 | `UPSTREAM_URL` · `UPSTREAM_API_KEY` | instance amont dont on récupère les bandes-annonces |
+| `TRUST_PROXY_HOPS` (`1` en Docker) | nombre de reverse proxies de confiance (IP réelle, limiteurs, anti-brute-force) |
+| `ALLOW_PRIVATE_URLS` | `1` = autoriser les URL internes dans le relais/fédération (amont Docker uniquement) |
 
 ## D'où viennent les vidéos, et en quelle qualité
 
@@ -174,17 +178,18 @@ rien.
 
 ## API
 
-**Fédération** — ouverte par défaut. Dès qu'une clé existe, elle devient obligatoire. Les clés se gèrent dans
-l'onglet **API** du dashboard : jusqu'à 5 clés avec un libellé, date de création et de dernière utilisation,
-révocation individuelle. Une clé (`wtr_…`) n'est affichée qu'une fois à la création (seule son empreinte SHA-256
-est stockée) et s'envoie en `Authorization: Bearer <clé>`, `x-api-key` ou `?key=`. L'ancienne variable `API_KEY`
-continue de fonctionner.
+**Fédération** — fermée par défaut : tant qu'aucune clé n'existe, `/api/trailers` et `/api/status` répondent
+`403`. Les clés se gèrent dans l'onglet **API** du dashboard : jusqu'à 5 clés avec un libellé, date de création
+et de dernière utilisation, révocation individuelle. Une clé (`wtr_…`) n'est affichée qu'une fois à la création
+(seule son empreinte SHA-256 est stockée) et s'envoie en `Authorization: Bearer <clé>`, `x-api-key` ou `?key=`.
+L'ancienne variable `API_KEY` continue de fonctionner. `ALLOW_OPEN_API=1` rouvre volontairement l'API sans clé
+(déconseillé).
 
 ```bash
-curl "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
-curl "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
-curl "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
-curl "https://netflix.mondomaine.fr/api/status"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/status"
 ```
 
 Réponse : `{ found, pending, title: {…}, trailers: [{ title, url, runtime, source }] }`.
