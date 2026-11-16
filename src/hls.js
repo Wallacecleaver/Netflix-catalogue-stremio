@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const config = require('./config');
 const log = require('./log');
+const { safeFetch, createSemaphore } = require('./security');
 
 // Les bandes-annonces Apple TV sont des flux HLS (.m3u8) : ni Stremio Web ni le navigateur ne les lisent
 // nativement, et le lecteur intégré reste à 0:00 quand on lui donne une playlist à la place d'un MP4.
@@ -23,12 +24,15 @@ const HEADERS = {
 };
 const SEGMENT_CONCURRENCY = 4;
 const inflight = new Map();
+// Deux conversions ffmpeg simultanées au maximum : une salve de requêtes publiques
+// ne doit pas pouvoir saturer le CPU ni le disque de la machine.
+const conversionSlot = createSemaphore(Math.max(1, config.hlsMaxConcurrent || 2));
 
 const isHls = (url) => /\.m3u8(\?|#|$)/i.test(String(url || ''));
 const hostOf = (u) => { try { return new URL(u).host; } catch { return '?'; } };
 
 async function get(url, as = 'text') {
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(config.hlsTimeoutMs) });
+  const res = await safeFetch(url, { headers: HEADERS, signal: AbortSignal.timeout(config.hlsTimeoutMs) });
   if (!res.ok) throw new Error(`HTTP ${res.status} sur ${hostOf(url)}`);
   return as === 'buffer' ? Buffer.from(await res.arrayBuffer()) : res.text();
 }
@@ -242,10 +246,25 @@ async function prune(dir) {
   const now = Date.now();
   let names = [];
   try { names = await fsp.readdir(dir); } catch { return; }
+  const files = [];
   await Promise.all(names.filter((n) => n.endsWith('.mp4')).map(async (n) => {
     const p = path.join(dir, n);
-    try { const st = await fsp.stat(p); if (now - st.mtimeMs > ttl) await fsp.unlink(p); } catch { /* ignore */ }
+    try {
+      const st = await fsp.stat(p);
+      if (now - st.mtimeMs > ttl) await fsp.unlink(p);
+      else files.push({ p, size: st.size, mtimeMs: st.mtimeMs });
+    } catch { /* ignore */ }
   }));
+  // Plafond de disque : au-delà de HLS_MAX_DISK_MB, on supprime les plus anciennes conversions.
+  const maxBytes = (config.hlsMaxDiskMB || 2048) * 1024 * 1024;
+  let total = files.reduce((sum, f) => sum + f.size, 0);
+  if (total <= maxBytes) return;
+  files.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  for (const f of files) {
+    if (total <= maxBytes) break;
+    try { await fsp.unlink(f.p); total -= f.size; } catch { /* ignore */ }
+    try { await fsp.unlink(f.p.replace(/\.mp4$/, '.json')); } catch { /* ignore */ }
+  }
 }
 
 function keyOf(url) {
@@ -271,7 +290,7 @@ async function ensure(url) {
     const silentOnly = meta && meta.tracks < 2 && !!ffmpeg();
     if (meta && fs.existsSync(file) && !silentOnly && Date.now() - meta.builtAt < config.hlsCacheDays * 86400000) return { file, meta, cached: true };
     prune(dir).catch(() => {});
-    return { file, meta: await build(url, file, metaFile), cached: false };
+    return { file, meta: await conversionSlot(() => build(url, file, metaFile)), cached: false };
   })().finally(() => inflight.delete(key));
   inflight.set(key, job);
   return job;

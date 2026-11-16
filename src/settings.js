@@ -8,11 +8,6 @@ const trim = (v) => String(v).trim();
 const stripSlash = (v) => String(v).trim().replace(/\/+$/, '');
 const lower = (v) => String(v).trim().toLowerCase();
 const upper = (v) => String(v).trim().toUpperCase();
-const countryList = (v) => {
-  const list = String(v).split(/[\s,;]+/).map((c) => c.toUpperCase()).filter(Boolean);
-  if (!list.length || list.some((c) => !/^[A-Z]{2}$/.test(c))) throw new Error('HARVEST_COUNTRIES : codes pays à 2 lettres séparés par des virgules (ex. FR,US,GB)');
-  return [...new Set(list)].join(',');
-};
 
 // Toutes les variables éditables depuis /admin → onglet Paramètres.
 const DEFS = [
@@ -27,17 +22,16 @@ const DEFS = [
   { key: 'SYNC_PAGES', prop: 'syncPages', label: 'Pages catalogue complet', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
   { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties (jours)', group: 'Synchronisation', type: 'number', min: 1, max: 365 },
   { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
-  { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés (ex. FR,US,GB,CA)', group: 'Synchronisation', type: 'text', normalize: countryList },
   { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache des fiches (s)', group: 'Stremio', type: 'number', min: 0, max: 86400 },
-  { key: 'API_KEY', prop: 'apiKey', label: 'Clé API (sortie, vide = API ouverte)', group: 'API & fédération', type: 'password', secret: true, minLength: 6 },
+  { key: 'API_KEY', prop: 'apiKey', label: 'Clé API (sortie, vide = API fermée)', group: 'API & fédération', type: 'password', secret: true, minLength: 16 },
   { key: 'UPSTREAM_URL', prop: 'upstreamUrl', label: 'Instance amont (URL)', group: 'API & fédération', type: 'text', normalize: stripSlash },
   { key: 'UPSTREAM_API_KEY', prop: 'upstreamApiKey', label: 'Clé API amont', group: 'API & fédération', type: 'password', secret: true },
-  { key: 'ADMIN_TOKEN', prop: 'adminToken', label: 'Mot de passe du dashboard', group: 'Sécurité', type: 'password', secret: true, minLength: 4 },
+  { key: 'ADMIN_TOKEN', prop: 'adminToken', label: 'Mot de passe du dashboard', group: 'Sécurité', type: 'password', secret: true, minLength: 16 },
 ];
 
 const byKey = new Map(DEFS.map((d) => [d.key, d]));
 
-function coerce(def, raw) {
+function coerce(def, raw, { strict = false } = {}) {
   if (def.type === 'number') {
     const n = Number(String(raw).replace(',', '.'));
     if (!Number.isFinite(n)) throw new Error(`${def.key} : nombre attendu`);
@@ -51,7 +45,9 @@ function coerce(def, raw) {
     return v;
   }
   let v = trim(raw);
-  if (def.minLength && v.length < def.minLength) throw new Error(`${def.key} : ${def.minLength} caractères minimum`);
+  // La longueur minimale n'est imposée qu'à l'enregistrement (strict) : une valeur
+  // ancienne déjà en base continue de fonctionner, sinon l'admin se verrouillerait dehors.
+  if (strict && def.minLength && v.length < def.minLength) throw new Error(`${def.key} : ${def.minLength} caractères minimum`);
   if (def.normalize) v = def.normalize(v);
   if (!v) throw new Error(`${def.key} : valeur vide`);
   return v;
@@ -100,7 +96,7 @@ function save(values = {}) {
     const def = byKey.get(key);
     if (!def) throw new Error(`Paramètre inconnu : ${key}`);
     if (raw === null || raw === '') deletes.push(key);
-    else writes[key] = String(coerce(def, raw));
+    else writes[key] = String(coerce(def, raw, { strict: true }));
   }
   for (const key of deletes) {
     if (key === 'ADMIN_TOKEN' && !process.env.ADMIN_TOKEN) {
@@ -115,5 +111,12 @@ function save(values = {}) {
 }
 
 apply();
+
+if (config.adminToken && String(config.adminToken).length < 16) {
+  console.warn('[sécurité] ADMIN_TOKEN fait moins de 16 caractères : change-le depuis l’onglet Paramètres du dashboard.');
+}
+if (!config.apiKey && !config.allowOpenApi) {
+  console.log('[info] API de fédération fermée (aucune API_KEY). ALLOW_OPEN_API=1 pour l’ouvrir explicitement.');
+}
 
 module.exports = { apply, view, save, DEFS };

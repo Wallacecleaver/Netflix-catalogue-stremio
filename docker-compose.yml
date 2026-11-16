@@ -6,7 +6,18 @@ services:
     env_file: .env
     environment:
       DB_PATH: /app/data/netflix.db
+      # Un seul reverse proxy (Caddy/Nginx) devant le conteneur.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     ports:
       - "127.0.0.1:7000:7000"   # derrière un reverse proxy HTTPS (Caddy/Nginx)
     volumes:
+      # Le conteneur tourne en utilisateur « node » (uid 1000) : si le dossier ./data a été
+      # créé par une ancienne version root, fais une fois : sudo chown -R 1000:1000 ./data
       - ./data:/app/data
+    # Durcissement : pas de nouveaux privilèges, système de fichiers en lecture seule,
+    # /tmp en mémoire (ffmpeg en a besoin).
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp

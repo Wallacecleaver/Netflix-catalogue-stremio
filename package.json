@@ -11,8 +11,6 @@
     "inspect-appletv": "node scripts/inspect-appletv.js",
     "sync": "node scripts/sync.js",
     "netflix-ids": "node scripts/netflix-ids.js",
-    "harvest": "node scripts/harvest-all.js",
-    "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",
     "test": "node scripts/smoke.js",
     "seed": "node scripts/seed.js"
@@ -24,5 +22,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "stremio-addon-sdk": "^1.6.10"
+  },
+  "overrides": {
+    "path-to-regexp": "^0.1.13",
+    "tmp": "^0.2.6"
   }
 }

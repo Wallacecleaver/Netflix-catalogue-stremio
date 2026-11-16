@@ -121,9 +121,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 12p
     { k: 'vf', t: 'IDs IMDb / TMDB', d: 'Associe chaque titre à son ID IMDb via TMDB (nécessite TMDB_API_KEY) pour qu\'il apparaisse sur les fiches Stremio, et complète affiches et synopsis.', st: '/admin/api/vf', go: '/admin/vf', stop: '/admin/vf/stop',
       line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.matched) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.vfPending) + ' à vérifier'; } },
     { k: 'link', t: 'IDs Netflix', d: 'Associe chaque titre à son ID Netflix (via JustWatch) pour récupérer sa bande-annonce Netflix.', st: '/admin/api/netflix-ids', go: '/admin/netflix-ids', stop: '/admin/netflix-ids/stop',
-      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.linked) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.unlinked) + ' à lier'; } },
-    { k: 'harvest', t: 'Moissonnage Netflix', d: 'Liste tout le catalogue Netflix des pays configurés pour ajouter les titres et leurs IDs.', st: '/admin/api/harvest', go: '/admin/harvest', stop: '/admin/harvest/stop', recent: true,
-      line: function (s) { return fmt(s.seen) + ' vus · ' + fmt(s.added) + ' ajoutés · ' + fmt(s.linked) + ' liés'; }, pend: function (s) { return fmt(s.total) + ' titres'; } }
+      line: function (s) { return fmt(s.done) + '/' + fmt(s.total) + ' · ' + fmt(s.linked) + ' liés' + (s.failed ? ' · ' + s.failed + ' erreur(s)' : ''); }, pend: function (s) { return fmt(s.unlinked) + ' à lier'; } }
   ];
   function buildJobs() {
     $('jobs').innerHTML = JOBS.map(function (j) { return '<div class="card job"><div style="display:flex;gap:8px"><h3 style="flex:1">' + j.t + '</h3><span class="muted" id="pend-' + j.k + '"></span></div><p class="muted" style="margin:6px 0 0">' + j.d + '</p>' +

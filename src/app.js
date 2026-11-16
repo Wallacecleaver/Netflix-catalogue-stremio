@@ -11,7 +11,6 @@ const log = require('./log');
 const federation = require('./federation');
 const { ingestNetflix, refreshTrailers } = require('./enrich');
 const link = require('./link');
-const harvest = require('./harvest');
 const vf = require('./vf');
 const search = require('./search');
 const resolve = require('./resolve');
@@ -19,10 +18,18 @@ const appletv = require('./appletv');
 const hls = require('./hls');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
+const { safeFetch, securityHeaders, rateLimit } = require('./security');
 
 const app = express();
-app.use(express.json());
-app.set('trust proxy', 'loopback');       // derrière Caddy/Nginx : req.ip = IP réelle du client
+app.use(securityHeaders);
+app.use(express.json({ limit: '64kb' }));
+// Derrière Caddy/Nginx : TRUST_PROXY_HOPS=1 donne req.ip = IP réelle du client.
+// 'loopback' = comportement historique (l'en-tête n'est lu que si le pair est local).
+app.set('trust proxy', config.trustProxy);
+
+// Limiteurs dédiés : les routes publiques coûteuses (résolution, relais vidéo) sont bornées.
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, name: 'api' });
+const mediaLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'media' });
 
 // ---- Accès admin : mot de passe = ADMIN_TOKEN (.env) ----
 const attempts = new Map();               // borne les essais : 10 échecs / minute / IP
@@ -52,10 +59,15 @@ function auth(req, res, next) {
 }
 
 // ---- API de fédération : clé API (en-tête x-api-key ou ?key=) ----
-// API_KEY vide = API ouverte : une autre instance peut alors utiliser l'URL seule
-// (sécurité par obscurité de l'adresse). Dès qu'une clé est configurée, elle redevient obligatoire.
+// Fermée par défaut : sans API_KEY, il faut l'ouvrir explicitement avec ALLOW_OPEN_API=1.
+// (Avant, une clé vide rendait l'API publique sans que l'admin l'ait demandé.)
 function apiAuth(req, res, next) {
-  if (!config.apiKey) return next();
+  if (!config.apiKey) {
+    if (config.allowOpenApi) return next();
+    return res.status(403).json({
+      error: 'API de fédération désactivée : configure API_KEY (ou ALLOW_OPEN_API=1 pour l’ouvrir explicitement)',
+    });
+  }
   if (!federation.keyOk(req.get('x-api-key') || req.query.key)) {
     return res.status(401).json({ error: 'Clé API invalide' });
   }
@@ -120,28 +132,7 @@ app.post('/admin/netflix-ids/stop', auth, (_req, res) => {
   log.warn('link', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
 });
-// Moissonnage complet du catalogue Netflix (JustWatch) : statut, lancement (tout / dernières sorties), arrêt.
-app.get('/admin/api/harvest', auth, (_req, res) => {
-  res.set('cache-control', 'no-store');
-  res.json(harvest.status());
-});
-app.post('/admin/harvest', auth, (req, res) => {
-  try {
-    const recent = !!(req.body && req.body.recent);
-    const st = harvest.start({ recent });
-    log.info('harvest', `Moissonnage lancé depuis le dashboard (${recent ? 'dernières sorties' : 'catalogue complet'})`);
-    res.json(st);
-  } catch (e) {
-    log.error('harvest', `Échec du lancement : ${e.message}`);
-    res.status(400).json({ error: e.message });
-  }
-});
-app.post('/admin/harvest/stop', auth, (_req, res) => {
-  const st = harvest.stop();
-  log.warn('harvest', 'Arrêt demandé depuis le dashboard', { seen: st.seen });
-  res.json(st);
-});
-// Bandes-annonces VF (TMDB) : statut, lancement, arrêt. Complète aussi affiches/synopsis des fiches moissonnées.
+// Bandes-annonces VF (TMDB) : statut, lancement, arrêt. Complète aussi affiches/synopsis des fiches sans affiche.
 app.get('/admin/api/vf', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json(vf.status());
@@ -247,15 +238,15 @@ app.post('/admin/api/logs/clear', auth, (_req, res) => {
   log.info('admin', 'Journal effacé', { removed });
   res.json({ ok: true, removed });
 });
-app.get('/health', (_req, res) => res.json({ ok: true, titles: store.count() }));
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---- API de fédération : exposer les bandes-annonces à une autre instance ----
-app.get('/api/status', apiAuth, (_req, res) => {
+app.get('/api/status', apiLimiter, apiAuth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json({ ok: true, version: manifest.version, stats: store.stats() });
 });
 
-app.get('/api/trailers', apiAuth, async (req, res) => {
+app.get('/api/trailers', apiLimiter, apiAuth, async (req, res) => {
   res.set('cache-control', 'no-store');
   const imdb = String(req.query.imdb || '').trim();
   const tmdb = String(req.query.tmdb || '').trim();
@@ -289,9 +280,12 @@ app.get('/', (_req, res) => res.redirect('/admin'));
 async function relayVideo(req, res, url, { range = true } = {}) {
   const headers = { 'user-agent': UA };
   if (range && req.headers.range) headers.range = req.headers.range;
-  const up = await fetch(url, { headers });
+  const up = await safeFetch(url, { headers });
   res.status(up.status);
-  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+  // Ne JAMAIS relayer le content-type amont : une réponse HTML serait interprétée
+  // par le navigateur et pourrait exécuter du script sur l'origine de l'addon.
+  res.set('content-type', 'video/mp4');
+  for (const h of ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
     if (up.headers.get(h)) res.set(h, up.headers.get(h));
   }
   res.set('Access-Control-Allow-Origin', '*');
@@ -333,13 +327,15 @@ async function trailerHandler(req, res) {
     if (!url || (t.expires && t.expires < Date.now() + 120000)) url = (await refreshTrailers(nid))[idx]?.url;
     if (!url) throw new Error('lien vidéo indisponible');
     if (hls.isHls(url)) return await serveHls(req, res, url);
-    let up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } });
+    let up = await safeFetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } });
     if (up.status === 403 || up.status === 410) {            // lien périmé côté Netflix : on le renouvelle une fois
       const fresh = (await refreshTrailers(nid))[idx]?.url;
-      if (fresh) { url = fresh; up = await fetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } }); }
+      if (fresh) { url = fresh; up = await safeFetch(url, { headers: { 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) } }); }
     }
     res.status(up.status);
-    for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+    // Type forcé (voir relayVideo) : jamais de content-type amont arbitraire.
+    res.set('content-type', 'video/mp4');
+    for (const h of ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
       if (up.headers.get(h)) res.set(h, up.headers.get(h));
     }
     res.set('Access-Control-Allow-Origin', '*');
@@ -351,11 +347,11 @@ async function trailerHandler(req, res) {
   } catch (e) {
     console.warn('[trailer]', nid, e.message);
     log.error('trailer', `${nid}/${idx} : ${e.message}`);
-    if (!res.headersSent) res.status(502).send(`bande-annonce indisponible : ${e.message}`);
+    if (!res.headersSent) res.status(502).send('bande-annonce indisponible');
   }
 }
-app.get('/trailer/:nid/:idx.mp4', trailerHandler);
-app.head('/trailer/:nid/:idx.mp4', trailerHandler);
+app.get('/trailer/:nid/:idx.mp4', mediaLimiter, trailerHandler);
+app.head('/trailer/:nid/:idx.mp4', mediaLimiter, trailerHandler);
 
 // ---- Bande-annonce Apple TV : la page fournit un flux HLS, on sert un MP4 converti ----
 async function appleTrailerHandler(req, res) {
@@ -370,11 +366,11 @@ async function appleTrailerHandler(req, res) {
   } catch (e) {
     console.warn('[apple]', id, e.message);
     log.error('trailer', `Apple TV ${id}/${idx} : ${e.message}`);
-    if (!res.headersSent) res.status(502).send(`bande-annonce Apple TV indisponible : ${e.message}`);
+    if (!res.headersSent) res.status(502).send('bande-annonce Apple TV indisponible');
   }
 }
-app.get('/apple/:id/:idx.mp4', appleTrailerHandler);
-app.head('/apple/:id/:idx.mp4', appleTrailerHandler);
+app.get('/apple/:id/:idx.mp4', mediaLimiter, appleTrailerHandler);
+app.head('/apple/:id/:idx.mp4', mediaLimiter, appleTrailerHandler);
 
 app.use(getRouter(builder.getInterface()));
 

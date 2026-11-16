@@ -3,6 +3,9 @@ process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-$
 process.env.ADMIN_TOKEN = 'test-token';
 process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
 process.env.API_KEY = 'test-api-key';
+// Le test utilise des serveurs locaux (127.0.0.1) : on autorise explicitement les adresses
+// internes, que le garde-fou anti-SSRF refuse par défaut en production.
+process.env.ALLOW_PRIVATE_URLS = '1';
 const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
@@ -145,9 +148,6 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/e.m3u8', fpsNonceServerUrl: 'https://k' }] })[0].url, 'https://x/e.m3u8');
   assert.deepEqual(ap.extractTrailers({ a: [{ type: 'Episode', hlsUrl: 'https://x/ep.m3u8' }] }), []);   // flux d'épisode : ignoré
   assert.equal(ap.extractTrailers({ a: [{ type: 'Trailer', hlsUrl: 'https://x/t.m3u8?a=1&amp;id=5' }] })[0].url, 'https://x/t.m3u8?a=1&id=5');
-  const hv = require('../src/harvest');
-  assert.deepEqual(hv.countryList('fr, us;gb  CA fr'), ['FR', 'US', 'GB', 'CA']);   // dédoublonné, majuscules
-  assert.deepEqual(hv.countryList('xx1,'), ['FR']);                                   // invalide → repli
   // Relais vidéo : faux serveur Netflix avec support des Range
   const http = require('http');
   const BODY = Buffer.from('0123456789abcdef');
@@ -297,13 +297,17 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const apiStatus = await (await fetch(`${base}/api/status`, { headers: apiKey })).json();
   assert.equal(apiStatus.ok, true); assert.ok(apiStatus.stats.total >= 1);
 
-  // API_KEY vide = API ouverte : une autre instance n'a besoin que de l'URL (aucune clé).
+  // API_KEY vide = API fermée par défaut ; ALLOW_OPEN_API=1 l'ouvre explicitement.
   const cfg = require('../src/config');
+  const oldApiKey = cfg.apiKey;
   cfg.apiKey = '';
+  assert.equal((await fetch(`${base}/api/trailers?imdb=tt7777777`)).status, 403);
+  cfg.allowOpenApi = true;
   const openApi = await (await fetch(`${base}/api/trailers?imdb=tt7777777`)).json();
   assert.equal(openApi.found, true); assert.equal(openApi.title.netflix_id, '77777777');
   assert.equal((await fetch(`${base}/api/status`)).status, 200);
-  cfg.apiKey = 'test-api-key';
+  cfg.allowOpenApi = false;
+  cfg.apiKey = oldApiKey;
 
   // Client amont : récupère les trailers d'une autre instance (avec sa clé)
   const federation = require('../src/federation');
@@ -337,20 +341,11 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const linkedRow = exported.find((r) => r.netflix_id === '77777777');
   assert.ok(linkedRow); assert.equal(linkedRow.name, 'Film lié');
 
-  // Moissonnage du catalogue : statut protégé par le token, aucun job au repos, arrêt sans effet quand rien ne tourne
-  assert.equal((await fetch(`${base}/admin/api/harvest`)).status, 401);
-  const hStatus = await (await fetch(`${base}/admin/api/harvest`, { headers: auth })).json();
-  assert.equal(hStatus.running, false); assert.equal(hStatus.percent, 0); assert.equal(typeof hStatus.seen, 'number');
+  // Bandes-annonces VF : statut protégé par le token, aucun job au repos
   assert.equal((await fetch(`${base}/admin/api/vf`)).status, 401);
   const vStatus = await (await fetch(`${base}/admin/api/vf`, { headers: auth })).json();
   assert.equal(vStatus.running, false); assert.equal(typeof vStatus.matched, 'number');
   assert.equal(typeof summary.stats.vfPending, 'number');
-  assert.equal((await fetch(`${base}/admin/harvest/stop`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })).status, 200);
-  const hs = require('../src/harvest').yearSlices({ from: 2025, to: 2026 });
-  assert.deepEqual(hs.map((s) => s.minYear), [2026, 2025]);                           // récent d'abord, année par année
-  const saved = require('../src/harvest').saveItem({ netflixId: '99990001', type: 'movie', name: 'Moissonné', year: 2026, tmdbId: null, imdbId: null, releaseDate: '2026-11-01' });
-  assert.equal(saved, 'added'); assert.equal(store.findByNetflixId('99990001').id, 'nflx:99990001');
-  assert.equal(require('../src/harvest').saveItem({ netflixId: '99990001', type: 'movie', name: 'Moissonné' }), 'known');
 
   // Journal : écriture, API filtrée par niveau, protection, effacement
   const log = require('../src/log');
