@@ -120,6 +120,7 @@ défauts.
 | `REGION` (FR) · `TMDB_LANG` (fr-FR) · `NETFLIX_COUNTRY` (fr) | région et langues |
 | `CATALOG_PROVIDERS` (`8,337`) | plateformes listées par TMDB : `8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime ; `all` = tout TMDB |
 | `SYNC_PAGES` (5) · `SYNC_EVERY_HOURS` (24) | ampleur et fréquence de la synchro |
+| `NETFLIX_REFRESH_HOURS` (4) | relecture automatique d'une page Netflix ouverte (nouveau teaser / nouvelle saison) |
 | `RECENT_DAYS` (90) · `RECENT_PAGES` (3) | fenêtre des « dernières sorties » |
 | `HARVEST_COUNTRIES` (`FR,US,GB,CA`) | pays moissonnés (l'ID Netflix est le même partout, on fait l'union) |
 | `RESOLVE_ENABLED` (1) | résolution à la demande à l'ouverture d'une fiche inconnue |

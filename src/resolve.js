@@ -66,7 +66,13 @@ async function findNetflix(info) {
 async function work(imdb, type, existing) {
   const info = await tmdb.findByImdb(imdb, type);
   if (!info) { store.setLookup(imdb, false); return existing; }
-  const [bs, nf] = await Promise.allSettled([tmdb.basics(info.tmdbType, info.tmdbId), findNetflix(info)]);
+  const knownNid = existing && existing.netflix_id ? String(existing.netflix_id) : null;
+  const [bs, nf] = await Promise.allSettled([
+    tmdb.basics(info.tmdbType, info.tmdbId),
+    knownNid
+      ? netflix.fetchNetflixPage(knownNid).then((html) => ({ nid: knownNid, html }))
+      : findNetflix(info),
+  ]);
   const b = bs.status === 'fulfilled' ? bs.value : {};
   const net = nf.status === 'fulfilled' ? nf.value : {};
 

@@ -6,7 +6,7 @@ const federation = require('./federation');
 const appletv = require('./appletv');
 const hls = require('./hls');
 const resolve = require('./resolve');
-const { enrichTitle } = require('./enrich');
+const { enrichTitle, ensureFreshTrailers } = require('./enrich');
 
 const TYPES = ['movie', 'series'];
 
@@ -18,7 +18,7 @@ const appleRelay = (row, index) => `${config.publicUrl}/apple/${encodeURICompone
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.stockage-db',
-  version: '2.7.0',
+  version: '2.7.1',
   name: 'Stockage DB',
   description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
@@ -84,6 +84,7 @@ builder.defineMetaHandler(async ({ id }) => {
     try { row = (await enrichTitle(id)) || row; }
     catch (e) { log.warn('enrich', `${id} : ${e.message}`); console.warn('[enrich]', id, e.message); }
   }
+  if (row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 5000 });
   row = await federation.ensureUpstreamTrailers(row);
   row = await appletv.ensure(row);
   return { meta: buildMeta(row, store.getEpisodes(id)), cacheMaxAge: config.metaCacheSeconds };
@@ -91,6 +92,15 @@ builder.defineMetaHandler(async ({ id }) => {
 
 /** `nflx:tv-123`, `nflx:81944880` ou un épisode `nflx:81944880:1:2` → ID de la fiche (`nflx:xxx`, `prime:xxx`, `apple:xxx`). */
 const baseId = (id) => String(id).split(':').slice(0, 2).join(':');
+
+/** Numéro de saison extrait d'un ID d'épisode Stremio (`tt1234567:2:1` ou `nflx:81024821:2:1`). */
+function seasonFromId(type, id) {
+  if (type !== 'series') return null;
+  const p = String(id).split(':');
+  const raw = /^(nflx|prime|apple)$/.test(p[0]) ? p[2] : p[1];
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 /** Fiche stockée pour un ID Stremio : `nflx:…` (direct) ou `tt1234567` / `tt1234567:1:2` (via l'ID IMDb). */
 function resolveRow(id) {
@@ -104,10 +114,12 @@ function resolveRow(id) {
 
 // Flux, dans l'ordre : Netflix (ou instance amont, relayée par /trailer/... quand un ID
 // Netflix est connu), puis Apple TV (HLS converti en MP4 et relayé par /apple/...).
-// Proposés aussi sur chaque épisode d'une série.
+// Proposés aussi sur chaque épisode d'une série (avec tri par saison demandée).
 builder.defineStreamHandler(async ({ type, id }) => {
   let row = resolveRow(id);
   const imdb = String(id).split(':')[0];
+  const reqSeason = seasonFromId(type, id);
+  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 5000 });
   if (/^tt\d+$/.test(imdb)) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 9000 })) || row;   // fiche inconnue : TMDB → web → bande-annonce
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);
@@ -115,7 +127,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
   const isEpisode = type === 'series' && String(id).split(':').length > 2;
   const suffix = isEpisode ? ' (série)' : '';
   const streams = [];
-  for (const t of federation.trailerUrls(row)) {
+  for (const t of federation.trailerUrls(row, { season: reqSeason })) {
     streams.push({
       name: t.source === 'upstream' ? 'Amont' : 'Netflix',
       title: `▶ ${t.title}${suffix}`,

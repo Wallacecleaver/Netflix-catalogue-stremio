@@ -27,6 +27,7 @@ const DEFS = [
   { key: 'BRAVE_COUNTRY', prop: 'braveCountry', label: 'Pays Brave Search', group: 'Recherche web', type: 'text', normalize: upper },
   { key: 'BRAVE_LANG', prop: 'braveLang', label: 'Langue Brave Search', group: 'Recherche web', type: 'text', normalize: lower },
   { key: 'SYNC_EVERY_HOURS', prop: 'syncEveryHours', label: 'Cycle de synchro (heures)', group: 'Synchronisation', type: 'number', min: 1, max: 720, restart: true },
+  { key: 'NETFLIX_REFRESH_HOURS', prop: 'netflixRefreshHours', label: 'Relecture d\'une page Netflix ouverte (heures, nouveaux teasers/saisons)', group: 'Synchronisation', type: 'number', min: 1, max: 720 },
   { key: 'SYNC_PAGES', prop: 'syncPages', label: 'Pages catalogue complet', group: 'Synchronisation', type: 'number', min: 1, max: 500 },
   { key: 'CATALOG_PROVIDERS', prop: 'catalogProviders', label: 'Plateformes du catalogue (8=Netflix, 337=Apple TV+, 2=Apple TV, 119=Prime, all=tout TMDB)', group: 'Synchronisation', type: 'text' },
   { key: 'YOUTUBE_AS_SOURCE', prop: 'youtubeAsSource', label: 'Proposer aussi YouTube à côté de Netflix/Apple (1 = oui, qualité 1080p, 0 = seulement en repli)', group: 'Synchronisation', type: 'select', options: ['0', '1'] },

@@ -1,8 +1,10 @@
 const config = require('./config');
 const store = require('./db');
+const log = require('./log');
 const tmdb = require('./tmdb');
 
-const { parseNetflixId, fetchNetflixPage, parseNetflixHtml } = require('./netflix');
+const netflix = require('./netflix');
+const { parseNetflixId, parseNetflixHtml } = netflix;
 
 // Stremio exige une date `released` par épisode. Netflix n'en donne pas : on part de la date de mise en ligne,
 // avec un décalage de quelques secondes pour conserver l'ordre (sans créer d'épisodes "dans le futur").
@@ -44,7 +46,7 @@ function mergeEpisodes(netflixEps, tmdbEps) {
 async function ingestNetflix(input, opts = {}) {
   const nid = parseNetflixId(input);
   if (!nid) throw new Error('URL ou ID Netflix invalide');
-  const n = parseNetflixHtml(opts.html || (await fetchNetflixPage(nid)));
+  const n = parseNetflixHtml(opts.html || (await netflix.fetchNetflixPage(nid)));
   if (!n.name) throw new Error('Titre illisible (page bloquée ou structure changée) — lance `npm run inspect -- ' + nid + '`');
 
   let t = null;
@@ -59,6 +61,7 @@ async function ingestNetflix(input, opts = {}) {
   const id = `nflx:${nid}`;
   const year = n.year || t?.year || null;
   const releaseDate = n.releaseDate || t?.release_date || null;
+  const now = Date.now();
 
   const hasTmdbPoster = !!t?.poster;
   store.upsertTitle({
@@ -72,10 +75,10 @@ async function ingestNetflix(input, opts = {}) {
     poster: t?.poster || n.image,                       // TMDB = affiche verticale, sinon visuel horizontal Netflix
     background: n.background || t?.background || n.image,
     logo: n.logo || t?.logo,
-    trailers: n.trailers, runtime: t?.runtime,
+    trailers: n.trailers, trailers_checked: now, runtime: t?.runtime,
     extra: {
       directors: n.directors, creators: n.creators, netflixGenres: n.netflixGenres, tags: n.tags,
-      seasonLabels: n.seasonLabels, posterShape: hasTmdbPoster ? 'poster' : 'landscape', fetchedAt: Date.now(),
+      seasonLabels: n.seasonLabels, posterShape: hasTmdbPoster ? 'poster' : 'landscape', fetchedAt: now,
     },
     enriched: 1,
   });
@@ -111,18 +114,55 @@ async function enrichTitle(id) {
   return store.getTitle(id);
 }
 
-// Re-télécharge la page pour obtenir des liens vidéo Netflix frais (les liens signés expirent en quelques heures).
+// Re-télécharge la page pour obtenir des liens vidéo Netflix frais et capter tout nouveau teaser / nouvelle saison.
 const inflight = new Map();
 function refreshTrailers(nid) {
-  if (!inflight.has(nid)) {
-    inflight.set(nid, (async () => {
-      const n = parseNetflixHtml(await fetchNetflixPage(nid));
-      const row = store.findByNetflixId(nid);
-      if (row && n.trailers.length) store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers: n.trailers });
+  const key = String(nid);
+  if (!inflight.has(key)) {
+    inflight.set(key, (async () => {
+      const n = parseNetflixHtml(await netflix.fetchNetflixPage(key));
+      const row = store.findByNetflixId(key);
+      if (row && n.name) {
+        const now = Date.now();
+        const patch = {
+          id: row.id, type: row.type, name: row.name, trailers_checked: now,
+          extra: { ...(row.extra || {}), seasonLabels: n.seasonLabels || row.extra?.seasonLabels, fetchedAt: now },
+        };
+        if (n.trailers.length) patch.trailers = n.trailers;
+        store.upsertTitle(patch);
+      }
       return n.trailers;
-    })().finally(() => inflight.delete(nid)));
+    })().finally(() => inflight.delete(key)));
   }
-  return inflight.get(nid);
+  return inflight.get(key);
 }
 
-module.exports = { refreshTrailers, ingestNetflix, enrichTitle, withReleased, mergeEpisodes };
+/**
+ * Une fiche liée à Netflix doit-elle relire sa page ?
+ * - page jamais lue (ex. moissonnage JustWatch) : oui, immédiatement ;
+ * - dernière lecture plus vieille que `NETFLIX_REFRESH_HOURS` (défaut 4 h) : oui, pour capter un nouveau teaser/saison ;
+ * - ancienne fiche sans horodatage : oui dès qu'un lien signé Netflix (`?e=…`) est expiré.
+ */
+function isNetflixStale(row) {
+  if (!row || !row.netflix_id) return false;
+  const ttlMs = Math.max(1, Number(config.netflixRefreshHours) || 4) * 3600 * 1000;
+  const now = Date.now();
+  const list = Array.isArray(row.trailers) ? row.trailers.filter((t) => t && t.source !== 'upstream') : [];
+  const checkedAt = Number(row.trailers_checked || row.extra?.fetchedAt || row.extra?.netflixLinkedAt || 0);
+  if (!list.length) return !checkedAt || (now - checkedAt > ttlMs);
+  if (checkedAt && now - checkedAt > ttlMs) return true;
+  return list.some((t) => t.expires && t.expires < now);
+}
+
+/** Relit la page Netflix d'une fiche si elle est périmée ou jamais lue, sans jamais bloquer au-delà de `timeoutMs`. */
+async function ensureFreshTrailers(row, { timeoutMs = 4500 } = {}) {
+  if (!row || !row.netflix_id || !config.netflixRefreshEnabled || !isNetflixStale(row)) return row;
+  const job = refreshTrailers(row.netflix_id).catch((e) => {
+    log.warn('netflix', `Rafraîchissement ${row.netflix_id} (${row.name}) : ${e.message}`);
+    return null;
+  });
+  await Promise.race([job, new Promise((r) => setTimeout(r, timeoutMs))]);
+  return store.getTitle(row.id) || row;
+}
+
+module.exports = { refreshTrailers, ensureFreshTrailers, isNetflixStale, ingestNetflix, enrichTitle, withReleased, mergeEpisodes };

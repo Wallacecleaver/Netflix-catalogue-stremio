@@ -2,6 +2,7 @@
 process.env.DB_PATH = require('path').join(require('os').tmpdir(), `stockage-db-smoke-${Date.now()}.db`);
 process.env.ADMIN_TOKEN = 'test-token';
 process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
+process.env.NETFLIX_REFRESH = '0';   // test hors-ligne : testé explicitement avec fetchNetflixPage simulé
 process.env.API_KEY = 'test-api-key';
 // Le test utilise des serveurs locaux (127.0.0.1) : on autorise explicitement les adresses
 // internes, que le garde-fou anti-SSRF refuse par défaut en production.
@@ -493,6 +494,58 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(del.status, 200); assert.equal(store.getTitle('nflx:55550002'), null);
   assert.equal((await fetch(`${base}/admin/titles/delete`, { method: 'POST', headers: jsonHdr, body: JSON.stringify({ id: 'nflx:55550002' }) })).status, 404);
   assert.equal((await fetch(`${base}/admin/titles/delete`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
+
+  // ---- Nouvelles saisons & teasers (v2.7.1) : tri par saison + relecture automatique d'une fiche Netflix périmée ----
+  const fedMod = require('../src/federation');
+  assert.equal(fedMod.detectSeason('Saison 2 (Teaser) : Le Problème à 3 corps'), 2);
+  assert.equal(fedMod.detectSeason('Le Problème à 3 corps : Saison 1 – Au cœur de l\'épisode 1'), 1);
+  assert.equal(fedMod.detectSeason('Bande-annonce : Le Problème à 3 corps'), null);      // « 3 corps » ≠ saison 3
+  assert.equal(fedMod.detectKind({ title: 'Saison 2 (Teaser) : Le Problème à 3 corps', runtime: 98 }), 'teaser');
+  assert.equal(fedMod.detectKind({ title: 'Le Problème à 3 corps : Saison 1 – Au cœur de l\'épisode 1', runtime: 436 }), 'extra');
+
+  // Fiche déjà en base avec seulement les vidéos de la Saison 1 (lue il y a 10 h) :
+  // l'ouverture dans Stremio / l'API relit la page Netflix et capte le nouveau teaser de la Saison 2.
+  const tenHoursAgo = Date.now() - 10 * 3600 * 1000;
+  store.upsertTitle({
+    id: 'nflx:81024821', netflix_id: '81024821', imdb_id: 'tt13016388', type: 'series', name: 'Le Problème à 3 corps',
+    trailers_checked: tenHoursAgo, enriched: 1,
+    trailers: [
+      { title: 'Le Problème à 3 corps : Saison 1 – Au cœur de l\'épisode 1', runtime: 436, url: 'https://v.nflx/ep1.mp4', expires: Date.now() - 1000 },
+      { title: 'Le Problème à 3 corps : Saison 1 (Dans cette saison)', runtime: 70, url: 'https://v.nflx/s1.mp4', expires: Date.now() - 1000 },
+    ],
+  });
+  let refreshHits = 0;
+  const s2Detail = {
+    ...detail, videoId: 81024821, title: 'Le Problème à 3 corps',
+    trailers: { edges: [
+      { node: { title: 'Saison 2 (Teaser) : Le Problème à 3 corps', runtimeSec: 98, videoId: 10, playableVideo: { url: `https://v.nflx/s2.mp4?e=${Math.floor(Date.now() / 1000) + 3600}` } } },
+      { node: { title: 'Le Problème à 3 corps : Saison 1 – Au cœur de l\'épisode 1', runtimeSec: 436, videoId: 11, playableVideo: { url: `https://v.nflx/ep1.mp4?e=${Math.floor(Date.now() / 1000) + 3600}` } } },
+      { node: { title: 'Le Problème à 3 corps : Saison 1 (Dans cette saison)', runtimeSec: 70, videoId: 12, playableVideo: { url: `https://v.nflx/s1.mp4?e=${Math.floor(Date.now() / 1000) + 3600}` } } },
+    ] },
+  };
+  const s2Ctx = { models: { graphqlClcs: { data: { q: { clcsHookV2: { result: { screen: { componentTree: { nodes: [{ data: { videos: [s2Detail] } }] } } } } } } } } };
+  const s2Html = `<html><head><meta property="og:url" content="https://www.netflix.com/fr/title/81024821"/></head><body><script>netflix.reactContext = ${JSON.stringify(s2Ctx)};</script></body></html>`;
+  nfMod.fetchNetflixPage = async (nid) => { assert.equal(nid, '81024821'); refreshHits++; return s2Html; };
+  cfgR.netflixRefreshEnabled = true;
+
+  // Ouverture d'un épisode de la Saison 2 : la page Netflix est relue et le Teaser Saison 2 passe n°1
+  const s2Streams = (await iface.get('stream', 'series', 'tt13016388:2:1')).streams;
+  assert.equal(refreshHits, 1);
+  assert.match(s2Streams[0].title, /Saison 2 \(Teaser\)/);
+  assert.match(s2Streams[0].url, /\/trailer\/81024821\/0\.mp4$/);
+  // 2e ouverture immédiate (Saison 1) : pas de nouvelle requête Netflix, et « Saison 1 (Dans cette saison) » passe n°1 (avec son index 2 conservé)
+  const s1Streams = (await iface.get('stream', 'series', 'tt13016388:1:1')).streams;
+  assert.equal(refreshHits, 1);
+  assert.match(s1Streams[0].title, /Saison 1 \(Dans cette saison\)/);
+  assert.match(s1Streams[0].url, /\/trailer\/81024821\/2\.mp4$/);
+
+  // /api/trailers?season=2&strict_season=1 : ne renvoie que les vidéos de la saison 2
+  const apiS2 = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1`, { headers: apiKey })).json();
+  assert.equal(apiS2.found, true); assert.equal(apiS2.trailers.length, 1);
+  assert.equal(apiS2.trailers[0].season, 2); assert.equal(apiS2.trailers[0].kind, 'teaser');
+  const apiS3 = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=3&strict_season=1`, { headers: apiKey })).json();
+  assert.equal(apiS3.found, false); assert.equal(apiS3.trailers.length, 0);
+  cfgR.netflixRefreshEnabled = false;
 
   app.close(); upstream.close();
   console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');

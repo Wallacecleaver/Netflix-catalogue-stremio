@@ -110,6 +110,7 @@ async function linkOne(row, { refresh = false } = {}) {
     trailer_yt: first(row.trailer_yt, t?.trailer_yt, twin?.trailer_yt),
     runtime: first(row.runtime, t?.runtime, twin?.runtime),
     trailers: first(n?.trailers, row.trailers, twin?.trailers) || [],
+    ...(n ? { trailers_checked: Date.now() } : {}),
     extra: {
       ...(row.extra || {}),
       directors: first(row.extra?.directors, n?.directors, t?.directors) || [],

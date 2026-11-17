@@ -9,7 +9,7 @@ const { HTML: ADMIN_HTML } = require('./admin');
 const settings = require('./settings');
 const log = require('./log');
 const federation = require('./federation');
-const { ingestNetflix, refreshTrailers } = require('./enrich');
+const { ingestNetflix, refreshTrailers, ensureFreshTrailers } = require('./enrich');
 const { ingestPrime } = require('./primevideo');
 const link = require('./link');
 const harvest = require('./harvest');
@@ -415,30 +415,34 @@ app.get('/api/trailers', apiLimiter, apiAuth, wrap(async (req, res) => {
   const tmdb = String(req.query.tmdb || '').trim();
   const netflix = String(req.query.netflix || '').trim();
   const type = String(req.query.type || '').trim();
+  const season = Number(req.query.season) || null;
+  const strictSeason = String(req.query.strict_season || '') === '1';
   if (!imdb && !tmdb && !netflix) {
     return res.status(400).json({ error: 'paramètre imdb, tmdb ou netflix requis' });
   }
   let row = federation.lookup({ imdb, tmdb, type, netflix });
+  // Si la fiche Netflix existe déjà (moissonnée sans vidéo, ou lue il y a > NETFLIX_REFRESH_HOURS),
+  // on relit sa page Netflix pour capter tout nouveau teaser / nouvelle saison.
+  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 3500 });
   // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
-  // Attente bornée à 5 s (le client vf-trailer-wallace abandonne à 6 s) ; au-delà, `pending: true` et la recherche continue.
   // Attente bornée : l'instance cliente abandonne souvent à 6 s, on lui laisse de la marge réseau.
   if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4000 })) || row;
   const pending = !!imdb && resolve.isPending(imdb);
   if (!row) return res.json({ found: false, pending, trailers: [] });
-  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels.
-  // Sans les deux dernières, une série qui n'a que de l'Apple TV (Nocturne, par exemple) était
-  // annoncée « aucune bande-annonce » à l'instance amont.
-  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
+  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels,
+  // triées pour la saison demandée (vraies bandes-annonces/teasers avant les bonus longs).
+  let trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
+  if (strictSeason && season > 0) trailers = trailers.filter((t) => t.season === season);
   // Trace dans le Journal : c'est le seul moyen de savoir si une instance cliente (vf-trailer) nous
   // appelle vraiment, et ce qu'on lui a répondu. Volume faible (le client met en cache 6 h).
   const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
-  if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(',') });
-  else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending });
+  if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(','), ...(season ? { season } : {}) });
+  else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending, ...(season ? { season } : {}) });
 
   // `?debug=1` : explique pourquoi une instance cliente ne reçoit rien (même sans bande-annonce).
   const debug = String(req.query.debug || '') === '1' ? {
-    query: { imdb, tmdb, netflix, type },
-    fiche: row ? { id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id, netflix_id: row.netflix_id } : null,
+    query: { imdb, tmdb, netflix, type, season, strictSeason },
+    fiche: row ? { id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id, netflix_id: row.netflix_id, trailers_checked: row.trailers_checked || null } : null,
     counts: row ? {
       netflix: (row.trailers || []).length,
       appletv: (row.appletv || []).length,
