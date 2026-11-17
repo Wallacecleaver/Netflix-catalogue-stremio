@@ -1,12 +1,11 @@
-# W stockage bande annonce — addon Stremio
+# Stockage DB — addon Stremio
 
 Un addon Stremio qui **stocke et relaie des bandes-annonces**. Aucun film, aucune série, aucun catalogue :
 pour chaque titre, il garde la bande-annonce Netflix et Apple TV, et la propose comme source sur n'importe
 quelle fiche Stremio dont l'ID IMDb est connu — films, séries, épisodes.
 
-> Le nom affiché est **W stockage bande annonce**. Le dépôt, l'image Docker et l'identifiant d'addon
-> (`community.wallacecleaver.netflix-catalogue`) gardent leur ancien nom pour ne pas casser les
-> installations existantes.
+> Les anciennes bases `./data/netflix.db` sont automatiquement migrées vers `./data/stockage.db` au démarrage.
+> Si l'addon était déjà installé dans Stremio sous son ancien identifiant, réinstalle-le depuis `/manifest.json`.
 
 Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqlite3`) · Docker.
 
@@ -26,7 +25,7 @@ Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqli
 **Docker (VPS)**
 
 ```bash
-git clone https://github.com/Wallacecleaver/Netflix-catalogue-stremio.git && cd Netflix-catalogue-stremio
+git clone https://github.com/Wallacecleaver/stockage-db.git && cd stockage-db
 cp .env.example .env      # renseigne ADMIN_TOKEN et TMDB_API_KEY
 docker compose up -d --build
 ```
@@ -34,12 +33,12 @@ docker compose up -d --build
 Le reverse proxy HTTPS est obligatoire pour Stremio :
 
 ```
-netflix.mondomaine.fr {
+stockage.mondomaine.fr {
   reverse_proxy 127.0.0.1:7000
 }
 ```
 
-Puis dans Stremio : *Addons → Install from URL* → `https://netflix.mondomaine.fr/manifest.json`.
+Puis dans Stremio : *Addons → Install from URL* → `https://stockage.mondomaine.fr/manifest.json`.
 
 **En local (Windows/macOS/Linux)**
 
@@ -61,7 +60,7 @@ Quatre étapes, dans cet ordre. Les trois premières sont dans l'onglet **Stocka
 npm run harvest                          # tout le catalogue Netflix des pays configurés (JustWatch)
 npm run harvest:recent                   # seulement les sorties récentes
 npm run sync                             # titres des plateformes TMDB (Netflix, Apple TV+…)
-docker compose exec netflix-catalogue node scripts/add.js 81944880   # un titre à la main
+docker compose exec stockage-db node scripts/add.js 81944880   # un titre à la main
 ```
 
 **2 · Lire les pages** — c'est ce qui donne vraiment les vidéos : le moissonnage ne pose que les
@@ -85,7 +84,7 @@ Depuis le dashboard, la même chose en un clic, avec progression et bouton d'arr
 
 ## Dashboard
 
-`https://netflix.mondomaine.fr/admin` — mot de passe = `ADMIN_TOKEN`. Six onglets :
+`https://stockage.mondomaine.fr/admin` — mot de passe = `ADMIN_TOKEN`. Sept onglets :
 
 | Onglet | Rôle |
 |---|---|
@@ -93,6 +92,7 @@ Depuis le dashboard, la même chose en un clic, avec progression et bouton d'arr
 | **Recherche** | trouve un titre par son nom (JustWatch, Apple TV) puis l'ajoute |
 | **Ajouter** | ajout direct par URL ou ID : Netflix, Prime Video, Apple TV, et **n'importe quelle vidéo par son URL** ; derniers ajouts en bas |
 | **Titres** | liste filtrable, avec les sources et la présence d'un ID IMDb |
+| **API** | gestion des clés API de fédération (création, libellé, dernière utilisation, révocation) |
 | **Paramètres** | toutes les variables ci-dessous, filtrables, persistées en base |
 | **Journal** | les 2 000 derniers événements, filtrables par niveau et par texte |
 
@@ -111,7 +111,7 @@ défauts.
 | `ADMIN_TOKEN` | mot de passe du dashboard — **obligatoire**, sinon `/admin` répond 503 |
 | `TMDB_API_KEY` | clé TMDB v3 ou jeton v4 — active la synchro, les IDs IMDb et les bandes-annonces YouTube |
 | `PUBLIC_URL` | adresse publique (`https://…`) servant les relais `/trailer/…` |
-| `PORT` (7000) · `DB_PATH` (`./data/netflix.db`) | écoute et base SQLite |
+| `PORT` (7000) · `DB_PATH` (`./data/stockage.db`) | écoute et base SQLite |
 
 **Catalogues**
 
@@ -166,7 +166,7 @@ Plutôt qu'un scraper par site, l'onglet **Ajouter** accepte n'importe quelle **
 HLS `.m3u8`) pour un titre déjà en base :
 
 ```bash
-curl -X POST https://netflix.mondomaine.fr/admin/add/trailer \
+curl -X POST https://stockage.mondomaine.fr/admin/add/trailer \
   -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"id":"81944880","url":"https://exemple/bande-annonce.mp4","title":"Bande-annonce VF"}'
 ```
@@ -180,16 +180,16 @@ rien.
 
 **Fédération** — fermée par défaut : tant qu'aucune clé n'existe, `/api/trailers` et `/api/status` répondent
 `403`. Les clés se gèrent dans l'onglet **API** du dashboard : jusqu'à 5 clés avec un libellé, date de création
-et de dernière utilisation, révocation individuelle. Une clé (`wtr_…`) n'est affichée qu'une fois à la création
+et de dernière utilisation, révocation individuelle. Une clé (`sdb_…`) n'est affichée qu'une fois à la création
 (seule son empreinte SHA-256 est stockée) et s'envoie en `Authorization: Bearer <clé>`, `x-api-key` ou `?key=`.
 L'ancienne variable `API_KEY` continue de fonctionner. `ALLOW_OPEN_API=1` rouvre volontairement l'API sans clé
 (déconseillé).
 
 ```bash
-curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?imdb=tt7777777"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?tmdb=777&type=movie"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/trailers?netflix=77777777"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://netflix.mondomaine.fr/api/status"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?imdb=tt7777777"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?tmdb=777&type=movie"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?netflix=77777777"
+curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/status"
 ```
 
 Réponse : `{ found, pending, title: {…}, trailers: [{ title, url, runtime, source }] }`.
@@ -210,7 +210,7 @@ En ligne de commande, depuis le conteneur (`docker` n'y existe pas) :
 ```bash
 npm run api-check -- tt26598805              # la fiche est-elle en base ? que contient-elle ?
 npm run api-check -- 81763154 --type movie   # par ID Netflix
-npm run api-check -- tt26598805 --url https://netflix.mondomaine.fr --key <clé>
+npm run api-check -- tt26598805 --url https://stockage.mondomaine.fr --key <clé>
 ```
 
 Il affiche la fiche, ses identifiants, les bandes-annonces par source et une conclusion :

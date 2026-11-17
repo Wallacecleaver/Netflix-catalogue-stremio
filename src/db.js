@@ -3,7 +3,17 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const config = require('./config');
 
-fs.mkdirSync(path.dirname(path.resolve(config.dbPath)), { recursive: true });
+const resolvedDbPath = path.resolve(config.dbPath);
+fs.mkdirSync(path.dirname(resolvedDbPath), { recursive: true });
+// Migration transparente d'une installation existante (netflix.db → stockage.db).
+if (path.basename(resolvedDbPath) === 'stockage.db' && !fs.existsSync(resolvedDbPath)) {
+  const legacyDbPath = path.join(path.dirname(resolvedDbPath), 'netflix.db');
+  if (fs.existsSync(legacyDbPath)) {
+    for (const ext of ['', '-wal', '-shm']) {
+      if (fs.existsSync(legacyDbPath + ext)) fs.renameSync(legacyDbPath + ext, resolvedDbPath + ext);
+    }
+  }
+}
 const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');

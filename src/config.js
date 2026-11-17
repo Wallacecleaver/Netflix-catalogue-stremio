@@ -2,7 +2,7 @@ require('dotenv').config();
 const num = (v, d) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
 module.exports = {
   port: num(process.env.PORT, 7000),
-  dbPath: process.env.DB_PATH || './data/netflix.db',
+  dbPath: process.env.DB_PATH || './data/stockage.db',
   tmdbKey: process.env.TMDB_API_KEY || '',
   publicUrl: (process.env.PUBLIC_URL || `http://localhost:${num(process.env.PORT, 7000)}`).replace(/\/+$/, ''),
   metaCacheSeconds: num(process.env.META_CACHE_SECONDS, 300),

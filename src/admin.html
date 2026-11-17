@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08080b">
-<title>W stockage bande annonce</title>
+<title>Stockage DB</title>
 <style>
 :root{--bg:#08080b;--panel:#0f0f14;--panel2:#14141a;--line:#1e1e27;--line2:#2c2c38;--txt:#f0f0f4;--muted:#8f8f9f;--dim:#6a6a7b;
 --red:#e50914;--red2:#ff4d57;--green:#3ddc97;--amber:#f0b429;--blue:#5aa9ff;--violet:#a78bfa;--r:12px;color-scheme:dark}
@@ -223,12 +223,12 @@ tbody tr:hover{background:#12121a}
 </style></head><body>
 <div id="busy"></div>
 
-<div id="login" class="login hidden"><div class="panel"><div class="logo">W</div><h1 style="font-size:17px;margin:0 0 4px">W stockage bande annonce</h1><p class="muted" style="margin:0 0 18px">Dashboard d'administration</p>
+<div id="login" class="login hidden"><div class="panel"><div class="logo">S</div><h1 style="font-size:17px;margin:0 0 4px">Stockage DB</h1><p class="muted" style="margin:0 0 18px">Dashboard d'administration</p>
 <form id="login-form"><input id="login-pass" class="inp" type="password" placeholder="Mot de passe" autocomplete="current-password" required style="text-align:center"><button id="login-btn" class="btn primary" style="width:100%;margin-top:9px" type="submit">Se connecter</button></form><div id="login-err" class="err"></div></div></div>
 
 <div id="app" class="hidden">
-<header class="top"><div class="in"><div class="logo">W</div>
-  <div><h1>W stockage bande annonce</h1><div class="sub"><span id="health-dot" class="hdot" title=""></span><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
+<header class="top"><div class="in"><div class="logo">S</div>
+  <div><h1>Stockage DB</h1><div class="sub"><span id="health-dot" class="hdot" title=""></span><span id="version">v—</span><i>·</i><span id="sub-meta">—</span></div></div>
   <div class="sp"></div>
   <a id="install" class="btn sm" href="/manifest.json" title="Ouvre Stremio et propose d'installer l'addon">Installer dans Stremio</a>
   <a class="btn sm ghost" href="/manifest.json" target="_blank" rel="noreferrer">manifest.json ↗</a>
@@ -387,7 +387,7 @@ tbody tr:hover{background:#12121a}
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var token = sessionStorage.getItem('nflx_token') || '', toastT, dirty = {}, tab = 'home', sum = null, tOffset = 0, tTimer, logTimer, jobTimer, busy = 0;
+  var token = sessionStorage.getItem('stockage_db_token') || sessionStorage.getItem('nflx_token') || '', toastT, dirty = {}, tab = 'home', sum = null, tOffset = 0, tTimer, logTimer, jobTimer, busy = 0;
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var fmt = function (n) { return new Intl.NumberFormat('fr-FR').format(n || 0); };
   var pct = function (a, b) { return b ? Math.round(a / b * 100) : 0; };
@@ -804,7 +804,7 @@ tbody tr:hover{background:#12121a}
   });
   $('settings-save').addEventListener('click', function () {
     api('/admin/api/settings', { values: dirty }).then(function (r) {
-      if (dirty.ADMIN_TOKEN) { token = dirty.ADMIN_TOKEN; sessionStorage.setItem('nflx_token', token); }
+      if (dirty.ADMIN_TOKEN) { token = dirty.ADMIN_TOKEN; sessionStorage.setItem('stockage_db_token', token); sessionStorage.removeItem('nflx_token'); }
       toast('Paramètres enregistrés'); refresh().then(function () { if (r.restart && r.restart.length) $('restart-note').classList.remove('hidden'); });
     }).catch(fail);
   });
@@ -893,9 +893,9 @@ tbody tr:hover{background:#12121a}
   function boot() { return refresh().then(function () { showApp(); buildJobs(); renderHome(sum); showTab('home'); }).catch(function (e) { if (e.message !== 'Non autorisé') showLogin(e.message); }); }
   $('login-form').addEventListener('submit', function (e) {
     e.preventDefault(); var p = $('login-pass').value; if (!p) return; token = p; $('login-btn').disabled = true;
-    boot().then(function () { if (!$('app').classList.contains('hidden')) sessionStorage.setItem('nflx_token', p); else token = ''; }).then(function () { $('login-btn').disabled = false; });
+    boot().then(function () { if (!$('app').classList.contains('hidden')) { sessionStorage.setItem('stockage_db_token', p); sessionStorage.removeItem('nflx_token'); } else token = ''; }).then(function () { $('login-btn').disabled = false; });
   });
-  $('logout').addEventListener('click', function () { token = ''; sessionStorage.removeItem('nflx_token'); clearInterval(logTimer); clearTimeout(jobTimer); showLogin(''); });
+  $('logout').addEventListener('click', function () { token = ''; sessionStorage.removeItem('stockage_db_token'); sessionStorage.removeItem('nflx_token'); clearInterval(logTimer); clearTimeout(jobTimer); showLogin(''); });
   if (token) boot(); else showLogin('');
 })();
 </script></body></html>
