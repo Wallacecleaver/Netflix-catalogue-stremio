@@ -13,7 +13,7 @@ RUN npm ci --omit=dev --ignore-scripts \
 COPY src ./src
 COPY scripts ./scripts
 COPY test ./test
-ENV NODE_ENV=production DB_PATH=/app/data/netflix.db PORT=7000
+ENV NODE_ENV=production DB_PATH=/app/data/stockage.db PORT=7000
 # Le conteneur tourne sans privilèges : l'utilisateur node possède le volume de données.
 RUN mkdir -p /app/data /app/data/hls && chown -R node:node /app/data
 VOLUME /app/data

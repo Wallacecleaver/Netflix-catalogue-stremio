@@ -1,5 +1,5 @@
 // Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL et handlers Stremio. Aucun appel réseau.
-process.env.DB_PATH = require('path').join(require('os').tmpdir(), `nflx-smoke-${Date.now()}.db`);
+process.env.DB_PATH = require('path').join(require('os').tmpdir(), `stockage-db-smoke-${Date.now()}.db`);
 process.env.ADMIN_TOKEN = 'test-token';
 process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
 process.env.API_KEY = 'test-api-key';
@@ -123,6 +123,8 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
 (async () => {
   const iface = builder.getInterface();
   // Plus de catalogue : manifest sans catalogue, flux sur les IDs IMDb (tt…) et sur les anciennes fiches nflx:, meta seulement nflx:
+  assert.equal(iface.manifest.name, 'Stockage DB');
+  assert.equal(iface.manifest.id, 'community.wallacecleaver.stockage-db');
   assert.deepEqual(iface.manifest.catalogs, []);
   assert.ok(!iface.manifest.resources.some((r) => r.name === 'catalog'));
   assert.deepEqual(iface.manifest.resources.find((r) => r.name === 'stream').idPrefixes, ['nflx:', 'prime:', 'apple:', 'tt']);
@@ -268,7 +270,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
     rs.end(body);
   }).listen(0);
   await new Promise((r) => hlsSrv.once('listening', r));
-  require('../src/config').hlsCacheDir = require('path').join(require('os').tmpdir(), `nflx-hls-${Date.now()}`);
+  require('../src/config').hlsCacheDir = require('path').join(require('os').tmpdir(), `stockage-db-hls-${Date.now()}`);
   store.upsertTitle({ id: 'apple:umc.cmc.test', type: 'movie', name: 'Film Apple',
     appletv: [{ title: 'Bande-annonce', url: `http://127.0.0.1:${hlsSrv.address().port}/master.m3u8`, source: 'appletv', ver: 2 }],
     appletv_checked: Date.now() });
@@ -289,7 +291,7 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   // Dashboard admin : page HTML + API protégées par ADMIN_TOKEN
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
-  assert.ok((await page.text()).includes('W stockage bande annonce'));
+  assert.ok((await page.text()).includes('Stockage DB'));
   const root = await fetch(`${base}/`, { redirect: 'manual' });
   assert.equal(root.status, 302); assert.equal(root.headers.get('location'), '/admin');
   assert.equal((await fetch(`${base}/admin/api/summary`)).status, 401);
@@ -368,14 +370,14 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   const hdrJson = { ...auth, 'content-type': 'application/json' };
   assert.equal((await fetch(`${base}/admin/api/keys`)).status, 401);
   const k1 = await (await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: JSON.stringify({ label: '  Instance   VPS ' }) })).json();
-  assert.ok(/^wtr_[0-9a-f]{48}$/.test(k1.key)); assert.equal(k1.label, 'Instance VPS');
+  assert.ok(/^sdb_[0-9a-f]{48}$/.test(k1.key)); assert.equal(k1.label, 'Instance VPS');
   let keyList = await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json();
   assert.equal(keyList.keys.length, 1); assert.equal(keyList.keys[0].last4, k1.key.slice(-4));
   assert.equal(keyList.keys[0].last_used_at, null); assert.equal(JSON.stringify(keyList).includes(k1.key), false);   // jamais renvoyée une 2e fois
   assert.equal((await fetch(`${base}/api/status`, { headers: { authorization: `Bearer ${k1.key}` } })).status, 200);
   assert.equal((await fetch(`${base}/api/status`, { headers: { 'x-api-key': k1.key } })).status, 200);
   assert.equal((await fetch(`${base}/api/status?key=${k1.key}`)).status, 200);
-  assert.equal((await fetch(`${base}/api/status`, { headers: { 'x-api-key': 'wtr_faux' } })).status, 401);
+  assert.equal((await fetch(`${base}/api/status`, { headers: { 'x-api-key': 'sdb_faux' } })).status, 401);
   assert.equal((await fetch(`${base}/api/status`, { headers: apiKey })).status, 200);       // la clé historique reste valable
   keyList = await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json();
   assert.ok(keyList.keys[0].last_used_at > 0); assert.equal(keyList.legacy, true);

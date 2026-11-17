@@ -112,7 +112,7 @@ app.get('/admin/api/keys', auth, (_req, res) => {
 app.post('/admin/api/keys', auth, (req, res) => {
   if (store.countApiKeys() >= MAX_API_KEYS) return res.status(400).json({ error: `Limite de ${MAX_API_KEYS} clés atteinte : révoque-en une d'abord` });
   const label = String((req.body && req.body.label) || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Sans nom';
-  const key = `wtr_${crypto.randomBytes(24).toString('hex')}`;
+  const key = `sdb_${crypto.randomBytes(24).toString('hex')}`;
   const id = store.createApiKey({ label, hash: keyHash(key), last4: key.slice(-4) });
   log.info('admin', `Clé API créée : ${label}`, { id });
   res.json({ ok: true, id, label, key });

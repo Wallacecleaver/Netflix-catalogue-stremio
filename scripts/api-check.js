@@ -1,7 +1,7 @@
 // Diagnostic de l'API de fédération, à lancer DEPUIS le conteneur (là où `docker` n'existe pas) :
 //   npm run api-check -- tt26598805
 //   npm run api-check -- 81763154 --type movie
-//   npm run api-check -- tt26598805 --url https://netflix.mondomaine.fr --key <clé>
+//   npm run api-check -- tt26598805 --url https://stockage.mondomaine.fr --key <clé>
 // Il interroge /api/trailers?debug=1 et dit si la fiche est en base, ce qu'elle contient et pourquoi
 // une instance cliente ne recevrait rien.
 const config = require('../src/config');
