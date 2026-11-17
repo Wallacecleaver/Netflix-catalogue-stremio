@@ -22,11 +22,30 @@ function keyOk(given) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** Numéro de saison explicite dans un libellé (« Saison 2 (Teaser) : Le Problème à 3 corps » → 2, pas 3). */
+const ROMAN_TO_INT = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
+const WORD_ORDINAL_SEASON = [
+  [/\b(?:premi[eè]re|first)\s+(?:saison|season)\b/i, 1],
+  [/\b(?:deuxi[eè]me|seconde|second)\s+(?:saison|season)\b/i, 2],
+  [/\b(?:troisi[eè]me|third)\s+(?:saison|season)\b/i, 3],
+  [/\b(?:quatri[eè]me|fourth)\s+(?:saison|season)\b/i, 4],
+  [/\b(?:cinqui[eè]me|fifth)\s+(?:saison|season)\b/i, 5],
+  [/\b(?:sixi[eè]me|sixth)\s+(?:saison|season)\b/i, 6],
+];
+
+/** Numéro de saison explicite dans un libellé (« Saison 2 (Teaser) : Le Problème à 3 corps » → 2, « Partie 2 : ... Saison 4 » → 4). */
 function detectSeason(title) {
   const s = String(title || '');
-  const m = /\b(?:saison|season|partie|part|volume|vol\.?|tome|chapitre|livre)\s*(\d{1,2})\b/i.exec(s)
-    || /\bS(\d{1,2})(?:\b|E\d)/i.exec(s);
+  if (!s) return null;
+  let m = /\b(?:saison|season)\s*0?(\d{1,2})\b/i.exec(s)
+    || /\bS0?(\d{1,2})(?:\b|E\d)/i.exec(s)
+    || /\b0?(\d{1,2})\s*(?:e|er|[eè]re|re|[eè]me|nde|nd|st|rd|th)\s+(?:saison|season)\b/i.exec(s);
+  if (m) return Number(m[1]);
+  m = /\b(?:saison|season)\s+(x|ix|viii|vii|vi|v|iv|iii|ii|i)\b/i.exec(s);
+  if (m) return ROMAN_TO_INT[m[1].toLowerCase()] || null;
+  for (const [re, num] of WORD_ORDINAL_SEASON) {
+    if (re.test(s)) return num;
+  }
+  m = /\b(?:partie|part|volume|vol\.?|tome|chapitre|chapter|livre|book|acte|arc|cour)\s*0?(\d{1,2})\b/i.exec(s);
   return m ? Number(m[1]) : null;
 }
 
