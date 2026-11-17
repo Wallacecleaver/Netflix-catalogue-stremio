@@ -137,26 +137,40 @@ function refreshTrailers(nid) {
   return inflight.get(key);
 }
 
+const MISSING_SEASON_TTL_MS = 15 * 60 * 1000;
+
+function detectSeasonNumber(title) {
+  const s = String(title || '');
+  const m = /\b(?:saison|season|partie|part|volume|vol\.?|tome|chapitre|livre)\s*(\d{1,2})\b/i.exec(s)
+    || /\bS(\d{1,2})(?:\b|E\d)/i.exec(s);
+  return m ? Number(m[1]) : null;
+}
+
 /**
  * Une fiche liée à Netflix doit-elle relire sa page ?
  * - page jamais lue (ex. moissonnage JustWatch) : oui, immédiatement ;
+ * - saison >= 2 demandée sans aucune vidéo de cette saison en base : nouvelle vérification au bout de 15 min ;
  * - dernière lecture plus vieille que `NETFLIX_REFRESH_HOURS` (défaut 4 h) : oui, pour capter un nouveau teaser/saison ;
  * - ancienne fiche sans horodatage : oui dès qu'un lien signé Netflix (`?e=…`) est expiré.
  */
-function isNetflixStale(row) {
+function isNetflixStale(row, { season = null } = {}) {
   if (!row || !row.netflix_id) return false;
   const ttlMs = Math.max(1, Number(config.netflixRefreshHours) || 4) * 3600 * 1000;
   const now = Date.now();
   const list = Array.isArray(row.trailers) ? row.trailers.filter((t) => t && t.source !== 'upstream') : [];
   const checkedAt = Number(row.trailers_checked || row.extra?.fetchedAt || row.extra?.netflixLinkedAt || 0);
   if (!list.length) return !checkedAt || (now - checkedAt > ttlMs);
+  const reqSeason = Number.isInteger(Number(season)) && Number(season) >= 2 ? Number(season) : null;
+  if (reqSeason && !list.some((t) => detectSeasonNumber(t.title) === reqSeason)) {
+    if (!checkedAt || now - checkedAt > Math.min(ttlMs, MISSING_SEASON_TTL_MS)) return true;
+  }
   if (checkedAt && now - checkedAt > ttlMs) return true;
   return list.some((t) => t.expires && t.expires < now);
 }
 
 /** Relit la page Netflix d'une fiche si elle est périmée ou jamais lue, sans jamais bloquer au-delà de `timeoutMs`. */
-async function ensureFreshTrailers(row, { timeoutMs = 4500 } = {}) {
-  if (!row || !row.netflix_id || !config.netflixRefreshEnabled || !isNetflixStale(row)) return row;
+async function ensureFreshTrailers(row, { timeoutMs = 4500, season = null } = {}) {
+  if (!row || !row.netflix_id || !config.netflixRefreshEnabled || !isNetflixStale(row, { season })) return row;
   const job = refreshTrailers(row.netflix_id).catch((e) => {
     log.warn('netflix', `Rafraîchissement ${row.netflix_id} (${row.name}) : ${e.message}`);
     return null;

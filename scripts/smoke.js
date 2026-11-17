@@ -539,12 +539,28 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.match(s1Streams[0].title, /Saison 1 \(Dans cette saison\)/);
   assert.match(s1Streams[0].url, /\/trailer\/81024821\/2\.mp4$/);
 
-  // /api/trailers?season=2&strict_season=1 : ne renvoie que les vidéos de la saison 2
+  // /api/trailers?season=2&strict_season=1 : ne renvoie que les vraies BA/teasers de la saison 2
   const apiS2 = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1`, { headers: apiKey })).json();
   assert.equal(apiS2.found, true); assert.equal(apiS2.trailers.length, 1);
   assert.equal(apiS2.trailers[0].season, 2); assert.equal(apiS2.trailers[0].kind, 'teaser');
+  // Saison 1 en strict_season=1 : le making-of de 7 min (« Au cœur de l'épisode 1 ») est écarté par défaut, inclus si include_extras=1
+  const apiS1Strict = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=1&strict_season=1`, { headers: apiKey })).json();
+  assert.equal(apiS1Strict.found, true); assert.equal(apiS1Strict.trailers.length, 1);
+  assert.equal(apiS1Strict.trailers[0].kind, 'teaser');
+  const apiS1Extras = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=1&strict_season=1&include_extras=1`, { headers: apiKey })).json();
+  assert.equal(apiS1Extras.trailers.length, 2);
+  // Fiche moissonnée avec tmdb_id mais sans imdb_id : /api/trailers?imdb=…&tmdb=… retombe immédiatement sur tmdb_id
+  store.upsertTitle({ id: 'nflx:81024822', netflix_id: '81024822', tmdb_id: 108545, tmdb_type: 'tv', type: 'series', name: 'Fiche sans IMDb',
+    trailers_checked: Date.now(), trailers: [{ title: 'Saison 2 (Teaser) : Fiche sans IMDb', runtime: 90, url: `https://v.nflx/x.mp4?e=${Math.floor(Date.now() / 1000) + 3600}` }] });
+  const apiFallbackTmdb = await (await fetch(`${base}/api/trailers?imdb=tt9999991&tmdb=108545&type=series&season=2&strict_season=1`, { headers: apiKey })).json();
+  assert.equal(apiFallbackTmdb.found, true); assert.equal(apiFallbackTmdb.title.netflix_id, '81024822');
   const apiS3 = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=3&strict_season=1`, { headers: apiKey })).json();
   assert.equal(apiS3.found, false); assert.equal(apiS3.trailers.length, 0);
+  assert.equal(refreshHits, 1); // pas de relecture tant que < 15 min
+  // Si la fiche a été lue il y a 20 min (< 4 h) mais qu'une saison >= 2 absente est demandée, on revérifie Netflix
+  store.upsertTitle({ id: 'nflx:81024821', type: 'series', name: 'Le Problème à 3 corps', trailers_checked: Date.now() - 20 * 60 * 1000 });
+  await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=3&strict_season=1`, { headers: apiKey });
+  assert.equal(refreshHits, 2);
   cfgR.netflixRefreshEnabled = false;
 
   app.close(); upstream.close();

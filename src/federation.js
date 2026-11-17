@@ -139,8 +139,8 @@ function lookup({ imdb = '', tmdb = '', type = '', netflix = '' } = {}) {
   const imdbId = String(imdb || '').trim();
   const tmdbId = String(tmdb || '').trim();
   const netflixId = String(netflix || '').trim();
-  if (netflixId) return store.findByNetflixId(netflixId);
-  if (imdbId) return store.findByImdbId(imdbId);
+  if (netflixId) { const hit = store.findByNetflixId(netflixId); if (hit) return hit; }
+  if (imdbId) { const hit = store.findByImdbId(imdbId); if (hit) return hit; }
   if (tmdbId) {
     const types = type === 'series' ? ['tv'] : type === 'movie' ? ['movie'] : ['movie', 'tv'];
     for (const tmdbType of types) {

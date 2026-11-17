@@ -18,7 +18,7 @@ const appleRelay = (row, index) => `${config.publicUrl}/apple/${encodeURICompone
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.stockage-db',
-  version: '2.7.1',
+  version: '2.7.2',
   name: 'Stockage DB',
   description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
@@ -119,7 +119,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
   let row = resolveRow(id);
   const imdb = String(id).split(':')[0];
   const reqSeason = seasonFromId(type, id);
-  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 5000 });
+  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 5000, season: reqSeason });
   if (/^tt\d+$/.test(imdb)) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 9000 })) || row;   // fiche inconnue : TMDB → web → bande-annonce
   if (!row) return { streams: [], cacheMaxAge: 60 };
   row = await federation.ensureUpstreamTrailers(row);

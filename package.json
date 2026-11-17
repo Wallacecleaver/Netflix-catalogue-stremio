@@ -1,6 +1,6 @@
 {
   "name": "stockage-db",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "Stockage DB — addon Stremio : stockage et relais de bandes-annonces (VF, Netflix, Apple TV), sans catalogue",
   "private": true,
   "main": "src/index.js",

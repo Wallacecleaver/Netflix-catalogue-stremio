@@ -417,22 +417,25 @@ app.get('/api/trailers', apiLimiter, apiAuth, wrap(async (req, res) => {
   const type = String(req.query.type || '').trim();
   const season = Number(req.query.season) || null;
   const strictSeason = String(req.query.strict_season || '') === '1';
+  const includeExtras = String(req.query.include_extras || '') === '1';
   if (!imdb && !tmdb && !netflix) {
     return res.status(400).json({ error: 'paramètre imdb, tmdb ou netflix requis' });
   }
   let row = federation.lookup({ imdb, tmdb, type, netflix });
   // Si la fiche Netflix existe déjà (moissonnée sans vidéo, ou lue il y a > NETFLIX_REFRESH_HOURS),
   // on relit sa page Netflix pour capter tout nouveau teaser / nouvelle saison.
-  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 3500 });
+  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
   // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
-  // Attente bornée : l'instance cliente abandonne souvent à 6 s, on lui laisse de la marge réseau.
-  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4000 })) || row;
+  // Attente bornée : l'instance cliente abandonne souvent à 6-8 s, on lui laisse de la marge réseau.
+  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
   const pending = !!imdb && resolve.isPending(imdb);
   if (!row) return res.json({ found: false, pending, trailers: [] });
   // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels,
   // triées pour la saison demandée (vraies bandes-annonces/teasers avant les bonus longs).
   let trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
-  if (strictSeason && season > 0) trailers = trailers.filter((t) => t.season === season);
+  if (strictSeason && season > 0) {
+    trailers = trailers.filter((t) => t.season === season && (includeExtras || t.kind !== 'extra'));
+  }
   // Trace dans le Journal : c'est le seul moyen de savoir si une instance cliente (vf-trailer) nous
   // appelle vraiment, et ce qu'on lui a répondu. Volume faible (le client met en cache 6 h).
   const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
