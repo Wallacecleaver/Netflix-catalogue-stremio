@@ -21,6 +21,7 @@ const resolve = require('./resolve');
 const appletv = require('./appletv');
 const netflixTrailers = require('./netflix-trailers');
 const hls = require('./hls');
+const aiomDirectRelay = require('./aiom-direct-relay');
 const { syncCatalog, syncRecent } = require('./sync');
 const { UA } = require('./netflix');
 const { safeFetch, assertSafeUrlSync, securityHeaders, rateLimit } = require('./security');
@@ -1804,6 +1805,32 @@ async function manualTrailerHandler(req, res) {
 }
 app.get('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
 app.head('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
+
+// Relais séparé du catalogue : aucune fiche ni entrée manualTrailers n'est modifiée.
+const aiomRelaySecret = process.env.AIOM_DIRECT_RELAY_SECRET || '';
+app.post('/api/v1/aiom-direct/hls', apiGuard('trailers:write'), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (aiomRelaySecret.length < 32 || !hls.ffmpegAvailable()) {
+    return res.status(503).json({ error: 'Relais AIOM Direct indisponible' });
+  }
+  const token = aiomDirectRelay.createToken(req.body?.url, aiomRelaySecret);
+  if (!token) return res.status(400).json({ error: 'URL de playlist HLS HTTPS publique attendue' });
+  return res.json({ url: resolvePublicBase(req) + '/aiom-direct/media/' + token + '.mp4' });
+});
+
+async function aiomDirectMedia(req, res) {
+  const url = aiomDirectRelay.readToken(req.params.token, aiomRelaySecret);
+  if (!url) return res.status(404).end();
+  try {
+    return await serveHls(req, res, url);
+  } catch {
+    log.warn('trailer', 'Conversion HLS AIOM Direct impossible');
+    if (!res.headersSent) return res.status(502).end();
+    res.destroy();
+  }
+}
+app.get('/aiom-direct/media/:token.mp4', mediaLimiter, aiomDirectMedia);
+app.head('/aiom-direct/media/:token.mp4', mediaLimiter, aiomDirectMedia);
 
 // Toute route inconnue répond proprement en JSON 404 (plus de /manifest.json ni de routes Stremio).
 app.use((_req, res) => res.status(404).json({ error: 'Route inconnue' }));
