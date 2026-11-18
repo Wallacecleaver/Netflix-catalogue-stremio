@@ -1,5 +1,8 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { Readable } = require('stream');
 const { version: APP_VERSION } = require('../package.json');
 const config = require('./config');
@@ -382,6 +385,36 @@ app.post('/admin/api/hls/clear', auth, wrap(async (_req, res) => {
   res.json({ ok: true, ...r, hls: await hls.cacheStats() });
 }));
 
+app.post('/admin/api/db/optimize', auth, (_req, res) => {
+  const r = store.optimizeDb();
+  log.info('admin', 'Maintenance SQLite exécutée (checkpoint WAL + optimize)', { prunedLookups: r.prunedLookups, bytesAfter: r.bytesAfter });
+  res.json({ ...r, stats: store.stats() });
+});
+
+app.get('/admin/api/backup.db', auth, wrap(async (_req, res) => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const tmpFile = path.join(os.tmpdir(), `stockage-backup-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.db`);
+  const cleanup = () => { fs.promises.unlink(tmpFile).catch(() => {}); };
+  try {
+    await store.backupTo(tmpFile);
+    const st = await fs.promises.stat(tmpFile);
+    log.info('admin', `Sauvegarde SQLite générée (${Math.round(st.size / 1024)} Ko)`);
+    res.setHeader('Content-Type', 'application/vnd.sqlite3');
+    res.setHeader('Content-Length', String(st.size));
+    res.setHeader('Content-Disposition', `attachment; filename="stockage-db-${stamp}.db"`);
+    res.setHeader('Cache-Control', 'no-store');
+    const stream = fs.createReadStream(tmpFile);
+    stream.on('close', cleanup);
+    stream.on('error', () => { cleanup(); if (!res.headersSent) res.status(500).end(); else res.destroy(); });
+    res.on('close', cleanup);
+    stream.pipe(res);
+  } catch (e) {
+    cleanup();
+    log.error('admin', `Échec de la sauvegarde SQLite : ${e.message}`);
+    res.status(500).json({ error: `Sauvegarde impossible : ${e.message}` });
+  }
+}));
+
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
 app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
   res.set('cache-control', 'no-store');
@@ -641,6 +674,38 @@ app.get('/admin/api/titles', auth, (req, res) => {
   });
 });
 
+// Export JSON filtré du catalogue (onglet « Catalogue »).
+app.get('/admin/api/titles/export', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const { total, rows } = store.listTitles({
+    search: String(req.query.search || '').trim(),
+    filter: String(req.query.filter || ''),
+    type: String(req.query.type || ''),
+    sort: String(req.query.sort || 'added'),
+    limit: Math.min(Math.max(1, Number(req.query.limit) || 2000), 10000),
+    offset: 0,
+  });
+  res.json({
+    ok: true,
+    exportedAt: new Date().toISOString(),
+    totalMatching: total,
+    exportedCount: rows.length,
+    items: rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      year: r.year || null,
+      release_date: r.release_date || null,
+      imdb_id: r.imdb_id || null,
+      tmdb_id: r.tmdb_id || null,
+      tmdb_type: r.tmdb_type || null,
+      netflix_id: r.netflix_id || null,
+      youtube: youtubeInfoOf(r),
+      trailers: federation.trailerUrls(r, { includeApple: true, includeManual: true }),
+    })),
+  });
+});
+
 // Détail complet d'une fiche + liste ordonnée des bandes-annonces relayées (saison détectée, nature, URL de lecture).
 app.get('/admin/api/titles/:id', auth, (req, res) => {
   res.set('cache-control', 'no-store');
@@ -783,7 +848,7 @@ async function executeTrailersQuery(q, { logFederation = true, forceDebug = fals
     if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
     if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
     if (row) {
-      row = await federation.ensureUpstreamTrailers(row);
+      row = await federation.ensureUpstreamTrailers(row, { season });
       row = await appletv.ensure(row, { timeoutMs: 4000 });
     }
   }
@@ -997,6 +1062,9 @@ function buildOpenApiSpec() {
       '/api/trailers/submit': {
         post: { summary: 'Attacher un flux MP4/HLS ou ingérer une URL Netflix/Prime (scope trailers:write requis)', responses: { 200: { description: 'Flux enregistré' } } },
       },
+      '/api/prewarm': {
+        post: { summary: 'Pré-chauffer en tâche de fond jusqu’à 50 titres (réponse immédiate 202 Accepted)', responses: { 202: { description: 'File de pré-chauffage acceptée' } } },
+      },
     },
   };
 }
@@ -1019,7 +1087,7 @@ app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res)
     ok: true,
     version: APP_VERSION,
     uptime: Math.round(process.uptime()),
-    capabilities: ['trailers', 'batch', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
+    capabilities: ['trailers', 'batch', 'prewarm', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
     sources: {
       netflix: true,
       appletv: !!config.appletvEnabled,
@@ -1188,6 +1256,48 @@ app.post(['/api/trailers/submit', '/api/v1/trailers/submit'], apiGuard('trailers
     return res.status(400).json({ error: e.message });
   }
 }));
+
+// Pré-chauffage asynchrone (jusqu'à 50 titres) : lance la résolution Netflix / Apple TV+ en arrière-plan sans faire attendre l'appelant.
+app.post(['/api/prewarm', '/api/v1/prewarm'], apiGuard('trailers:read'), (req, res) => {
+  res.set('cache-control', 'no-store');
+  const t0 = Date.now();
+  const rawItems = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 50) : [];
+  if (!rawItems.length) return res.status(400).json({ error: 'Tableau items requis (1 à 50 entrées)' });
+  let alreadyReady = 0;
+  const toWarm = [];
+  for (const it of rawItems) {
+    if (!it || typeof it !== 'object') continue;
+    const imdb = String(it.imdb || '').trim();
+    const tmdb = String(it.tmdb || '').trim();
+    const netflix = String(it.netflix || '').trim();
+    const type = String(it.type || '').trim();
+    if (!imdb && !tmdb && !netflix) continue;
+    const row = federation.lookup({ imdb, tmdb, type, netflix });
+    if (row && federation.trailerUrls(row, { includeApple: true, includeManual: true }).length > 0) {
+      alreadyReady++;
+    } else {
+      toWarm.push({ imdb, tmdb, netflix, type });
+    }
+  }
+  if (toWarm.length) {
+    setImmediate(async () => {
+      for (const q of toWarm) {
+        try {
+          let row = federation.lookup(q);
+          if (q.imdb) row = (await resolve.ensure(q.imdb, q.type, row, { timeoutMs: 8000 })) || row;
+          if (row) await appletv.ensure(row, { timeoutMs: 5000 });
+        } catch { /* tâche de fond silencieuse */ }
+      }
+    });
+  }
+  const tookMs = Date.now() - t0;
+  recordApiTelemetry({
+    ts: Date.now(), method: 'POST', path: '/api/prewarm', query: `${toWarm.length} en file / ${alreadyReady} prêts`,
+    client: req.apiClient?.label || 'API', status: 202, found: alreadyReady > 0, count: toWarm.length, ms: tookMs,
+  });
+  res.setHeader('X-Response-Time', `${tookMs}ms`);
+  res.status(202).json({ ok: true, queued: toWarm.length, alreadyReady, total: rawItems.length, tookMs });
+});
 
 // Racine : redirige vers le dashboard d'administration (/admin).
 app.get('/', (_req, res) => res.redirect('/admin'));

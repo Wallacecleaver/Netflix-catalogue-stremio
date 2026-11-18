@@ -119,6 +119,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
       title: t.title || 'Bande-annonce',
       url,
       runtime: t.runtime || null,
+      lang: t.lang || null,
       source: t.source === 'upstream' ? 'upstream' : 'netflix',
       index: i,
     };
@@ -133,6 +134,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
         title: t.title || 'Bande-annonce Apple TV',
         url: `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: t.runtime || null,
+        lang: t.lang || null,
         source: 'appletv',
         index: i,
       });
@@ -147,6 +149,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
         title: t.title || 'Bande-annonce',
         url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: null,
+        lang: t.lang || null,
         source: 'manual',
         index: i,
       });
@@ -174,7 +177,7 @@ function lookup({ imdb = '', tmdb = '', type = '', netflix = '' } = {}) {
 }
 
 /** Récupère les trailers d'une instance amont (config UPSTREAM_URL / UPSTREAM_API_KEY). */
-async function fetchFromUpstream({ imdbId, tmdbId, type } = {}) {
+async function fetchFromUpstream({ imdbId, tmdbId, type, season } = {}) {
   if (!config.upstreamUrl) return [];
   let base;
   try { base = assertSafeUrlSync(config.upstreamUrl).href.replace(/\/+$/, ''); }
@@ -183,6 +186,7 @@ async function fetchFromUpstream({ imdbId, tmdbId, type } = {}) {
   if (imdbId) params.set('imdb', imdbId);
   if (tmdbId) params.set('tmdb', String(tmdbId));
   if (type) params.set('type', type);
+  if (season) params.set('season', String(season));
   if (!params.toString()) return [];
 
   const headers = { accept: 'application/json' };
@@ -195,12 +199,18 @@ async function fetchFromUpstream({ imdbId, tmdbId, type } = {}) {
   const data = await res.json();
   return (Array.isArray(data.trailers) ? data.trailers : [])
     // On ne garde que des URLs fetchables sans risque (pas d'IP interne, pas de javascript:…).
-    .map((t) => ({ title: t?.title || 'Bande-annonce', url: usableUrl(t?.url), runtime: t?.runtime || null, source: 'upstream' }))
+    .map((t) => ({
+      title: t?.title || 'Bande-annonce',
+      url: usableUrl(t?.url),
+      runtime: t?.runtime || null,
+      lang: t?.lang || null,
+      source: 'upstream',
+    }))
     .filter((t) => t.url);
 }
 
 /** Si la fiche n'a aucun trailer, tente de les récupérer depuis l'instance amont. */
-async function ensureUpstreamTrailers(row) {
+async function ensureUpstreamTrailers(row, { season = null } = {}) {
   if (!row || !config.upstreamUrl) return row;
   if (Array.isArray(row.trailers) && row.trailers.length) return row;
   if (!row.imdb_id && !row.tmdb_id) return row;
@@ -209,7 +219,7 @@ async function ensureUpstreamTrailers(row) {
   attempts.set(row.id, Date.now());
   while (attempts.size > 5000) attempts.delete(attempts.keys().next().value);
   try {
-    const trailers = await fetchFromUpstream({ imdbId: row.imdb_id, tmdbId: row.tmdb_id, type: row.type });
+    const trailers = await fetchFromUpstream({ imdbId: row.imdb_id, tmdbId: row.tmdb_id, type: row.type, season });
     if (!trailers.length) return row;
     store.upsertTitle({ id: row.id, type: row.type, name: row.name, trailers });
     log.info('upstream', `Bandes-annonces reçues de l'amont : ${row.name}`, { count: trailers.length });

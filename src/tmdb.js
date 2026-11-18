@@ -38,8 +38,15 @@ async function searchMatch({ name, year, type }) {
 function pickTrailer(videos) {
   const yt = (videos?.results || []).filter((v) => v.site === 'YouTube');
   const rank = (v) => (v.type === 'Trailer' ? 0 : v.type === 'Teaser' ? 10 : 99) + (v.iso_639_1 === 'fr' ? 0 : 3) + (v.official ? 0 : 1);
-  const best = yt.sort((a, b) => rank(a) - rank(b))[0];
+  const best = [...yt].sort((a, b) => rank(a) - rank(b))[0];
   return best && rank(best) < 99 ? best.key : null;
+}
+
+function pickVfTrailer(videos) {
+  const vf = (videos?.results || []).filter((v) => v.site === 'YouTube' && v.iso_639_1 === 'fr' && (v.type === 'Trailer' || v.type === 'Teaser'));
+  const rank = (v) => (v.type === 'Trailer' ? 0 : 5) + (v.official ? 0 : 1);
+  const best = [...vf].sort((a, b) => rank(a) - rank(b))[0];
+  return best ? best.key : null;
 }
 
 function certification(d, tmdbType) {
@@ -77,6 +84,7 @@ async function fetchFull(tmdbType, id) {
     imdb_id: d.external_ids?.imdb_id || null,
     certification: certification(d, tmdbType),
     trailer_yt: pickTrailer(d.videos),
+    vf_trailer: pickVfTrailer(d.videos),
     runtime: d.runtime || d.episode_run_time?.[0] || null,
     episodes: [],
   };
@@ -157,6 +165,7 @@ async function basics(tmdbType, id) {
     imdb_id: d.external_ids?.imdb_id || null,
     runtime: d.runtime || d.episode_run_time?.[0] || null,
     trailer_yt: pickTrailer(d.videos),
+    vf_trailer: pickVfTrailer(d.videos),
   };
 }
 

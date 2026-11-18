@@ -269,7 +269,7 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.0.0 (sans manifest Stremio) ----
+    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.1.0 (sans manifest Stremio) ----
     const manifest404 = await fetch(`${base}/manifest.json`);
     assert.strictEqual(manifest404.status, 404, '/manifest.json ne doit plus exister en mode pur serveur API');
 
@@ -277,7 +277,7 @@ async function testHlsAndHttp() {
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v3.0.0'), 'Le badge de version v3.0.0 doit être injecté dans /admin');
+    assert.ok(html.includes('v3.1.0'), 'Le badge de version v3.1.0 doit être injecté dans /admin');
     assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
     assert.ok(html.includes('white-space: pre-wrap'), 'Les blocs code-box doivent préserver les retours à la ligne');
     assert.ok(!html.includes('/manifest.json') && !html.includes('stremio://'), 'Aucune trace de manifest.json ou stremio:// ne doit rester dans /admin');
@@ -293,24 +293,28 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '3.0.0');
+    assert.strictEqual(summary.version, '3.1.0');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
     assert.ok(summary.apiMetrics && typeof summary.apiMetrics.totalCalls === 'number');
 
-    // Tri du catalogue dans /admin/api/titles?sort=name
+    // Tri + export JSON du catalogue
     const sortedRes = await fetch(`${base}/admin/api/titles?sort=name&limit=5`, { headers: adminHeaders }).then((r) => r.json());
     assert.ok(Array.isArray(sortedRes.rows) && sortedRes.rows.length >= 2);
     assert.ok(sortedRes.rows[0].name.localeCompare(sortedRes.rows[1].name, 'fr') <= 0, 'Le tri alphabétique doit ordonner les titres A→Z');
 
-    // /admin/api/titles/:id (inspecteur des bandes-annonces et saisons)
+    const expJson = await fetch(`${base}/admin/api/titles/export?type=series&limit=10`, { headers: adminHeaders }).then((r) => r.json());
+    assert.strictEqual(expJson.ok, true);
+    assert.ok(expJson.exportedCount >= 1 && Array.isArray(expJson.items));
+
+    // /admin/api/titles/:id (inspecteur des bandes-annonces, saisons et champ lang)
     const detailRes = await fetch(`${base}/admin/api/titles/${encodeURIComponent('nflx:880099')}`, { headers: adminHeaders });
     assert.strictEqual(detailRes.status, 200);
     const detailJson = await detailRes.json();
     assert.strictEqual(detailJson.id, 'nflx:880099');
     assert.strictEqual(detailJson.trailers.length, 3);
-    assert.ok(detailJson.trailers.some((t) => t.season === 2 && t.source === 'netflix'));
+    assert.ok(detailJson.trailers.some((t) => t.season === 2 && t.source === 'netflix' && t.lang === 'fr'));
     assert.ok(detailJson.trailers.some((t) => t.season === 3 && t.source === 'manual'));
 
     // /admin/api/test-federation (testeur live depuis le dashboard)
@@ -321,15 +325,16 @@ async function testHlsAndHttp() {
     assert.strictEqual(testFedJson.trailers.length, 1);
     assert.ok(testFedJson.debug && testFedJson.debug.counts);
 
-    // ---- 6. Système d'API v3.0.0 : clés scopées, quotas par clé, pause/rotation, batch, search, title, submit, OpenAPI ----
+    // ---- 6. Système d'API v3.1.0 : clés scopées, quotas par clé, pause/rotation, batch, prewarm, search, title, submit, OpenAPI ----
     // 6a. Spécification OpenAPI 3.0.3 publique + CORS
     const oaRes = await fetch(`${base}/api/v1/openapi.json`);
     assert.strictEqual(oaRes.status, 200);
     assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
     const oaJson = await oaRes.json();
     assert.strictEqual(oaJson.openapi, '3.0.3');
-    assert.strictEqual(oaJson.info.version, '3.0.0');
+    assert.strictEqual(oaJson.info.version, '3.1.0');
     assert.ok(oaJson.paths['/api/trailers/batch']);
+    assert.ok(oaJson.paths['/api/prewarm']);
 
     // 6b. Création d'une clé scopée lecture seule avec quota personnalisé (120 req/min)
     const keyCreateRes = await fetch(`${base}/admin/api/keys`, {
@@ -347,7 +352,7 @@ async function testHlsAndHttp() {
     assert.strictEqual(stV1Res.status, 200);
     assert.strictEqual(stV1Res.headers.get('x-ratelimit-limit'), '120');
     const stV1Json = await stV1Res.json();
-    assert.ok(Array.isArray(stV1Json.capabilities) && stV1Json.capabilities.includes('batch'));
+    assert.ok(Array.isArray(stV1Json.capabilities) && stV1Json.capabilities.includes('prewarm'));
 
     // 6c. Pause puis réactivation de la clé
     await fetch(`${base}/admin/api/keys/update`, {
@@ -416,7 +421,7 @@ async function testHlsAndHttp() {
     assert.deepStrictEqual(fastJson.seasonsAvailable, [2, 3, 4]);
     assert.ok(fastJson.trailers.every((t) => t.source === 'manual'));
 
-    // 6f. Batch lookup (/api/v1/trailers/batch), recherche (/api/v1/search) et fiche (/api/v1/title/:id)
+    // 6f. Batch lookup (/api/v1/trailers/batch), prewarm (/api/v1/prewarm), recherche (/api/v1/search) et fiche (/api/v1/title/:id)
     const batchRes = await fetch(`${base}/api/v1/trailers/batch`, {
       method: 'POST',
       headers: rotatedHeaders,
@@ -432,6 +437,16 @@ async function testHlsAndHttp() {
     assert.strictEqual(batchRes.foundCount, 1);
     assert.strictEqual(batchRes.results[0].trailers[0].season, 4);
 
+    const prewarmRes = await fetch(`${base}/api/v1/prewarm`, {
+      method: 'POST',
+      headers: rotatedHeaders,
+      body: JSON.stringify({ items: [{ imdb: 'tt8800991', type: 'series' }, { imdb: 'tt0009999', type: 'movie' }] }),
+    });
+    assert.strictEqual(prewarmRes.status, 202);
+    const prewarmJson = await prewarmRes.json();
+    assert.strictEqual(prewarmJson.alreadyReady, 1);
+    assert.strictEqual(prewarmJson.queued, 1);
+
     const apiSearch = await fetch(`${base}/api/v1/search?q=Relais&type=series`, { headers: rotatedHeaders }).then((r) => r.json());
     assert.strictEqual(apiSearch.ok, true);
     assert.ok(apiSearch.results.some((r) => r.imdb_id === 'tt8800991'));
@@ -441,11 +456,20 @@ async function testHlsAndHttp() {
     assert.strictEqual(apiTitle.title.id, 'nflx:880099');
     assert.deepStrictEqual(apiTitle.seasonsAvailable, [2, 3, 4]);
 
-    // 6g. Télémétrie live /admin/api/metrics
+    // 6g. Télémétrie live /admin/api/metrics + Sauvegarde à chaud SQLite + Maintenance WAL
     const metricsJson = await fetch(`${base}/admin/api/metrics`, { headers: adminHeaders }).then((r) => r.json());
-    assert.ok(metricsJson.totalCalls >= 6);
+    assert.ok(metricsJson.totalCalls >= 7);
     assert.ok(metricsJson.trailersHits >= 3);
-    assert.ok(Array.isArray(metricsJson.recentCalls) && metricsJson.recentCalls.length >= 4);
+    assert.ok(Array.isArray(metricsJson.recentCalls) && metricsJson.recentCalls.length >= 5);
+
+    const optDbRes = await fetch(`${base}/admin/api/db/optimize`, { method: 'POST', headers: adminHeaders, body: '{}' }).then((r) => r.json());
+    assert.strictEqual(optDbRes.ok, true);
+    assert.ok(typeof optDbRes.bytesAfter === 'number' && optDbRes.bytesAfter > 0);
+
+    const backupRes = await fetch(`${base}/admin/api/backup.db`, { headers: adminHeaders });
+    assert.strictEqual(backupRes.status, 200);
+    const backupBuf = Buffer.from(await backupRes.arrayBuffer());
+    assert.strictEqual(backupBuf.subarray(0, 15).toString('utf8'), 'SQLite format 3', 'La sauvegarde téléchargée doit être un fichier SQLite valide');
 
     // /admin/api/hls/clear
     const clearRes = await fetch(`${base}/admin/api/hls/clear`, { method: 'POST', headers: adminHeaders, body: '{}' });
@@ -462,7 +486,7 @@ async function testHlsAndHttp() {
 }
 
 testHlsAndHttp().then(() => {
-  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée et dashboard v2.9.0 vérifiés');
+  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée, sauvegarde SQLite et dashboard v3.1.0 vérifiés');
 }).catch((err) => {
   console.error(err);
   process.exit(1);

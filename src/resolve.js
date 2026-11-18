@@ -80,21 +80,52 @@ async function work(imdb, type, existing) {
   const b = bs.status === 'fulfilled' ? bs.value : {};
   const net = nf.status === 'fulfilled' ? nf.value : {};
 
-  // Ni bande-annonce TMDB, ni fiche Netflix : dernière chance, une recherche YouTube (matching strict).
+  // Ni bande-annonce TMDB, ni fiche Netflix : dernière chance, une recherche YouTube VF (matching strict).
   let yt = b.trailer_yt || null;
+  let vfYt = b.vf_trailer || null;
   if (!yt && !net.nid) {
-    try { const found = await youtube.findTrailer(info); if (found) yt = found.id; }
-    catch (e) { /* pas bloquant : la fiche sera simplement sans bande-annonce */ }
+    try {
+      const found = await youtube.findTrailer(info);
+      if (found) { yt = found.id; vfYt = found.id; }
+    } catch { /* pas bloquant : la fiche sera simplement sans bande-annonce */ }
   }
   let id;
   if (net.nid) id = (await ingestNetflix(net.nid, { html: net.html })).id;
   else id = existing ? existing.id : `imdb:${imdb}`;
 
-  const base = { id, imdb_id: imdb, tmdb_id: info.tmdbId, tmdb_type: info.tmdbType, vf_checked: Date.now(),
-    ...(yt ? { trailer_yt: yt } : {}) };   // clé YouTube : sert de repli (et de source si YOUTUBE_AS_SOURCE=1)
-  if (net.nid) { const row = store.getTitle(id); store.upsertTitle({ ...base, type: row.type, name: row.name }); }   // on garde les infos Netflix
-  else store.upsertTitle({ ...base, type: info.type, name: info.name, year: info.year, release_date: info.release_date || b.release_date,
-    synopsis: info.synopsis, poster: info.poster, background: info.background, genres: b.genres, runtime: b.runtime });
+  const base = {
+    id,
+    imdb_id: imdb,
+    tmdb_id: info.tmdbId,
+    tmdb_type: info.tmdbType,
+    vf_checked: Date.now(),
+    ...(yt ? { trailer_yt: yt } : {}),
+    ...(vfYt ? { vf_trailer: vfYt } : {}),
+  };
+  if (net.nid) {
+    const row = store.getTitle(id);
+    store.upsertTitle({ ...base, type: row.type, name: row.name }); // on garde les infos Netflix
+    if (info.tmdbId) store.deleteDuplicates(info.tmdbType, info.tmdbId, id);
+    if (existing && existing.id !== id && store.getTitle(existing.id)) {
+      // Fusionne une éventuelle fiche `imdb:tt…` préexistante vers la nouvelle fiche `nflx:…`
+      const cur = store.getTitle(id);
+      const mergedApple = cur.appletv.length ? cur.appletv : (existing.appletv || []);
+      const curManual = (cur.extra && Array.isArray(cur.extra.manualTrailers)) ? cur.extra.manualTrailers : [];
+      const exManual = (existing.extra && Array.isArray(existing.extra.manualTrailers)) ? existing.extra.manualTrailers : [];
+      const mergedManual = [...curManual, ...exManual.filter((m) => m && m.url && !curManual.some((c) => c.url === m.url))].slice(-5);
+      store.upsertTitle({
+        id,
+        type: cur.type,
+        name: cur.name,
+        ...(mergedApple.length && !cur.appletv.length ? { appletv: mergedApple } : {}),
+        ...(mergedManual.length !== curManual.length ? { extra: { ...(cur.extra || {}), manualTrailers: mergedManual } } : {}),
+      });
+      store.deleteTitle(existing.id);
+    }
+  } else {
+    store.upsertTitle({ ...base, type: info.type, name: info.name, year: info.year, release_date: info.release_date || b.release_date,
+      synopsis: info.synopsis, poster: info.poster, background: info.background, genres: b.genres, runtime: b.runtime });
+  }
 
   const row = store.getTitle(id);
   const found = !!row.trailers.length;

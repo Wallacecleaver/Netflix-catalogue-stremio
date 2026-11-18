@@ -16,6 +16,9 @@ if (path.basename(resolvedDbPath) === 'stockage.db' && !fs.existsSync(resolvedDb
 }
 const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('temp_store = MEMORY');
+db.pragma('cache_size = -16000');
 db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 5000');
 
@@ -453,12 +456,22 @@ const touchApiKey = (id) => recordApiKeyUse(id);
 
 // ---- Journal d'événements (erreurs liage/synchro/relais, actions admin…) ----
 const LOG_KEEP = 2000;
+const insertLogStmt = db.prepare('INSERT INTO logs (ts, level, source, message, meta) VALUES (?, ?, ?, ?, ?)');
+const pruneLogsStmt = db.prepare('DELETE FROM logs WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM logs)');
+let logInsertCounter = 0;
 function addLog({ level = 'info', source = null, message, meta = null }) {
-  db.prepare('INSERT INTO logs (ts, level, source, message, meta) VALUES (?, ?, ?, ?, ?)')
-    .run(Date.now(), level, source || null, String(message ?? ''), meta ? JSON.stringify(meta) : null);
-  db.prepare('DELETE FROM logs WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM logs)').run(LOG_KEEP);
+  insertLogStmt.run(Date.now(), level, source || null, String(message ?? ''), meta ? JSON.stringify(meta) : null);
+  // Évite un sous-SELECT + DELETE sur chaque écriture de log sous fort trafic API
+  if (++logInsertCounter >= 100) {
+    logInsertCounter = 0;
+    pruneLogsStmt.run(LOG_KEEP);
+  }
 }
 function listLogs({ level = '', source = '', search = '', limit = 200, offset = 0 } = {}) {
+  if (logInsertCounter > 0) {
+    logInsertCounter = 0;
+    pruneLogsStmt.run(LOG_KEEP);
+  }
   const where = [];
   const p = { limit: Math.min(Number(limit) || 200, 500), offset: Math.max(Number(offset) || 0, 0) };
   if (level) { where.push('level = @level'); p.level = level; }
@@ -474,10 +487,30 @@ function listLogs({ level = '', source = '', search = '', limit = 200, offset = 
     .map((r) => ({ ...r, meta: JSON.parse(r.meta || 'null') }));
   return { total, logs };
 }
-const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
+const clearLogs = () => { logInsertCounter = 0; return db.prepare('DELETE FROM logs').run().changes; };
+
+// ---- Sauvegarde à chaud et maintenance SQLite ----
+async function backupTo(destFile) {
+  await db.backup(destFile);
+  return destFile;
+}
+
+function optimizeDb() {
+  invalidateStats();
+  pruneLogsStmt.run(LOG_KEEP);
+  logInsertCounter = 0;
+  const bytesBefore = db.pragma('page_count', { simple: true }) * db.pragma('page_size', { simple: true });
+  const prunedLookups = db.prepare('DELETE FROM lookups WHERE found = 0 AND checked_at < ?')
+    .run(Date.now() - 7 * 86400000).changes;
+  try { db.pragma('optimize'); } catch { /* ignore */ }
+  let walPages = null;
+  try { walPages = db.pragma('wal_checkpoint(TRUNCATE)'); } catch { /* ignore */ }
+  const bytesAfter = db.pragma('page_count', { simple: true }) * db.pragma('page_size', { simple: true });
+  return { ok: true, prunedLookups, bytesBefore, bytesAfter, wal: walPages };
+}
 
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, getLookup, setLookup, listUnlinked, listLinked, listVfPending,
   listNetflixTrailerPending, deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
   allSettings, setSettings, deleteSetting, deleteTitle, resetChecks,
   listApiKeys, getApiKeyById, countApiKeys, countActiveApiKeys, createApiKey, updateApiKey, rotateApiKey, deleteApiKey, findApiKey, recordApiKeyUse, touchApiKey,
-  addLog, listLogs, clearLogs };
+  addLog, listLogs, clearLogs, backupTo, optimizeDb };

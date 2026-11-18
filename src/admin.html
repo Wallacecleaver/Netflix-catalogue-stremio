@@ -1097,6 +1097,7 @@
             </div>
             <div class="head-actions">
               <span class="badge" id="titlesCount">0 fiche</span>
+              <button type="button" class="btn-sm" id="exportCatalogBtn">⬇ Exporter JSON</button>
             </div>
           </div>
 
@@ -1124,6 +1125,7 @@
             <button type="button" class="chip" data-filter="manual">Lien direct</button>
             <button type="button" class="chip" data-filter="upstream">Instance amont</button>
             <button type="button" class="chip" data-filter="youtube">YouTube</button>
+            <button type="button" class="chip" data-filter="no-relay">Sans relais MP4</button>
             <button type="button" class="chip" data-filter="none">Sans vidéo</button>
             <button type="button" class="chip" data-filter="no-imdb">Sans ID IMDb</button>
           </div>
@@ -1502,6 +1504,20 @@
                 <a id="healthCheckSysLink" class="btn btn-sm" href="/health" target="_blank" rel="noopener">Sonde /health ↗</a>
               </div>
             </div>
+          </div>
+
+          <div class="card" style="margin-top:16px;margin-bottom:0">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Sauvegarde à chaud &amp; Maintenance SQLite</h2>
+                <p class="card-sub">Télécharge une copie cohérente de <span class="mono">stockage.db</span> (sans couper le serveur) ou compacte le journal WAL.</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn-sm" id="optimizeDbBtn">⚡ Optimiser SQLite (WAL)</button>
+                <button type="button" class="btn-sm btn-primary" id="downloadDbBackupBtn">⬇ Sauvegarder la base (.db)</button>
+              </div>
+            </div>
+            <div id="dbMaintenanceBox" class="muted" style="font-size:13px">Chargement…</div>
           </div>
 
           <div id="restartBanner" class="secret-banner hide" style="border-color:rgba(245,158,11,.45);background:var(--warn-soft);color:var(--warn)"></div>
@@ -1999,6 +2015,13 @@
       </div>
       <div class="progress" style="margin:6px 0 8px"><div style="width:${hlsPct}%"></div></div>
       <div class="muted" style="font-size:12px">Conservation : ${pl(hls.cacheDays, 'jour')} · Conversions actives : ${hls.inflight || 0} · Dossier : <span class="mono">${esc(hls.dir || 'data/hls')}</span></div>
+    `;
+
+    $('dbMaintenanceBox').innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>Taille SQLite : <b>${fmtBytes(s.dbBytes || 0)}</b> · <b>${fmtInt(s.total)}</b> fiches · <b>${fmtInt(s.episodes || 0)}</b> épisodes</span>
+        <span class="mono" style="font-size:12px">Cache lookups IMDb : ${fmtInt(s.lookups || 0)} (${fmtInt(s.lookupsFound || 0)} positifs) · Logs : ${fmtInt(s.logs || 0)}</span>
+      </div>
     `;
 
     // URLs publiques du serveur API
@@ -2697,6 +2720,12 @@
         curl: `curl -X POST "${base}/api/trailers/submit" \\\n  -H "x-api-key: ${keyPlaceholder}" \\\n  -H "content-type: application/json" \\\n  -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
       },
       {
+        method: 'POST',
+        path: '/api/v1/prewarm',
+        desc: 'Pré-chauffe jusqu’à 50 titres en arrière-plan (réponse immédiate 202 Accepted).',
+        curl: `curl -X POST -H "x-api-key: ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series"}]}' "${base}/api/v1/prewarm"`,
+      },
+      {
         method: 'GET',
         path: '/api/status',
         desc: 'État de santé, version, sources actives et statistiques globales.',
@@ -3070,8 +3099,68 @@
     if (b) openInspector(b.dataset.inspectTested);
   });
 
-  // ---- TAB 5: Settings & HLS Cache ----
+  // ---- TAB 5: Settings, SQLite Backup & HLS Cache ----
   $('copyApiBaseEntryBtn').addEventListener('click', () => copyText($('apiBaseEntryInput').value, 'URL API v1 copiée'));
+
+  $('exportCatalogBtn').addEventListener('click', async () => {
+    const btn = $('exportCatalogBtn');
+    btn.disabled = true;
+    try {
+      const qs = new URLSearchParams({
+        search: $('titlesSearch').value.trim(),
+        filter: titlesFilter,
+        type: $('titlesType').value,
+        sort: $('titlesSort').value,
+        limit: '5000',
+      });
+      const data = await api(`/admin/api/titles/export?${qs}`);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stockage-catalogue-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(`${pl(data.exportedCount, 'fiche exportée', 'fiches exportées')} en JSON`, 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; }
+  });
+
+  $('optimizeDbBtn').addEventListener('click', async () => {
+    const btn = $('optimizeDbBtn');
+    btn.disabled = true;
+    try {
+      const r = await api('/admin/api/db/optimize', { method: 'POST', body: {} });
+      toast(`SQLite optimisée (${fmtBytes(r.bytesAfter)} · ${pl(r.prunedLookups || 0, 'lookup expiré purgé', 'lookups expirés purgés')})`, 'ok');
+      loadSummary();
+    } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; }
+  });
+
+  $('downloadDbBackupBtn').addEventListener('click', async () => {
+    const btn = $('downloadDbBackupBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/admin/api/backup.db', { headers: { 'x-admin-token': token } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erreur HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stockage-db-${new Date().toISOString().slice(0, 10)}.db`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(`Sauvegarde téléchargée (${fmtBytes(blob.size)})`, 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; }
+  });
 
   $('clearHlsBtn').addEventListener('click', async () => {
     if (!confirm('Purger tous les fichiers MP4 convertis du cache HLS ? Ils seront reconvertis à la demande.')) return;
