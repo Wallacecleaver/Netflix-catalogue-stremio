@@ -269,9 +269,30 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + logo personnalisé W + nouveaux endpoints Admin v3.2.1 (sans manifest Stremio) ----
+    // ---- 5. Dashboard HTML + logo W + API universelle v3.3.0 (/api/docs & /api/v1 discovery, sans manifest Stremio) ----
     const manifest404 = await fetch(`${base}/manifest.json`);
     assert.strictEqual(manifest404.status, 404, '/manifest.json ne doit plus exister en mode pur serveur API');
+
+    const discovRes = await fetch(`${base}/api/v1`);
+    assert.strictEqual(discovRes.status, 200, 'GET /api/v1 doit exposer le descriptif JSON universel');
+    const discovJson = await discovRes.json();
+    assert.strictEqual(discovJson.ok, true);
+    assert.strictEqual(discovJson.service, 'stockage-db');
+    assert.strictEqual(discovJson.version, '3.3.0');
+    assert.ok(discovJson.endpoints && discovJson.endpoints.trailersById.includes('/api/v1/trailers/{id}'));
+
+    const wellKnownRes = await fetch(`${base}/.well-known/stockage-db.json`);
+    assert.strictEqual(wellKnownRes.status, 200, '/.well-known/stockage-db.json doit répondre 200');
+
+    const docsRes = await fetch(`${base}/api/docs`);
+    assert.strictEqual(docsRes.status, 200, 'GET /api/docs doit servir la documentation publique interactive');
+    const docsHtml = await docsRes.text();
+    assert.ok(docsHtml.includes('API Universelle') && docsHtml.includes('v3.3.0'), 'Le guide /api/docs doit afficher API Universelle et la version v3.3.0');
+    const docsScripts = [...docsHtml.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    assert.ok(docsScripts.length >= 1, 'Au moins un bloc <script> attendu dans api-docs.html');
+    for (const [, code] of docsScripts) {
+      assert.doesNotThrow(() => new Function(code), 'Erreur de syntaxe JS détectée dans src/api-docs.html');
+    }
 
     const logoSvgRes = await fetch(`${base}/logo.svg`);
     assert.strictEqual(logoSvgRes.status, 200, '/logo.svg doit être servi publiquement');
@@ -287,11 +308,12 @@ async function testHlsAndHttp() {
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v3.2.1'), 'Le badge de version v3.2.1 doit être injecté dans /admin');
+    assert.ok(html.includes('v3.3.0'), 'Le badge de version v3.3.0 doit être injecté dans /admin');
     assert.ok(html.includes('/logo.png') && html.includes('/logo.svg'), 'Le logo personnalisé W doit être intégré au dashboard et au favicon');
-    assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
+    assert.ok(html.includes('vf-trailer-wallace'), 'La compatibilité vf-trailer-wallace doit être mentionnée');
     assert.ok(html.includes('id="tab-streams"') && html.includes('Test des flux'), 'L\'onglet Test des flux doit être présent dans Exploitation');
-    assert.ok(html.includes('API &amp; Connexion'), 'L\'onglet API & Connexion simplifié doit être présent');
+    assert.ok(html.includes('API &amp; Connexion Universelle'), 'L\'onglet API & Connexion Universelle doit être présent');
+    assert.ok(html.includes('/api/docs'), 'Le lien vers le guide public /api/docs doit être présent dans /admin');
     assert.ok(html.includes('white-space: pre-wrap'), 'Les blocs code-box doivent préserver les retours à la ligne');
     assert.ok(!html.includes('/manifest.json') && !html.includes('stremio://'), 'Aucune trace de manifest.json ou stremio:// ne doit rester dans /admin');
 
@@ -306,7 +328,7 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '3.2.1');
+    assert.strictEqual(summary.version, '3.3.0');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
@@ -370,7 +392,8 @@ async function testHlsAndHttp() {
     assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
     const oaJson = await oaRes.json();
     assert.strictEqual(oaJson.openapi, '3.0.3');
-    assert.strictEqual(oaJson.info.version, '3.2.1');
+    assert.strictEqual(oaJson.info.version, '3.3.0');
+    assert.ok(oaJson.paths['/api/v1/trailers/{id}']);
     assert.ok(oaJson.paths['/api/trailers/batch']);
     assert.ok(oaJson.paths['/api/prewarm']);
 
@@ -494,10 +517,30 @@ async function testHlsAndHttp() {
     assert.strictEqual(apiTitle.title.id, 'nflx:880099');
     assert.deepStrictEqual(apiTitle.seasonsAvailable, [2, 3, 4]);
 
+    // 6f-bis. API Universelle v3.3.0 : route /api/v1/trailers/:id avec ID composite Stremio (tt...:2:1) + ?apikey=
+    const univComposite = await fetch(
+      `${base}/api/v1/trailers/${encodeURIComponent('tt8800991:2:1')}?strict_season=1&apikey=${encodeURIComponent(rotRes.key)}`
+    ).then((r) => r.json());
+    assert.strictEqual(univComposite.found, true, 'L’endpoint universel /api/v1/trailers/:id doit accepter tt...:s:e et ?apikey=');
+    assert.strictEqual(univComposite.trailers.length, 1);
+    assert.strictEqual(univComposite.trailers[0].season, 2);
+
+    // Recherche universelle directe par titre + année + en-tête Api-Key
+    const univByTitle = await fetch(
+      `${base}/api/v1/trailers?title=${encodeURIComponent('Test Relais')}&year=2025`,
+      { headers: { 'Api-Key': rotRes.key } }
+    ).then((r) => r.json());
+    assert.strictEqual(univByTitle.found, true, 'La recherche universelle par ?title=...&year=... doit trouver la fiche locale');
+    assert.strictEqual(univByTitle.title.id, 'nflx:880099');
+
+    // Capacité multi-instances portée à 50 clés
+    const keysInfo = await fetch(`${base}/admin/api/keys`, { headers: adminHeaders }).then((r) => r.json());
+    assert.ok(keysInfo.max >= 50, 'La capacité multi-instances doit permettre au moins 50 clés indépendantes');
+
     // 6g. Télémétrie live /admin/api/metrics + Sauvegarde à chaud SQLite + Maintenance WAL
     const metricsJson = await fetch(`${base}/admin/api/metrics`, { headers: adminHeaders }).then((r) => r.json());
-    assert.ok(metricsJson.totalCalls >= 7);
-    assert.ok(metricsJson.trailersHits >= 3);
+    assert.ok(metricsJson.totalCalls >= 9);
+    assert.ok(metricsJson.trailersHits >= 5);
     assert.ok(Array.isArray(metricsJson.recentCalls) && metricsJson.recentCalls.length >= 5);
 
     const optDbRes = await fetch(`${base}/admin/api/db/optimize`, { method: 'POST', headers: adminHeaders, body: '{}' }).then((r) => r.json());
@@ -524,7 +567,7 @@ async function testHlsAndHttp() {
 }
 
 testHlsAndHttp().then(() => {
-  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée, sonde de flux MP4, sauvegarde SQLite et dashboard v3.2.0 vérifiés');
+  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API universelle v3.3.0, /api/docs, sonde de flux MP4, sauvegarde SQLite et dashboard vérifiés');
 }).catch((err) => {
   console.error(err);
   process.exit(1);

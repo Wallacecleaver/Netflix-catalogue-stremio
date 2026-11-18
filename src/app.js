@@ -71,14 +71,22 @@ function auth(req, res, next) {
   next();
 }
 
-// ---- API de fédération & API publique v1 : clés API, scopes, quotas par clé et télémétrie ----
+// ---- API Universelle & Fédération : clés multi-instances, scopes, quotas par clé et télémétrie ----
 // Fermée par défaut : sans clé active (ni API_KEY historique), les appels sont refusés.
 // ALLOW_OPEN_API=1 ouvre volontairement la lecture (déconseillé : expose le catalogue sans clé).
-const MAX_API_KEYS = 5;
+const MAX_API_KEYS = Math.max(5, Number(process.env.MAX_API_KEYS) || 50);
 const VALID_SCOPES = new Set(['trailers:read', 'catalog:read', 'trailers:write']);
 const keyHash = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
 const apiHasKey = () => !!config.apiKey || store.countActiveApiKeys() > 0;
 const apiIsOpen = () => !!config.allowOpenApi;
+
+function resolvePublicBase(req) {
+  const cfg = String(config.publicUrl || '').replace(/\/+$/, '');
+  if (cfg && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cfg)) return cfg;
+  const host = req && typeof req.get === 'function' && req.get('host');
+  if (host) return `${req.protocol || 'http'}://${host}`;
+  return cfg || 'http://localhost:7000';
+}
 
 function normalizeScopes(raw) {
   const list = Array.isArray(raw)
@@ -203,11 +211,11 @@ function checkBucket(bucketKey, limitPerMin, res) {
   return true;
 }
 
-// En-têtes CORS sur toute l'API publique (permet les outils web, Hoppscotch, addons externes)
+// En-têtes CORS sur toute l'API publique (permet toute application web, instance externe, Hoppscotch, Bruno, addons)
 app.use('/api', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Api-Key, Authorization');
   res.setHeader('Access-Control-Expose-Headers', 'X-Response-Time, X-Trailer-Count, X-Stockage-Version, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset');
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
@@ -218,7 +226,12 @@ function apiGuard(requiredScope = 'trailers:read') {
     req.apiStartMs = Date.now();
     const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
     const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
-    const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
+    const given = req.get('x-api-key')
+      || req.get('api-key')
+      || (bearer && bearer[1])
+      || req.query.apikey
+      || req.query.api_key
+      || req.query.key;
 
     if (given) {
       const hit = store.findApiKey(keyHash(given));
@@ -282,7 +295,7 @@ app.post('/admin/api-key', auth, (_req, res) => {
 });
 
 // Gestion complète des clés API (onglet « API & Fédération ») : liste, création, édition/pause, rotation, révocation.
-app.get('/admin/api/keys', auth, (_req, res) => {
+app.get('/admin/api/keys', auth, (req, res) => {
   res.set('cache-control', 'no-store');
   const leg = legacyKeyInfo();
   res.json({
@@ -291,7 +304,7 @@ app.get('/admin/api/keys', auth, (_req, res) => {
     legacy: leg.active,
     legacyInfo: leg,
     open: apiIsOpen(),
-    baseUrl: config.publicUrl,
+    baseUrl: resolvePublicBase(req),
     metrics: getApiMetricsView(),
   });
 });
@@ -819,13 +832,96 @@ const youtubeInfoOf = (row) => {
 
 const seasonsAvailableOf = (trailers) => [...new Set((trailers || []).map((t) => t.season).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b);
 
-async function executeTrailersQuery(q, { logFederation = true, forceDebug = false, forceFast = false } = {}) {
+/**
+ * Analyse n'importe quel identifiant universel (Stremio `tt13016388:2:5`, `tmdb:tv:95396`,
+ * `tmdb:95396`, `nflx:81944880`, `81944880`, `apple:umc.cmc...`) et en extrait imdb/tmdb/netflix/type/season.
+ */
+function parseUniversalQueryInput(q = {}) {
+  let imdb = String(q.imdb || '').trim();
+  let tmdb = String(q.tmdb || '').trim();
+  let netflix = String(q.netflix || '').trim();
+  let type = String(q.type || '').trim();
+  let season = Number(q.season) || null;
+  let internalId = '';
+
+  const rawId = String(q.id || '').trim();
+  const parseComposite = (val) => {
+    if (!val) return;
+    const stremioMatch = /^(tt\d+)(?::(\d+)(?::\d+)?)?$/i.exec(val);
+    if (stremioMatch) {
+      if (!imdb) imdb = stremioMatch[1].toLowerCase();
+      if (stremioMatch[2]) {
+        if (!season) season = Number(stremioMatch[2]) || null;
+        if (!type) type = 'series';
+      }
+      return;
+    }
+    const tmdbTyped = /^tmdb:(movie|tv|series):(\d+)$/i.exec(val);
+    if (tmdbTyped) {
+      if (!tmdb) tmdb = tmdbTyped[2];
+      if (!type) type = tmdbTyped[1].toLowerCase() === 'movie' ? 'movie' : 'series';
+      return;
+    }
+    const tmdbPlain = /^tmdb:(\d+)$/i.exec(val);
+    if (tmdbPlain) {
+      if (!tmdb) tmdb = tmdbPlain[1];
+      return;
+    }
+    const nflxMatch = /^(?:nflx|netflix):(\d+)$/i.exec(val);
+    if (nflxMatch) {
+      if (!netflix) netflix = nflxMatch[1];
+      return;
+    }
+    if (/^\d{6,12}$/.test(val)) {
+      if (!netflix) netflix = val;
+      return;
+    }
+    internalId = val;
+  };
+
+  // Nettoie aussi un éventuel `imdb=tt13016388:2:1` envoyé tel quel par un addon tiers
+  if (imdb.includes(':')) {
+    const tmp = imdb;
+    imdb = '';
+    parseComposite(tmp);
+  }
+  if (rawId) parseComposite(rawId);
+
+  const title = String(q.title || q.name || (!imdb && !tmdb && !netflix && !internalId ? (q.q || '') : '')).trim();
+  const year = Number(q.year) || null;
+  return { imdb, tmdb, netflix, internalId, title, year, type, season };
+}
+
+function findBestByTitle(title, { type = '', year = null } = {}) {
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const target = norm(title);
+  if (!target) return null;
+  const { rows } = store.listTitles({ search: title, type, sort: 'added', limit: 20, offset: 0 });
+  if (!rows.length) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const r of rows) {
+    const rn = norm(r.name);
+    let score = 0;
+    if (rn === target) score += 100;
+    else if (rn.startsWith(target) || target.startsWith(rn)) score += 60;
+    else if (rn.includes(target)) score += 30;
+    if (year && r.year) {
+      if (Number(r.year) === year) score += 40;
+      else if (Math.abs(Number(r.year) - year) <= 1) score += 15;
+      else score -= 25;
+    }
+    if (type && r.type === type) score += 15;
+    if ((r.trailers && r.trailers.length) || (r.appletv && r.appletv.length)) score += 10;
+    if (score > bestScore) { bestScore = score; best = r; }
+  }
+  return best ? store.getTitle(best.id) : null;
+}
+
+async function executeTrailersQuery(q, { logFederation = true, forceDebug = false, forceFast = false, baseUrl = null } = {}) {
   const t0 = Date.now();
-  const imdb = String(q.imdb || '').trim();
-  const tmdb = String(q.tmdb || '').trim();
-  const netflix = String(q.netflix || '').trim();
-  const type = String(q.type || '').trim();
-  const season = Number(q.season) || null;
+  const parsed = parseUniversalQueryInput(q);
+  const { imdb, tmdb, netflix, internalId, title, year, type, season } = parsed;
   const strictSeason = String(q.strict_season || '') === '1' || q.strict_season === true;
   const includeExtras = String(q.include_extras || '') === '1' || q.include_extras === true;
   const includeYoutube = String(q.include_youtube || '') === '1' || q.include_youtube === true;
@@ -837,30 +933,38 @@ async function executeTrailersQuery(q, { logFederation = true, forceDebug = fals
     ? new Set(String(q.kind).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
     : null;
 
-  if (!imdb && !tmdb && !netflix) {
-    return { status: 400, body: { error: 'paramètre imdb, tmdb ou netflix requis' }, tookMs: Date.now() - t0 };
+  if (!imdb && !tmdb && !netflix && !internalId && !title) {
+    return {
+      status: 400,
+      body: { error: 'Identifiant ou titre requis (id, imdb, tmdb, netflix ou title)' },
+      tookMs: Date.now() - t0,
+    };
   }
 
-  let row = federation.lookup({ imdb, tmdb, type, netflix });
+  let row = (internalId ? store.getTitle(internalId) : null)
+    || federation.lookup({ imdb, tmdb, type, netflix })
+    || (title ? findBestByTitle(title, { type, year }) : null);
+
+  const effectiveImdb = imdb || (row && row.imdb_id) || '';
 
   // Mode normal (fast=0) : rafraîchissement Netflix + résolution à la demande + amont + Apple TV+
   if (!fastOnly) {
     if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
-    if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
+    if (effectiveImdb) row = (await resolve.ensure(effectiveImdb, type || (row && row.type) || '', row, { timeoutMs: 4500 })) || row;
     if (row) {
       row = await federation.ensureUpstreamTrailers(row, { season });
       row = await appletv.ensure(row, { timeoutMs: 4000 });
     }
   }
 
-  const pending = !!imdb && resolve.isPending(imdb);
+  const pending = !!effectiveImdb && resolve.isPending(effectiveImdb);
   const tookMs = Date.now() - t0;
   if (!row) {
     return { status: 200, tookMs, body: { found: false, pending, tookMs, trailers: [] } };
   }
 
   // On expose toutes les sources relayables (Netflix, amont, Apple TV, liens manuels), triées pour la saison demandée.
-  const allTrailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
+  const allTrailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season, baseUrl });
   const seasonsAvailable = seasonsAvailableOf(allTrailers);
   let trailers = allTrailers;
   if (strictSeason && season > 0) {
@@ -874,14 +978,14 @@ async function executeTrailersQuery(q, { logFederation = true, forceDebug = fals
   }
 
   if (logFederation) {
-    const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
+    const asked = imdb || (tmdb ? `tmdb:${tmdb}` : netflix ? `netflix:${netflix}` : (internalId || title));
     if (trailers.length) log.info('federation', `${asked} → ${trailers.length} flux MP4`, { sources: [...new Set(trailers.map((t) => t.source))].join(','), ms: tookMs, ...(season ? { season } : {}) });
     else log.warn('federation', `${asked} → aucun flux MP4`, { fiche: row ? row.id : 'introuvable', pending, ms: tookMs, ...(season ? { season } : {}) });
   }
 
   const yt = youtubeInfoOf(row);
   const debug = (forceDebug || String(q.debug || '') === '1') ? {
-    query: { imdb, tmdb, netflix, type, season, strictSeason, includeExtras, fastOnly, source: sourceFilter ? [...sourceFilter] : null, kind: kindFilter ? [...kindFilter] : null },
+    query: { imdb, tmdb, netflix, internalId: internalId || null, title: title || null, year, type, season, strictSeason, includeExtras, fastOnly, source: sourceFilter ? [...sourceFilter] : null, kind: kindFilter ? [...kindFilter] : null },
     fiche: {
       id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id,
       netflix_id: row.netflix_id, trailers_checked: row.trailers_checked || null, appletv_checked: row.appletv_checked || null,
@@ -921,7 +1025,7 @@ async function executeTrailersQuery(q, { logFederation = true, forceDebug = fals
   };
 }
 
-function executeCatalogSearch(q = {}) {
+function executeCatalogSearch(q = {}, { baseUrl = null } = {}) {
   const query = String(q.q || q.search || '').trim();
   const filter = String(q.filter || q.source || '').trim();
   const type = String(q.type || '').trim();
@@ -935,7 +1039,7 @@ function executeCatalogSearch(q = {}) {
     limit,
     offset,
     results: rows.map((r) => {
-      const trailers = federation.trailerUrls(r, { includeApple: true, includeManual: true });
+      const trailers = federation.trailerUrls(r, { includeApple: true, includeManual: true, baseUrl });
       return {
         id: r.id,
         name: r.name,
@@ -959,9 +1063,14 @@ function executeCatalogSearch(q = {}) {
 function resolveAnyTitleId(rawId) {
   const key = String(rawId || '').trim();
   if (!key) return null;
-  return store.getTitle(key)
-    || (/^tt\d+$/i.test(key) ? store.findByImdbId(key) : null)
-    || (/^\d+$/.test(key) ? store.findByNetflixId(key) : null);
+  const direct = store.getTitle(key);
+  if (direct) return direct;
+  const parsed = parseUniversalQueryInput({ id: key });
+  if (parsed.internalId) {
+    const hit = store.getTitle(parsed.internalId);
+    if (hit) return hit;
+  }
+  return federation.lookup({ imdb: parsed.imdb, tmdb: parsed.tmdb, type: parsed.type, netflix: parsed.netflix });
 }
 
 // ---- Console interactive du dashboard (onglet « API & Fédération », sans consommer de clé externe) ----
@@ -1141,35 +1250,103 @@ app.get('/admin/api/stream-sample', auth, (req, res) => {
   res.json({ ok: true, count: picked.length, items: picked });
 });
 
+// ---- Guide public interactif (/api/docs) & Découverte automatique (/api, /api/v1, /.well-known/stockage-db.json) ----
+const API_DOCS_TEMPLATE = fs.readFileSync(path.join(__dirname, 'api-docs.html'), 'utf8')
+  .replace(/__APP_VERSION__/g, APP_VERSION);
+
+app.get(['/api/docs', '/api/v1/docs'], (req, res) => {
+  res.set('cache-control', 'no-cache');
+  const html = API_DOCS_TEMPLATE.replace(/__PUBLIC_BASE_URL__/g, resolvePublicBase(req));
+  res.type('text/html; charset=utf-8').send(html);
+});
+
+function buildDiscoveryManifest(req) {
+  const base = resolvePublicBase(req);
+  return {
+    ok: true,
+    service: 'stockage-db',
+    version: APP_VERSION,
+    baseUrl: base,
+    apiBaseUrl: `${base}/api/v1`,
+    docsUrl: `${base}/api/docs`,
+    openApiUrl: `${base}/api/v1/openapi.json`,
+    authRequired: !apiIsOpen(),
+    authMethods: [
+      'Authorization: Bearer <api_key>',
+      'X-API-Key: <api_key>',
+      'Api-Key: <api_key>',
+      '?apikey=<api_key>',
+    ],
+    supportedIdentifiers: [
+      'tt1234567 (IMDb)',
+      'tt1234567:2:1 (Stremio série + saison auto)',
+      'tmdb:95396 ou tmdb:tv:95396 (TMDB)',
+      'nflx:81944880 ou 81944880 (Netflix)',
+      'title=Nom+du+film&year=2024 (Recherche par titre)',
+    ],
+    endpoints: {
+      status: `${base}/api/v1/status`,
+      trailers: `${base}/api/v1/trailers`,
+      trailersById: `${base}/api/v1/trailers/{id}`,
+      batch: `${base}/api/v1/trailers/batch`,
+      prewarm: `${base}/api/v1/prewarm`,
+      search: `${base}/api/v1/search`,
+      title: `${base}/api/v1/title/{id}`,
+      submit: `${base}/api/v1/trailers/submit`,
+    },
+  };
+}
+
+app.get(['/api', '/api/v1', '/.well-known/stockage-db.json'], (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('cache-control', 'public, max-age=60');
+  res.json(buildDiscoveryManifest(req));
+});
+
 // ---- Spécification OpenAPI 3.0.3 (importable dans Bruno, Postman, Hoppscotch, Swagger) ----
-function buildOpenApiSpec() {
-  const base = String(config.publicUrl || 'http://localhost:7000').replace(/\/+$/, '');
+function buildOpenApiSpec(req) {
+  const base = resolvePublicBase(req);
   return {
     openapi: '3.0.3',
     info: {
-      title: 'Stockage DB — API de Fédération & Catalogue',
+      title: 'Stockage DB — API Universelle de Bandes-Annonces MP4/HLS',
       version: APP_VERSION,
-      description: 'API REST de Stockage DB : bandes-annonces MP4/HLS multi-sources (Netflix, Apple TV+, liens directs, instance amont) triées par saison pour vf-trailer-wallace et clients externes.',
+      description: 'API REST universelle de Stockage DB : bandes-annonces MP4/HLS multi-sources (Netflix, Apple TV+, liens directs, instance amont) compatibles avec toute instance externe, addon Stremio, site web, bot ou script.',
     },
     servers: [{ url: base }],
     components: {
       securitySchemes: {
-        ApiKeyHeader: { type: 'apiKey', in: 'header', name: 'x-api-key' },
         BearerAuth: { type: 'http', scheme: 'bearer' },
+        ApiKeyHeader: { type: 'apiKey', in: 'header', name: 'X-API-Key' },
+        ApiKeyQuery: { type: 'apiKey', in: 'query', name: 'apikey' },
       },
     },
-    security: [{ ApiKeyHeader: [] }, { BearerAuth: [] }],
+    security: [{ BearerAuth: [] }, { ApiKeyHeader: [] }, { ApiKeyQuery: [] }],
     paths: {
-      '/api/status': {
+      '/api/v1/status': {
         get: { summary: "État de l'instance, capacités et compteurs du catalogue", responses: { 200: { description: 'Statut JSON' } } },
       },
-      '/api/trailers': {
+      '/api/v1/trailers/{id}': {
         get: {
-          summary: 'Bandes-annonces MP4 relayées pour un film ou une série (triées par saison)',
+          summary: 'Récupération universelle directe par ID (IMDb, tt...:saison:ep, tmdb:..., nflx:...)',
           parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', example: 'tt13016388:2:1' } },
+            { name: 'strict_season', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
+            { name: 'fast', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
+          ],
+          responses: { 200: { description: 'Liste ordonnée de flux MP4 prêts à lire' } },
+        },
+      },
+      '/api/v1/trailers': {
+        get: {
+          summary: 'Bandes-annonces MP4 relayées par identifiant universel ou par titre',
+          parameters: [
+            { name: 'id', in: 'query', description: 'ID universel (tt13016388, tt13016388:2:1, tmdb:95396, nflx:81024821)', schema: { type: 'string' } },
             { name: 'imdb', in: 'query', schema: { type: 'string', example: 'tt13016388' } },
             { name: 'tmdb', in: 'query', schema: { type: 'string', example: '108545' } },
             { name: 'netflix', in: 'query', schema: { type: 'string', example: '81024821' } },
+            { name: 'title', in: 'query', description: 'Recherche directe par nom du film ou de la série', schema: { type: 'string', example: 'Severance' } },
+            { name: 'year', in: 'query', schema: { type: 'integer', example: 2022 } },
             { name: 'type', in: 'query', schema: { type: 'string', enum: ['movie', 'series'] } },
             { name: 'season', in: 'query', schema: { type: 'integer', example: 2 } },
             { name: 'strict_season', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
@@ -1181,6 +1358,9 @@ function buildOpenApiSpec() {
           ],
           responses: { 200: { description: 'Liste ordonnée de flux MP4 prêts à lire' } },
         },
+      },
+      '/api/trailers': {
+        get: { summary: 'Alias historique de /api/v1/trailers', responses: { 200: { description: 'Liste de flux MP4' } } },
       },
       '/api/trailers/batch': {
         post: { summary: 'Requête groupée (jusqu’à 25 titres en 1 appel rapide)', responses: { 200: { description: 'Résultats groupés' } } },
@@ -1200,7 +1380,7 @@ function buildOpenApiSpec() {
       },
       '/api/title/{id}': {
         get: {
-          summary: 'Fiche détaillée par ID interne, ID IMDb (tt…) ou ID Netflix',
+          summary: 'Fiche détaillée par ID interne, ID IMDb (tt…), TMDB (tmdb:…) ou Netflix',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
           responses: { 200: { description: 'Métadonnées et bandes-annonces' }, 404: { description: 'Introuvable' } },
         },
@@ -1215,12 +1395,12 @@ function buildOpenApiSpec() {
   };
 }
 
-app.get(['/api/openapi.json', '/api/v1/openapi.json'], (_req, res) => {
+app.get(['/api/openapi.json', '/api/v1/openapi.json'], (req, res) => {
   res.set('cache-control', 'public, max-age=60');
-  res.json(buildOpenApiSpec());
+  res.json(buildOpenApiSpec(req));
 });
 
-// ---- Routes de l'API publique (exposées sur /api/* et /api/v1/* pour compatibilité totale avec vf-trailer-wallace) ----
+// ---- Routes de l'API publique universelle (/api/* et /api/v1/*) ----
 app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res) => {
   res.set('cache-control', 'no-store');
   const ms = Date.now() - (req.apiStartMs || Date.now());
@@ -1231,9 +1411,14 @@ app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res)
   res.setHeader('X-Response-Time', `${ms}ms`);
   res.json({
     ok: true,
+    service: 'stockage-db',
     version: APP_VERSION,
     uptime: Math.round(process.uptime()),
-    capabilities: ['trailers', 'batch', 'prewarm', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
+    capabilities: [
+      'trailers', 'trailers_by_path', 'universal_id', 'title_lookup',
+      'batch', 'prewarm', 'search', 'title', 'submit', 'openapi', 'discovery',
+      'strict_season', 'fast_cache', 'source_filter',
+    ],
     sources: {
       netflix: true,
       appletv: !!config.appletvEnabled,
@@ -1245,9 +1430,10 @@ app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res)
   });
 });
 
-app.get(['/api/trailers', '/api/v1/trailers'], apiGuard('trailers:read'), wrap(async (req, res) => {
+async function handleTrailersApiRequest(req, res, queryObj) {
   res.set('cache-control', 'no-store');
-  const out = await executeTrailersQuery(req.query, { logFederation: true });
+  const baseUrl = resolvePublicBase(req);
+  const out = await executeTrailersQuery(queryObj, { logFederation: true, baseUrl });
   const ms = out.tookMs ?? (Date.now() - (req.apiStartMs || Date.now()));
   const count = Array.isArray(out.body?.trailers) ? out.body.trailers.length : 0;
   const found = !!out.body?.found;
@@ -1255,16 +1441,15 @@ app.get(['/api/trailers', '/api/v1/trailers'], apiGuard('trailers:read'), wrap(a
   if (found) {
     apiMetrics.trailersHits++;
     if (req.apiClient?.type === 'key' && req.apiClient.id) {
-      // Incrémente uniquement hits_total sans recompter calls_total déjà incrémenté par apiGuard
       store.db.prepare('UPDATE api_keys SET hits_total = COALESCE(hits_total, 0) + 1 WHERE id = ?').run(req.apiClient.id);
     }
   }
   const qSummary = [
-    req.query.imdb || (req.query.tmdb ? `tmdb:${req.query.tmdb}` : req.query.netflix ? `nflx:${req.query.netflix}` : ''),
-    req.query.season ? `S${req.query.season}` : '',
-    req.query.strict_season === '1' ? 'strict' : '',
-    req.query.fast === '1' ? 'fast' : '',
-  ].filter(Boolean).join(' · ');
+    queryObj.id || queryObj.imdb || (queryObj.tmdb ? `tmdb:${queryObj.tmdb}` : queryObj.netflix ? `nflx:${queryObj.netflix}` : (queryObj.title || '')),
+    queryObj.season ? `S${queryObj.season}` : '',
+    queryObj.strict_season === '1' ? 'strict' : '',
+    queryObj.fast === '1' ? 'fast' : '',
+  ].filter(Boolean).join(' · ').slice(0, 48);
   recordApiTelemetry({
     ts: Date.now(), method: 'GET', path: '/api/trailers', query: qSummary,
     client: req.apiClient?.label || 'API', status: out.status, found, count, ms,
@@ -1272,6 +1457,14 @@ app.get(['/api/trailers', '/api/v1/trailers'], apiGuard('trailers:read'), wrap(a
   res.setHeader('X-Response-Time', `${ms}ms`);
   res.setHeader('X-Trailer-Count', String(count));
   res.status(out.status).json(out.body);
+}
+
+app.get(['/api/trailers', '/api/v1/trailers'], apiGuard('trailers:read'), wrap(async (req, res) => {
+  await handleTrailersApiRequest(req, res, req.query || {});
+}));
+
+app.get(['/api/trailers/:id', '/api/v1/trailers/:id'], apiGuard('trailers:read'), wrap(async (req, res) => {
+  await handleTrailersApiRequest(req, res, { ...(req.query || {}), id: req.params.id });
 }));
 
 app.post(['/api/trailers/batch', '/api/v1/trailers/batch'], apiGuard('trailers:read'), wrap(async (req, res) => {
@@ -1280,10 +1473,14 @@ app.post(['/api/trailers/batch', '/api/v1/trailers/batch'], apiGuard('trailers:r
   if (!rawItems.length) return res.status(400).json({ error: 'Tableau items requis (1 à 25 requêtes)' });
   if (rawItems.length > 25) return res.status(400).json({ error: 'Maximum 25 entrées par appel batch' });
   const t0 = Date.now();
+  const baseUrl = resolvePublicBase(req);
   const includeExtras = !!(req.body && req.body.include_extras);
   const results = [];
   for (const item of rawItems) {
-    const out = await executeTrailersQuery({ ...(item || {}), ...(includeExtras ? { include_extras: '1' } : {}) }, { logFederation: false, forceFast: true });
+    const out = await executeTrailersQuery(
+      { ...(item || {}), ...(includeExtras ? { include_extras: '1' } : {}) },
+      { logFederation: false, forceFast: true, baseUrl }
+    );
     results.push({ query: item, ...(out.body || {}) });
   }
   const tookMs = Date.now() - t0;
@@ -1300,7 +1497,7 @@ app.post(['/api/trailers/batch', '/api/v1/trailers/batch'], apiGuard('trailers:r
 app.get(['/api/search', '/api/v1/search'], apiGuard('catalog:read'), (req, res) => {
   res.set('cache-control', 'no-store');
   const t0 = Date.now();
-  const body = executeCatalogSearch(req.query);
+  const body = executeCatalogSearch(req.query, { baseUrl: resolvePublicBase(req) });
   const tookMs = Date.now() - t0;
   apiMetrics.searchCalls++;
   recordApiTelemetry({
@@ -1324,7 +1521,7 @@ app.get(['/api/title/:id', '/api/v1/title/:id'], apiGuard('catalog:read'), (req,
     });
     return res.status(404).json({ error: 'Titre introuvable' });
   }
-  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
+  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, baseUrl: resolvePublicBase(req) });
   recordApiTelemetry({
     ts: Date.now(), method: 'GET', path: '/api/title/:id', query: row.imdb_id || row.id,
     client: req.apiClient?.label || 'API', status: 200, found: trailers.length > 0, count: trailers.length, ms: tookMs,
@@ -1390,7 +1587,7 @@ app.post(['/api/trailers/submit', '/api/v1/trailers/submit'], apiGuard('trailers
     extra.manualTrailers = list.slice(-5);
     store.upsertTitle({ id: row.id, type: row.type, name: row.name, extra });
     const idx = extra.manualTrailers.length - 1;
-    const relayUrl = `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${idx}.mp4`;
+    const relayUrl = `${resolvePublicBase(req)}/media/${encodeURIComponent(row.id)}/${idx}.mp4`;
     const tookMs = Date.now() - t0;
     log.info('federation', `Flux direct soumis par API (${req.apiClient?.label || 'clé'}) : ${row.name}`, { id: row.id, label });
     recordApiTelemetry({

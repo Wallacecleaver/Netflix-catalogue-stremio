@@ -102,8 +102,9 @@ function orderForSeason(items, season) {
  * Le handler `stream` de l'addon ne les demande pas : il les ajoute lui-même, avec ses propres
  * libellés (sinon elles apparaîtraient deux fois).
  */
-function trailerUrls(row, { includeApple = false, includeManual = false, season = null } = {}) {
+function trailerUrls(row, { includeApple = false, includeManual = false, season = null, baseUrl = null } = {}) {
   if (!row) return [];
+  const pubBase = String(baseUrl || config.publicUrl || '').replace(/\/+$/, '');
   const list = Array.isArray(row.trailers) ? row.trailers : [];
   const out = [];
   list.forEach((t, i) => {
@@ -112,7 +113,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
     // Relay Netflix seulement pour NOS bandes-annonces : une entrée venue d'une instance amont garde son
     // URL d'origine. Sinon, sur une fiche à la fois liée à Netflix et enrichie par l'amont, l'index
     // pointait vers le relais Netflix et servait une autre vidéo (ou une 404).
-    if (row.netflix_id && t.source !== 'upstream') url = `${config.publicUrl}/trailer/${row.netflix_id}/${i}.mp4`;
+    if (row.netflix_id && t.source !== 'upstream') url = `${pubBase}/trailer/${row.netflix_id}/${i}.mp4`;
     else if (t.url) url = usableUrl(t.url);
     if (!url) return;
     const item = {
@@ -132,7 +133,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
       if (!t || !t.url || !hls.canServe(t.url)) return;
       out.push({
         title: t.title || 'Bande-annonce Apple TV',
-        url: `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,
+        url: `${pubBase}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: t.runtime || null,
         lang: t.lang || null,
         source: 'appletv',
@@ -147,7 +148,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
       if (!t || !t.url || !usableUrl(t.url) || !hls.canServe(t.url)) return;
       out.push({
         title: t.title || 'Bande-annonce',
-        url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
+        url: `${pubBase}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: null,
         lang: t.lang || null,
         source: 'manual',

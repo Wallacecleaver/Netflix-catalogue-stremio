@@ -1,7 +1,7 @@
 {
   "name": "stockage-db",
-  "version": "3.2.1",
-  "description": "Stockage DB — serveur API REST, base multi-sources et relais MP4/HLS de bandes-annonces (Netflix, Apple TV+, liens directs)",
+  "version": "3.3.0",
+  "description": "Stockage DB — serveur API REST universel, base multi-sources et relais MP4/HLS de bandes-annonces (Netflix, Apple TV+, liens directs)",
   "private": true,
   "main": "src/index.js",
   "scripts": {

@@ -929,6 +929,98 @@
     .main { padding: 18px 16px 40px; }
     .cfg-row { grid-template-columns: 1fr; gap: 6px; }
   }
+
+  /* ---- Universal API Quick Integration (C411-style) ---- */
+  .integ-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .integ-tile {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--card-alt);
+    color: var(--fg);
+    font-weight: 600;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  .integ-tile:hover { background: var(--hover); border-color: var(--line-strong); }
+  .integ-tile.active {
+    background: var(--accent-soft);
+    border-color: rgba(20, 184, 166, 0.48);
+    color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.16);
+  }
+  .integ-ico {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+  }
+  .ep-stack {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 2px 15px;
+    margin-bottom: 14px;
+  }
+  .ep-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ep-item:last-child { border-bottom: none; }
+  .ep-kicker {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ep-url {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 3px;
+    word-break: break-all;
+  }
+  .ep-url.green { color: var(--ok); }
+  .ep-url.blue { color: var(--info); }
+  .ep-url.teal { color: var(--accent); }
+  .ep-url.purple { color: #a78bfa; }
+  [data-theme="light"] .ep-url.purple { color: #7c3aed; }
+  .ep-note { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .guide-callout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 15px;
+    border-radius: 11px;
+    background: var(--info-soft);
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    font-size: 12.5px;
+  }
+  @media (max-width: 640px) {
+    .integ-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -1481,15 +1573,16 @@
           </div>
         </section>
 
-        <!-- ==================== TAB 4: API & CONNEXION ( SIMPLIFIÉ & VISUEL ) ==================== -->
+        <!-- ==================== TAB 4: API & CONNEXION UNIVERSELLE ==================== -->
         <section id="tab-api" class="hide">
           <div class="page-head">
             <div>
-              <h1 class="page-title">API &amp; Connexion</h1>
-              <p class="page-desc">Relie ton addon <span class="mono">vf-trailer-wallace</span> à cette base en deux clics et gère tes clés d'accès simplement.</p>
+              <h1 class="page-title">API &amp; Connexion Universelle</h1>
+              <p class="page-desc">Connecte n'importe quelle instance externe (addon Stremio, autre Stockage DB, site web, bot ou script) à ton serveur API.</p>
             </div>
             <div class="head-actions">
               <span id="apiStateBadge" class="badge">Chargement…</span>
+              <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-sm">📖 Guide public /api/docs ↗</a>
               <button type="button" class="btn-sm" data-jump-tab="streams">▶ Tester des flux vidéo</button>
             </div>
           </div>
@@ -1502,7 +1595,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
               <div>
                 <b style="font-size:14px;color:var(--ok)" id="keyCreatedTitle">Nouvelle clé créée — copie-la maintenant !</b>
-                <div class="muted" style="font-size:12px;margin-top:2px">Par sécurité, ce code secret complet ne sera plus réaffiché une fois la page quittée (il est déjà pré-rempli dans l'étape 1 ci-dessous).</div>
+                <div class="muted" style="font-size:12px;margin-top:2px">Par sécurité, ce code secret complet ne sera plus réaffiché une fois la page quittée (il est déjà injecté dans l'exemple à gauche).</div>
               </div>
               <button type="button" class="btn-sm btn-primary" id="copyNewKeyBtn">📋 Copier la clé</button>
             </div>
@@ -1512,71 +1605,128 @@
           <!-- Résumé clair en 3 indicateurs simples -->
           <div class="api-summary-strip" id="apiKpis"></div>
 
-          <!-- Étape 1 & Étape 2 côte à côte -->
+          <!-- Colonne gauche : Configuration rapide universelle | Colonne droite : Clés multi-instances -->
           <div class="cols-2">
-            <!-- ÉTAPE 1 : Connecter vf-trailer-wallace -->
+            <!-- CONFIGURATION RAPIDE & INTÉGRATIONS UNIVERSELLES -->
             <div class="card card-accent" style="margin-bottom:0">
               <div class="step-head">
                 <div class="step-title-row">
-                  <span class="step-num">1</span>
+                  <span class="step-num">🌐</span>
                   <div>
-                    <h2 class="card-title">Relier <span class="mono">vf-trailer-wallace</span></h2>
-                    <p class="card-sub">Copie ces 2 lignes dans le fichier <span class="mono">.env</span> (ou les paramètres) de ton addon VF.</p>
+                    <h2 class="card-title">Configuration rapide</h2>
+                    <p class="card-sub">Choisis ton type d'outil ou copie directement les URLs universelles ci-dessous.</p>
                   </div>
                 </div>
-                <button type="button" class="btn-sm btn-primary" id="quickVfKeyBtn">⚡ Créer ma clé vf-trailer</button>
+                <button type="button" class="btn-sm btn-primary" id="quickVfKeyBtn">⚡ Générer une clé rapide</button>
               </div>
 
-              <div style="display:grid;gap:14px">
-                <div>
-                  <div class="kpi-label" style="margin-bottom:5px">Adresse de ce serveur Stockage DB</div>
-                  <div style="display:flex;gap:8px;align-items:center">
-                    <input id="fedBaseUrl" type="text" class="mono" readonly>
-                    <button type="button" class="btn-sm" id="copyFedUrlBtn">Copier</button>
+              <input id="fedBaseUrl" type="hidden">
+
+              <!-- Tuiles d'intégration rapide (style C411) -->
+              <div class="integ-grid" id="integGrid">
+                <button type="button" class="integ-tile active" data-integ="addon">
+                  <span class="integ-ico">🎬</span>
+                  <span>Addon Stremio / Média</span>
+                </button>
+                <button type="button" class="integ-tile" data-integ="peer">
+                  <span class="integ-ico">🔗</span>
+                  <span>Autre Stockage DB</span>
+                </button>
+                <button type="button" class="integ-tile" data-integ="rest">
+                  <span class="integ-ico">⚡</span>
+                  <span>App / Site / Bot (REST)</span>
+                </button>
+                <button type="button" class="integ-tile" data-integ="openapi">
+                  <span class="integ-ico">🧰</span>
+                  <span>Bruno / Postman</span>
+                </button>
+              </div>
+
+              <!-- Bloc d'URLs universelles colorées avec copie en 1 clic -->
+              <div class="ep-stack">
+                <div class="ep-item">
+                  <div style="min-width:0">
+                    <div class="ep-kicker">URL de base du serveur (Addons / Fédération)</div>
+                    <div class="ep-url green" id="epBaseVal"></div>
+                    <div class="ep-note">Les instances compatibles ajoutent automatiquement <span class="mono">/api/v1</span></div>
                   </div>
+                  <button type="button" class="btn-xs" id="copyFedUrlBtn" title="Copier l'URL de base">📋</button>
                 </div>
 
-                <div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap">
-                    <span class="kpi-label">Configuration prête à coller (<span class="mono">.env</span>)</span>
-                    <button type="button" class="btn-xs btn-primary" id="copyEnvSnippetBtn">📋 Copier les 2 lignes</button>
+                <div class="ep-item">
+                  <div style="min-width:0">
+                    <div class="ep-kicker">URL complète de l'API (Clients REST universels)</div>
+                    <div class="ep-url blue" id="epApiVal"></div>
+                    <div class="ep-note">Point d'entrée JSON universel (CORS ouvert · découverte sur <span class="mono">GET /api/v1</span>)</div>
                   </div>
-                  <pre class="code-box" id="vfEnvSnippet"></pre>
+                  <button type="button" class="btn-xs" data-copy-ep="epApiVal" title="Copier l'URL complète API">📋</button>
                 </div>
 
-                <div class="hint-note" id="vfEnvKeyHint">
-                  Clique sur <b>⚡ Créer ma clé vf-trailer</b> pour générer automatiquement une clé prête à coller ci-dessus.
+                <div class="ep-item">
+                  <div style="min-width:0">
+                    <div class="ep-kicker">Endpoint lecture universelle (Bandes-annonces MP4)</div>
+                    <div class="ep-url teal" id="epReadVal"></div>
+                    <div class="ep-note">Accepte <span class="mono">tt13016388</span>, <span class="mono">tt13016388:2:1</span>, <span class="mono">tmdb:95396</span>, <span class="mono">81944880</span> ou <span class="mono">?title=…</span></div>
+                  </div>
+                  <button type="button" class="btn-xs" data-copy-ep="epReadVal" title="Copier l'endpoint lecture">📋</button>
+                </div>
+
+                <div class="ep-item">
+                  <div style="min-width:0">
+                    <div class="ep-kicker">Endpoint contribution / ajout vidéo API</div>
+                    <div class="ep-url purple" id="epWriteVal"></div>
+                    <div class="ep-note">Header : <span class="mono">Authorization: Bearer VOTRE_CLE_API</span> (ou <span class="mono">?apikey=…</span>)</div>
+                  </div>
+                  <button type="button" class="btn-xs" data-copy-ep="epWriteVal" title="Copier l'endpoint upload">📋</button>
+                </div>
+              </div>
+
+              <!-- Extrait prêt à coller selon la tuile choisie -->
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap">
+                  <span class="kpi-label" id="integSnippetLabel">Exemple prêt à coller — Addon Stremio (ex. vf-trailer-wallace ou addon custom)</span>
+                  <button type="button" class="btn-xs btn-primary" id="copyEnvSnippetBtn">📋 Copier l'exemple</button>
+                </div>
+                <pre class="code-box" id="vfEnvSnippet"></pre>
+              </div>
+
+              <div class="hint-note" id="vfEnvKeyHint" style="margin-bottom:12px">
+                Crée une clé dédiée par instance ou par outil pour suivre ses appels et ajuster sa limite indépendamment.
+              </div>
+
+              <!-- Encart d'aide vers le guide public partageable -->
+              <div class="guide-callout">
+                <div style="min-width:200px;flex:1">
+                  <b style="color:var(--info)">ℹ️ Besoin de donner accès à une autre instance ?</b>
+                  <div style="color:var(--fg-soft);margin-top:2px">
+                    Partage le <b>guide public <span class="mono">/api/docs</span></b> : n'importe quel développeur ou serveur externe peut lire la référence complète et tester sa clé <span class="mono">sdb_…</span> sans avoir accès à ton dashboard.
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button type="button" class="btn-xs" id="copyPublicDocsBtn">Copier le lien</button>
+                  <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-xs btn-primary">Ouvrir le guide ↗</a>
                 </div>
               </div>
             </div>
 
-            <!-- ÉTAPE 2 : Gérer mes clés d'accès -->
+            <!-- GESTION DES CLÉS MULTI-INSTANCES -->
             <div class="card" style="margin-bottom:0">
               <div class="step-head">
                 <div class="step-title-row">
-                  <span class="step-num">2</span>
+                  <span class="step-num">🔑</span>
                   <div>
-                    <h2 class="card-title">Mes clés d'accès</h2>
+                    <h2 class="card-title">Clés d'accès multi-instances</h2>
                     <p class="card-sub" id="keysCountLabel">Chargement…</p>
                   </div>
                 </div>
               </div>
 
-              <!-- Liste des clés existantes -->
-              <div id="keysList"></div>
-
-              <!-- Ancienne clé globale éventuelle -->
-              <div id="legacyKeyBox" class="hint-note hide" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-                <span id="legacyKeyText"></span>
-                <button type="button" class="btn-xs hide" id="clearLegacyKeyBtn">Supprimer cette ancienne clé</button>
-              </div>
-
-              <!-- Créer une autre clé personnalisée -->
-              <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-                <div class="kpi-label" style="margin-bottom:8px">Créer une clé personnalisée</div>
+              <!-- Créer une clé dédiée pour n'importe quelle instance -->
+              <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)">
+                <div class="kpi-label" style="margin-bottom:8px">Nouvelle clé pour une instance, un addon ou un outil</div>
                 <form id="keyCreateForm" style="display:grid;gap:8px">
-                  <div style="display:grid;grid-template-columns:1.2fr 1.2fr;gap:8px">
-                    <input id="keyLabel" type="text" placeholder="Nom (ex. Mon deuxième serveur)" maxlength="60" required>
+                  <div style="display:grid;grid-template-columns:1.25fr 1.15fr;gap:8px">
+                    <input id="keyLabel" type="text" placeholder="Nom (ex. Instance Ami, Addon Public, Bot Discord…)" maxlength="60" required>
                     <select id="keyPermPreset" title="Droits accordés à cette clé">
                       <option value="read" selected>Lecture seule (Recommandé)</option>
                       <option value="write">Lecture + Ajout de vidéos</option>
@@ -1584,19 +1734,29 @@
                   </div>
                   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                     <select id="keyRateLimit" style="flex:1;min-width:150px" title="Limite d'appels par minute">
-                      <option value="600" selected>Limite : 600 appels / min</option>
-                      <option value="0">Limite : Illimité</option>
-                      <option value="1200">Limite : 1 200 appels / min</option>
-                      <option value="300">Limite : 300 appels / min</option>
+                      <option value="600" selected>Quota : 600 appels / min</option>
+                      <option value="0">Quota : Illimité</option>
+                      <option value="1200">Quota : 1 200 appels / min</option>
+                      <option value="300">Quota : 300 appels / min</option>
+                      <option value="120">Quota : 120 appels / min</option>
                     </select>
                     <select id="keyExpires" style="flex:1;min-width:140px" title="Durée de validité">
-                      <option value="0" selected>Valable sans limite</option>
+                      <option value="0" selected>Sans expiration</option>
                       <option value="90">Expire dans 90 jours</option>
                       <option value="365">Expire dans 1 an</option>
                     </select>
                     <button type="submit" class="btn-sm btn-primary" id="keyCreateBtn">+ Créer la clé</button>
                   </div>
                 </form>
+              </div>
+
+              <!-- Liste des clés existantes -->
+              <div id="keysList"></div>
+
+              <!-- Ancienne clé globale éventuelle -->
+              <div id="legacyKeyBox" class="hint-note hide" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+                <span id="legacyKeyText"></span>
+                <button type="button" class="btn-xs hide" id="clearLegacyKeyBtn">Supprimer cette ancienne clé</button>
               </div>
             </div>
           </div>
@@ -1606,7 +1766,7 @@
             <div class="card-head">
               <div>
                 <h2 class="card-title">Derniers appels reçus par l'API</h2>
-                <p class="card-sub">Suivi en direct des demandes envoyées par <span class="mono">vf-trailer-wallace</span> ou tes autres outils.</p>
+                <p class="card-sub">Suivi en direct des demandes envoyées par toutes les instances et applications connectées.</p>
               </div>
               <div style="display:flex;gap:6px">
                 <button type="button" class="btn-xs" id="refreshMetricsBtn">↻ Actualiser</button>
@@ -1619,13 +1779,16 @@
           <!-- Documentation technique repliée par défaut pour garder une page épurée -->
           <details class="dev-drawer">
             <summary>
-              <span>Documentation technique, commandes <span class="mono">curl</span> &amp; OpenAPI <span class="muted" style="font-weight:400">(Mode développeur)</span></span>
+              <span>Référence rapide <span class="mono">curl</span> &amp; OpenAPI 3.0 <span class="muted" style="font-weight:400">(Mode développeur)</span></span>
               <span class="badge">Afficher / Masquer</span>
             </summary>
             <div class="dev-drawer-body">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-                <span class="muted" style="font-size:12.5px">Toutes les routes acceptent <span class="mono">/api/…</span> et <span class="mono">/api/v1/…</span> avec l'en-tête <span class="mono">x-api-key</span> ou <span class="mono">Authorization: Bearer</span>.</span>
-                <a href="/api/v1/openapi.json" target="_blank" rel="noopener" class="btn btn-xs">Ouvrir openapi.json ↗</a>
+                <span class="muted" style="font-size:12.5px">Accepte <span class="mono">Authorization: Bearer &lt;clé&gt;</span>, <span class="mono">X-API-Key: &lt;clé&gt;</span>, <span class="mono">Api-Key: &lt;clé&gt;</span> ou <span class="mono">?apikey=&lt;clé&gt;</span>.</span>
+                <div style="display:flex;gap:6px">
+                  <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-xs">Guide public /api/docs ↗</a>
+                  <a href="/api/v1/openapi.json" target="_blank" rel="noopener" class="btn btn-xs">openapi.json ↗</a>
+                </div>
               </div>
               <div id="routesDocList"></div>
             </div>
@@ -1813,6 +1976,7 @@
   let summaryData = null;
   let lastCreatedSecret = '';
   let hasNamedKeys = false;
+  let activeIntegPreset = 'addon';
   let currentModalDetail = null;
   let currentModalId = null;
   let dirty = new Map();
@@ -2069,16 +2233,43 @@
 
   function renderVfEnvSnippet(baseUrl) {
     const base = String(baseUrl || location.origin).replace(/\/+$/, '');
-    const keyExample = lastCreatedSecret || 'sdb_TA_CLE_ICI';
-    $('vfEnvSnippet').textContent = `STOCKAGE_URL=${base}\nSTOCKAGE_API_KEY=${keyExample}`;
+    const keyExample = lastCreatedSecret || 'sdb_VOTRE_CLE_API';
+
+    if ($('epBaseVal')) $('epBaseVal').textContent = base;
+    if ($('epApiVal')) $('epApiVal').textContent = `${base}/api/v1`;
+    if ($('epReadVal')) $('epReadVal').textContent = `GET ${base}/api/v1/trailers/{id}`;
+    if ($('epWriteVal')) $('epWriteVal').textContent = `POST ${base}/api/v1/trailers/submit`;
+
+    const presets = {
+      addon: {
+        label: 'Exemple prêt à coller — Addon Stremio / Média (ex. vf-trailer-wallace ou addon custom)',
+        code: `STOCKAGE_URL=${base}\nSTOCKAGE_API_KEY=${keyExample}\n\n# Appel direct universel (accepte tt13016388, tt13016388:2:1, tmdb:95396…) :\n# GET ${base}/api/v1/trailers/tt13016388:2:1?apikey=${keyExample}`,
+      },
+      peer: {
+        label: 'Exemple prêt à coller — Autre instance Stockage DB (fédération en cascade)',
+        code: `UPSTREAM_URL=${base}\nUPSTREAM_API_KEY=${keyExample}`,
+      },
+      rest: {
+        label: 'Exemple universel — Site web, App, Bot Discord ou Script (REST JSON)',
+        code: `curl -H "Authorization: Bearer ${keyExample}" \\\n  "${base}/api/v1/trailers/tt13016388:2:1"\n\n# Recherche directe par titre + année sans ID :\n# GET ${base}/api/v1/trailers?title=Severance&year=2022&apikey=${keyExample}`,
+      },
+      openapi: {
+        label: 'Import en 1 clic — Bruno, Postman, Insomnia ou Hoppscotch',
+        code: `Spec OpenAPI 3.0 : ${base}/api/v1/openapi.json\nDécouverte JSON  : ${base}/api/v1\nGuide interactif : ${base}/api/docs\nHeader Auth      : Authorization: Bearer ${keyExample}`,
+      },
+    };
+    const chosen = presets[activeIntegPreset] || presets.addon;
+    if ($('integSnippetLabel')) $('integSnippetLabel').textContent = chosen.label;
+    if ($('vfEnvSnippet')) $('vfEnvSnippet').textContent = chosen.code;
+
     const hint = $('vfEnvKeyHint');
     if (!hint) return;
     if (lastCreatedSecret) {
-      hint.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ Clé prête !</span> Clique sur <b>📋 Copier les 2 lignes</b> et colle-les directement dans le fichier <span class="mono">.env</span> de <span class="mono">vf-trailer-wallace</span>.`;
+      hint.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ Clé injectée dans l'exemple !</span> Clique sur <b>📋 Copier l'exemple</b> ou envoie le lien <b>/api/docs</b> avec cette clé à l'instance externe.`;
     } else if (hasNamedKeys) {
-      hint.innerHTML = `Tu as déjà une clé enregistrée à droite. Si elle est déjà dans <span class="mono">vf-trailer-wallace</span>, tout est prêt ! Si tu as perdu le code secret, clique sur <b>Nouveau code</b> sur ta clé.`;
+      hint.innerHTML = `Tu peux créer jusqu'à <b>50 clés indépendantes</b> à droite (une par instance, ami, addon ou bot) pour isoler les quotas et suivre chaque client.`;
     } else {
-      hint.innerHTML = `Clique sur <b>⚡ Créer ma clé vf-trailer</b> en haut de cette carte pour générer automatiquement une clé prête à coller.`;
+      hint.innerHTML = `Clique sur <b>⚡ Générer une clé rapide</b> en haut de cette carte (ou utilise le formulaire à droite) pour ouvrir un accès sécurisé.`;
     }
   }
 
@@ -3236,7 +3427,7 @@
     });
   });
 
-  // ---- TAB 4: API & Connexion (Simplifié & Visuel) ----
+  // ---- TAB 4: API & Connexion Universelle ----
   function renderApiMetrics(m = {}, keySummary = {}) {
     const activeCount = keySummary.activeCount || 0;
     const isOpen = !!keySummary.open;
@@ -3244,14 +3435,14 @@
       {
         label: "Accès à l'API",
         val: isOpen ? 'Ouverte à tous' : (activeCount ? pl(activeCount, 'clé active', 'clés actives') : 'Aucune clé active'),
-        foot: isOpen ? 'Accès public sans clé activé' : (activeCount ? 'Connexion sécurisée prête pour vf-trailer-wallace' : 'Crée une clé à l’étape 1 pour activer la connexion'),
+        foot: isOpen ? 'Accès public sans clé activé' : (activeCount ? 'Prête pour toute instance externe connectée' : 'Crée une clé ci-dessous pour autoriser une instance'),
       },
       {
         label: 'Demandes reçues',
         val: fmtInt(m.totalCalls || 0),
         foot: m.trailersCalls
           ? `${fmtInt(m.trailersHits || 0)} réponses avec bande-annonce MP4 (${m.hitRate ?? 0} %)`
-          : 'En attente des premiers appels de ton addon VF',
+          : 'En attente des premiers appels des instances connectées',
       },
       {
         label: 'Vitesse de réponse',
@@ -3262,7 +3453,7 @@
 
     const calls = m.recentCalls || [];
     $('apiRecentCallsBox').innerHTML = calls.length
-      ? `<div class="table-wrap"><table><thead><tr><th>Heure</th><th>Clé utilisée</th><th>Demande</th><th>Résultat</th><th>Temps</th></tr></thead><tbody>` +
+      ? `<div class="table-wrap"><table><thead><tr><th>Heure</th><th>Instance / Clé</th><th>Demande</th><th>Résultat</th><th>Temps</th></tr></thead><tbody>` +
         calls.slice(0, 12).map((c) => {
           const resBadge = c.found === true
             ? `<span class="badge badge-ok">✓ ${pl(c.count, 'vidéo')}</span>`
@@ -3281,49 +3472,55 @@
   }
 
   function renderRoutesDoc(base) {
-    const keyPlaceholder = lastCreatedSecret || 'sdb_TA_CLE';
+    const keyPlaceholder = lastCreatedSecret || 'sdb_VOTRE_CLE_API';
     const routes = [
       {
         method: 'GET',
-        path: '/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1',
-        desc: 'Route principale appelée par vf-trailer-wallace : renvoie les flux MP4 triés pour le film ou la saison demandée.',
-        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"`,
-      },
-      {
-        method: 'POST',
-        path: '/api/trailers/batch',
-        desc: 'Vérifie jusqu’à 25 films ou saisons en un seul appel groupé.',
-        curl: `curl -X POST "${base}/api/trailers/batch" -H "x-api-key: ${keyPlaceholder}" -H "content-type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series","season":2,"strict_season":1}]}'`,
+        path: '/api/v1/trailers/tt13016388:2:1',
+        desc: 'Endpoint universel par identifiant : accepte tt13016388, tt13016388:2:1 (extrait auto la saison), tmdb:95396, nflx:81944880 ou 81944880.',
+        curl: `curl -H "Authorization: Bearer ${keyPlaceholder}" "${base}/api/v1/trailers/tt13016388:2:1?strict_season=1"`,
       },
       {
         method: 'GET',
-        path: '/api/search?q=Severance&filter=any',
+        path: '/api/v1/trailers?title=Severance&year=2022',
+        desc: 'Recherche directe de bandes-annonces par titre + année pour les instances qui n’ont ni ID IMDb ni ID TMDB.',
+        curl: `curl -H "Authorization: Bearer ${keyPlaceholder}" "${base}/api/v1/trailers?title=Severance&year=2022"`,
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/trailers/batch',
+        desc: 'Vérifie jusqu’à 25 films, séries ou saisons en un seul appel HTTP groupé.',
+        curl: `curl -X POST "${base}/api/v1/trailers/batch" -H "Authorization: Bearer ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"items":[{"id":"tt13016388:2:1","strict_season":1}]}'`,
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/search?q=Severance&filter=any',
         desc: 'Recherche dans le catalogue local avec saisons disponibles et liens MP4.',
-        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/search?q=Severance&filter=any"`,
+        curl: `curl -H "Authorization: Bearer ${keyPlaceholder}" "${base}/api/v1/search?q=Severance&filter=any"`,
       },
       {
         method: 'GET',
-        path: '/api/title/tt13016388',
-        desc: 'Fiche complète et liste des bandes-annonces par ID IMDb, ID Netflix ou ID interne.',
-        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/title/tt13016388"`,
+        path: '/api/v1/title/tt13016388',
+        desc: 'Fiche complète et liste détaillée des bandes-annonces par ID IMDb, TMDB, Netflix ou interne.',
+        curl: `curl -H "Authorization: Bearer ${keyPlaceholder}" "${base}/api/v1/title/tt13016388"`,
       },
       {
         method: 'POST',
-        path: '/api/trailers/submit',
+        path: '/api/v1/trailers/submit',
         desc: 'Ajoute une bande-annonce MP4/HLS à distance (nécessite une clé avec droit « Lecture + Ajout de vidéos »).',
-        curl: `curl -X POST "${base}/api/trailers/submit" -H "x-api-key: ${keyPlaceholder}" -H "content-type: application/json" -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
+        curl: `curl -X POST "${base}/api/v1/trailers/submit" -H "Authorization: Bearer ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
       },
       {
         method: 'POST',
         path: '/api/v1/prewarm',
         desc: 'Pré-chauffe jusqu’à 50 titres en arrière-plan (réponse immédiate 202).',
-        curl: `curl -X POST -H "x-api-key: ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series"}]}' "${base}/api/v1/prewarm"`,
+        curl: `curl -X POST -H "Authorization: Bearer ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series"}]}' "${base}/api/v1/prewarm"`,
       },
       {
         method: 'GET',
-        path: '/api/status',
-        desc: 'État du serveur, version et statistiques du catalogue.',
-        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/status"`,
+        path: '/api/v1',
+        desc: 'Découverte publique auto-descriptive (capacités, modes d’authentification, formats d’IDs et endpoints).',
+        curl: `curl "${base}/api/v1"`,
       },
     ];
 
@@ -3365,26 +3562,26 @@
       renderVfEnvSnippet(base);
       renderRoutesDoc(base);
 
-      const max = d.max || 5;
+      const max = d.max || 50;
       const now = Date.now();
       const activeNamed = keys.filter((k) => k.enabled && (!k.expires_at || k.expires_at > now)).length;
       const pausedKeys = keys.filter((k) => !k.enabled && (!k.expires_at || k.expires_at > now));
       const leg = d.legacyInfo || { active: !!d.legacy, source: d.legacy ? 'env' : null, hint: '••••' };
       const totalActive = activeNamed + (leg.active ? 1 : 0);
 
-      $('keysCountLabel').textContent = `${keys.length} sur ${max} clés créées`;
+      $('keysCountLabel').textContent = `${keys.length} sur ${max} clés créées · 1 clé dédiée recommandée par instance`;
       $('keyCreateBtn').disabled = keys.length >= max;
       $('quickVfKeyBtn').disabled = keys.length >= max;
 
-      // Alerte claire en haut si une clé est en pause (ex: vf-trailer-wallace en pause !)
+      // Alerte claire en haut si une clé est en pause
       const alertEl = $('apiAlertBanner');
       if (pausedKeys.length > 0) {
         const pk = pausedKeys[0];
         alertEl.className = 'alert-banner warn';
         alertEl.innerHTML = `
           <div>
-            <b>Attention : ta clé « ${esc(pk.label)} » est actuellement en pause.</b>
-            <span style="color:var(--fg-soft)"> Tant qu'elle est en pause, l'addon qui l'utilise ne peut pas récupérer les bandes-annonces.</span>
+            <b>Attention : la clé « ${esc(pk.label)} » est actuellement en pause.</b>
+            <span style="color:var(--fg-soft)"> Tant qu'elle est en pause, l'instance qui l'utilise ne peut pas interroger ton API.</span>
           </div>
           <button type="button" class="btn-sm btn-primary" data-banner-resume="${pk.id}">▶ Réactiver « ${esc(pk.label)} »</button>
         `;
@@ -3393,7 +3590,7 @@
         alertEl.innerHTML = `
           <div>
             <b>Aucune clé active pour le moment.</b>
-            <span style="color:var(--fg-soft)"> Clique sur <b>⚡ Créer ma clé vf-trailer</b> à l'étape 1 pour ouvrir l'accès à ton addon.</span>
+            <span style="color:var(--fg-soft)"> Clique sur <b>⚡ Générer une clé rapide</b> ou crée une clé dédiée à droite pour connecter n'importe quelle instance.</span>
           </div>
         `;
       } else {
@@ -3462,7 +3659,7 @@
               </div>
             </div>`;
           }).join('')
-        : '<div class="hint-note" style="margin-bottom:12px">Aucune clé créée pour l’instant. Clique sur <b>⚡ Créer ma clé vf-trailer</b> à gauche !</div>';
+        : '<div class="hint-note" style="margin-bottom:12px">Aucune clé créée pour l’instant. Clique sur <b>⚡ Générer une clé rapide</b> à gauche ou donne un nom à ta première instance ci-dessus !</div>';
     } catch (e) { toast(e.message, 'err'); }
   }
 
@@ -3486,19 +3683,49 @@
     renderRoutesDoc($('fedBaseUrl').value);
   }
 
-  $('copyFedUrlBtn').addEventListener('click', () => copyText($('fedBaseUrl').value, 'Adresse du serveur copiée'));
-  $('copyEnvSnippetBtn').addEventListener('click', () => copyText($('vfEnvSnippet').textContent, 'Configuration .env copiée !'));
+  $('integGrid').addEventListener('click', (e) => {
+    const tile = e.target.closest('[data-integ]');
+    if (!tile) return;
+    activeIntegPreset = tile.dataset.integ || 'addon';
+    document.querySelectorAll('#integGrid .integ-tile').forEach((b) => {
+      b.classList.toggle('active', b === tile);
+    });
+    renderVfEnvSnippet($('fedBaseUrl').value);
+  });
+
+  document.querySelectorAll('[data-copy-ep]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = $(btn.dataset.copyEp);
+      if (!target) return;
+      const cleanUrl = String(target.textContent || '').replace(/^(GET|POST)\s+/i, '').trim();
+      copyText(cleanUrl, 'URL d’endpoint copiée !');
+    });
+  });
+
+  $('copyFedUrlBtn').addEventListener('click', () => copyText($('fedBaseUrl').value, 'URL de base du serveur copiée !'));
+  $('copyEnvSnippetBtn').addEventListener('click', () => copyText($('vfEnvSnippet').textContent, 'Exemple de configuration copié !'));
   $('copyNewKeyBtn').addEventListener('click', () => copyText($('keyCreatedVal').textContent, 'Clé API copiée !'));
+  $('copyPublicDocsBtn').addEventListener('click', () => {
+    const base = ($('fedBaseUrl').value || location.origin).replace(/\/+$/, '');
+    copyText(`${base}/api/docs`, 'Lien du guide public /api/docs copié !');
+  });
 
   $('quickVfKeyBtn').addEventListener('click', async () => {
+    const defaultLabels = {
+      addon: 'Addon Stremio',
+      peer: 'Instance Stockage DB',
+      rest: 'Client API REST',
+      openapi: 'Client OpenAPI',
+    };
+    const label = defaultLabels[activeIntegPreset] || 'Instance Externe';
     try {
       const r = await api('/admin/api/keys', {
         method: 'POST',
-        body: { label: 'vf-trailer-wallace', scopes: 'trailers:read,catalog:read', rateLimit: 600, expiresInDays: 0 },
+        body: { label, scopes: 'trailers:read,catalog:read', rateLimit: 600, expiresInDays: 0 },
       });
       hasNamedKeys = true;
       revealGeneratedSecret(r.key, r.label);
-      toast('Clé vf-trailer-wallace créée et prête à copier !', 'ok');
+      toast(`Clé « ${r.label} » créée et injectée dans l'exemple !`, 'ok');
       loadKeys();
       loadSummary();
     } catch (e) { toast(e.message, 'err'); }

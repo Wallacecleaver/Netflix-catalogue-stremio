@@ -371,8 +371,9 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal((await fetch(`${base}/api/status`, { headers: apiKey })).status, 200);       // la clé historique reste valable
   keyList = await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json();
   assert.ok(keyList.keys[0].last_used_at > 0); assert.equal(keyList.legacy, true);
-  for (let i = 0; i < 4; i++) assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 200);
-  assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 400);   // 5 clés maximum
+  assert.ok(keyList.max >= 50);
+  for (let i = 1; i < keyList.max; i++) assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 200);
+  assert.equal((await fetch(`${base}/admin/api/keys`, { method: 'POST', headers: hdrJson, body: '{}' })).status, 400);   // plafond MAX_API_KEYS atteint
   for (const k of (await (await fetch(`${base}/admin/api/keys`, { headers: auth })).json()).keys) {
     assert.equal((await fetch(`${base}/admin/api/keys/delete`, { method: 'POST', headers: hdrJson, body: JSON.stringify({ id: k.id }) })).status, 200);
   }

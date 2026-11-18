@@ -6,10 +6,10 @@
 
 **Serveur de stockage multi-sources, relais vidéo MP4/HLS et API REST de bandes-annonces**
 
-[![Version](https://img.shields.io/badge/version-v3.2.1-14b8a6?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-v3.3.0-14b8a6?style=flat-square)](#)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-22c55e?style=flat-square&logo=node.js&logoColor=white)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-38bdf8?style=flat-square&logo=sqlite&logoColor=white)](#)
-[![Relais](https://img.shields.io/badge/Relais-MP4%20%2F%20HLS-0ea5e9?style=flat-square)](#)
+[![API](https://img.shields.io/badge/API-Universelle%20v1-0ea5e9?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-Pr%C3%AAt-2496ed?style=flat-square&logo=docker&logoColor=white)](#)
 
 </div>
@@ -18,18 +18,23 @@
 
 ## Présentation
 
-**Stockage DB** est un serveur backend autonome qui **collecte, convertit, met en cache et expose par API des bandes-annonces vidéo en MP4** (Netflix, Apple TV+, liens directs MP4/HLS, instance amont et repli YouTube).
+**Stockage DB** est un serveur backend universel qui **collecte, convertit, met en cache et expose par API des bandes-annonces vidéo en MP4** (Netflix, Apple TV+, liens directs MP4/HLS, instance amont et repli YouTube).
 
-Il fonctionne **100 % en serveur d'API et de relais vidéo** (aucun manifest Stremio embarqué) afin d'alimenter proprement **[`vf-trailer-wallace`](https://github.com/Wallacecleaver/vf-trailer-wallace)** ou n'importe quel service externe via une API REST sécurisée et un **Dashboard d'administration complet (`/admin`)**.
+Il fonctionne **100 % en serveur d'API universelle et de relais vidéo** (aucun manifest Stremio embarqué) : n'importe quelle instance externe — addon Stremio comme **[`vf-trailer-wallace`](https://github.com/Wallacecleaver/vf-trailer-wallace)** ou addon tiers, autre serveur **Stockage DB** en cascade, site web, application mobile, bot Discord ou script — peut s'y connecter avec sa propre clé dédiée.
 
 ### Points clés
 
+- **API Universelle multi-instances (`/api/v1`)** :
+  - Accepte tous les formats d'identifiants sur un seul endpoint (`tt13016388`, `tt13016388:2:1` avec extraction auto de la saison, `tmdb:95396`, `tmdb:tv:95396`, `nflx:81944880`, `81944880`, ou recherche directe `?title=Severance&year=2022`).
+  - Authentification compatible avec tous les clients HTTP : `Authorization: Bearer <clé>`, `X-API-Key: <clé>`, `Api-Key: <clé>` ou `?apikey=<clé>`.
+  - Jusqu'à **50 clés indépendantes** (`MAX_API_KEYS`) avec quotas, permissions et suivi par instance + **guide public interactif sur `/api/docs`** partageable sans exposer `/admin`.
 - **Base SQLite centralisée (mode WAL)** — films et séries avec identifiants croisés (`imdb_id`, `tmdb_id`, `netflix_id`, Apple TV+), synopsis, genres, saisons et bandes-annonces VF/VO.
 - **Relais vidéo MP4 prêt à lire** :
   - `/trailer/<id>/<n>.mp4` renouvelle automatiquement les liens signés Netflix lorsqu'ils expirent.
   - `/apple/<id>/<n>.mp4` et `/media/<id>/<n>.mp4` convertissent à la volée les flux HLS (`.m3u8`) en vrai MP4 avec piste audio remuxée via `ffmpeg` et cache disque intelligent.
+  - Résolution dynamique de l'URL publique du serveur si `PUBLIC_URL` n'a pas encore été renseigné.
 - **Résolution automatique à la demande** — lorsqu'un titre inconnu est demandé à l'API, le serveur le résout automatiquement : *TMDB → JustWatch → Netflix → Apple TV+ → YouTube*.
-- **Sécurité intégrée** — clés API hashées en SHA-256 (`sdb_...`) avec permissions, pause en 1 clic, rotation, quotas par minute et protection anti-SSRF IPv4/IPv6 sur tous les relais.
+- **Sécurité intégrée** — clés API hashées en SHA-256 (`sdb_...`) avec pause en 1 clic, rotation, quotas par minute et protection anti-SSRF IPv4/IPv6 sur tous les relais.
 
 > **Migration automatique** : si une ancienne base `./data/netflix.db` est présente, elle est automatiquement migrée vers `./data/stockage.db` au premier démarrage.
 
@@ -79,17 +84,15 @@ npm start                 # ouvre http://localhost:7000/admin
 
 ---
 
-## Relier `vf-trailer-wallace` en 2 étapes
+## Connecter n'importe quelle instance externe
 
-1. Ouvre **`https://stockage.mondomaine.fr/admin`** et connecte-toi avec ton `ADMIN_TOKEN`.
-2. Va dans l'onglet **API & Connexion** :
-   - Crée une clé d'accès (ex. `vf-trailer-wallace` en **Lecture seule**).
-   - Copie directement le bloc `.env` généré dans la configuration de `vf-trailer-wallace` :
-
-```env
-STOCKAGE_URL=https://stockage.mondomaine.fr
-STOCKAGE_API_KEY=sdb_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+1. Ouvre **`https://stockage.mondomaine.fr/admin`** et va dans **API & Connexion Universelle**.
+2. Crée une clé dédiée pour l'instance cible (addon Stremio, instance d'un ami, site web, bot…) et choisis son profil d'intégration rapide :
+   - **Addon Stremio / Média** (`STOCKAGE_URL` + `STOCKAGE_API_KEY` ou appel direct `/api/v1/trailers/tt13016388:2:1`)
+   - **Autre Stockage DB** (`UPSTREAM_URL` + `UPSTREAM_API_KEY` pour chaîner deux serveurs)
+   - **App / Site / Bot (REST)** (appels JSON standard avec CORS ouvert)
+   - **Bruno / Postman** (import en 1 clic via `/api/v1/openapi.json`)
+3. Tu peux aussi partager **`https://stockage.mondomaine.fr/api/docs`** : une page publique interactive permettant à n'importe quel développeur tiers de lire la doc et de tester sa clé `sdb_...` en direct sans accès admin.
 
 ---
 
@@ -110,7 +113,7 @@ Toute l'exploitation quotidienne se fait depuis l'interface web (thème sombre/c
 
 | Onglet | Rôle |
 |---|---|
-| **API & Connexion** | Liaison guidée en 2 étapes, création/pause/rotation des clés `sdb_...`, compteurs de trafic et testeur de fédération. |
+| **API & Connexion Universelle** | Tuiles d'intégration rapide, URLs universelles copiables en 1 clic, gestion multi-instances (jusqu'à 50 clés `sdb_...`), trafic en direct et lien `/api/docs`. |
 | **Paramètres & HLS** | Réglages persistés en base SQLite, gestion du cache disque HLS, optimisation WAL et téléchargement de sauvegarde `.db` à chaud. |
 | **Journal** | Historique filtrable des 2 000 derniers événements serveur (`info`, `warn`, `error`, appels API et relais). |
 
@@ -139,41 +142,46 @@ npm run vf                               # enrichit via TMDB (ID IMDb, synopsis,
 
 ---
 
-## API REST (`/api/v1`)
+## API REST Universelle (`/api/v1`)
 
 Par défaut, **l'API est fermée** tant qu'aucune clé active n'existe (`403`).
-Chaque clé `sdb_...` s'envoie via l'en-tête `Authorization: Bearer <clé>` ou `X-API-Key: <clé>`.
+Chaque clé `sdb_...` peut être transmise au choix via :
+- `Authorization: Bearer <clé>`
+- `X-API-Key: <clé>` ou `Api-Key: <clé>`
+- Paramètre d'URL `?apikey=<clé>` (pratique pour les addons et lecteurs qui ne personnalisent pas leurs en-têtes HTTP)
 
 ### Routes disponibles
 
 | Méthode | Route | Permission | Description |
 |---|---|---|---|
-| `GET` | `/health` | Public | État du serveur, version, uptime et nombre de titres (pour Docker / Uptime Kuma). |
+| `GET` | `/health` | Public | État du serveur, version, uptime et nombre de titres (Docker / Uptime Kuma). |
+| `GET` | `/api/v1` · `/.well-known/stockage-db.json` | Public | Découverte JSON auto-descriptive (endpoints, formats d'IDs, méthodes d'auth, capacités). |
+| `GET` | `/api/docs` | Public | Documentation interactive universelle + testeur de clé `sdb_...` en direct. |
 | `GET` | `/api/v1/openapi.json` | Public | Spécification **OpenAPI 3.0.3** importable dans Bruno, Postman ou Hoppscotch. |
 | `GET` | `/api/v1/status` | Lecture | Statut détaillé des sources, du cache et des capacités serveur. |
-| `GET` | `/api/v1/trailers` | Lecture | Bandes-annonces d'un titre (`imdb`, `tmdb`, `netflix`, `type`, `season`, `strict_season=1`, `fast=1`). |
-| `POST` | `/api/v1/trailers/batch` | Lecture | Récupération groupée jusqu'à **25 titres** en une seule requête HTTP. |
+| `GET` | `/api/v1/trailers/:id` | Lecture | Endpoint universel direct (`tt13016388`, `tt13016388:2:1`, `tmdb:95396`, `nflx:81944880`…). |
+| `GET` | `/api/v1/trailers` | Lecture | Recherche de bandes-annonces par paramètres (`id`, `imdb`, `tmdb`, `netflix`, `title` + `year`, `season`, `strict_season=1`, `fast=1`). |
+| `POST` | `/api/v1/trailers/batch` | Lecture | Récupération groupée jusqu'à **25 titres ou saisons** en une seule requête HTTP. |
 | `POST` | `/api/v1/prewarm` | Lecture | Préchauffage asynchrone (`202 Accepted`) d'une liste de titres en tâche de fond. |
-| `GET` | `/api/v1/search` | Lecture | Recherche plein texte dans le catalogue local (`q`, `type`, `limit`). |
-| `GET` | `/api/v1/title/:id` | Lecture | Fiche complète par ID interne, IMDb (`tt...`) ou Netflix + saisons disponibles. |
-| `POST` | `/api/v1/trailers/submit` | Écriture | Ajoute une bande-annonce MP4 ou HLS (`.m3u8`) sur une fiche existante. |
+| `GET` | `/api/v1/search` | Lecture | Recherche plein texte dans le catalogue local (`q`, `type`, `filter`, `limit`). |
+| `GET` | `/api/v1/title/:id` | Lecture | Fiche complète par ID universel (IMDb, TMDB, Netflix ou interne) + saisons disponibles. |
+| `POST` | `/api/v1/trailers/submit` | Écriture | Ajoute une bande-annonce MP4 ou HLS (`.m3u8`) à distance sur une fiche. |
 
-> Les routes courtes `/api/status` et `/api/trailers` restent actives comme alias de `/api/v1/*` pour une compatibilité totale.
+> Les routes courtes `/api/status`, `/api/trailers` et `/api/trailers/:id` restent actives comme alias de `/api/v1/*` pour une compatibilité totale.
 
-### Exemples d'appels
+### Exemples d'appels universels
 
 ```bash
-# Bande-annonce d'un film ou d'une série par ID IMDb
+# 1. Par ID composite Stremio (extrait automatiquement type=series & season=2)
 curl -H "Authorization: Bearer sdb_votre_cle" \
-  "https://stockage.mondomaine.fr/api/v1/trailers?imdb=tt13016388"
+  "https://stockage.mondomaine.fr/api/v1/trailers/tt13016388:2:1?strict_season=1"
 
-# Cibler strictement la Saison 2 d'une série
-curl -H "Authorization: Bearer sdb_votre_cle" \
-  "https://stockage.mondomaine.fr/api/v1/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"
+# 2. Par identifiant TMDB (film ou série)
+curl -H "X-API-Key: sdb_votre_cle" \
+  "https://stockage.mondomaine.fr/api/v1/trailers/tmdb:tv:95396"
 
-# Recherche locale rapide
-curl -H "Authorization: Bearer sdb_votre_cle" \
-  "https://stockage.mondomaine.fr/api/v1/search?q=Severance&type=series"
+# 3. Par titre + année (sans aucun identifiant externe)
+curl "https://stockage.mondomaine.fr/api/v1/trailers?title=Severance&year=2022&apikey=sdb_votre_cle"
 ```
 
 ---
@@ -267,8 +275,9 @@ npm run api-check -- tt13016388 --url https://stockage.mondomaine.fr --key sdb_v
 stockage-db/
 ├── src/
 │   ├── index.js             # Démarrage HTTP + planificateur de synchro
-│   ├── app.js               # Routes Express : API v1, relais vidéo, sonde MP4, admin
+│   ├── app.js               # Routes Express : API universelle v1, relais vidéo, sonde MP4, admin
 │   ├── admin.html           # Dashboard d'administration complet (SPA sans build)
+│   ├── api-docs.html        # Documentation publique interactive & testeur de clé (/api/docs)
 │   ├── logo.png / logo.svg  # Logo personnalisé W (dashboard & favicons)
 │   ├── db.js                # Couche SQLite (WAL, migrations, index, clés API, backup)
 │   ├── federation.js        # Résolution des flux relayables & filtrage par saison

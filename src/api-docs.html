@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stockage DB — Guide &amp; Documentation API Universelle</title>
+<meta name="theme-color" content="#090c12">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="alternate icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #090c12;
+    --card: #121826;
+    --card-alt: #171f30;
+    --line: #212c42;
+    --line-strong: #2e3d5c;
+    --fg: #ecf2fa;
+    --fg-soft: #b8c4d9;
+    --muted: #7d8da8;
+    --accent: #14b8a6;
+    --accent-soft: rgba(20, 184, 166, 0.14);
+    --ok: #22c55e;
+    --info: #38bdf8;
+    --purple: #a78bfa;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --display: 'Space Grotesk', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(900px 420px at 50% -120px, rgba(20, 184, 166, 0.10), transparent 70%), var(--bg);
+    color: var(--fg);
+    font: 14px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 32px 20px 64px; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .muted { color: var(--muted); }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding-bottom: 22px; border-bottom: 1px solid var(--line); margin-bottom: 26px;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand img {
+    width: 48px; height: 48px; border-radius: 12px;
+    border: 1px solid rgba(20, 184, 166, 0.42);
+    box-shadow: 0 6px 18px rgba(20, 184, 166, 0.22);
+  }
+  .brand h1 { margin: 0; font: 700 21px/1.15 var(--display); letter-spacing: -.02em; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px; font: 600 11.5px var(--mono);
+    background: var(--accent-soft); border: 1px solid rgba(20, 184, 166, 0.35); color: var(--accent);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 13px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card-alt); color: var(--fg); font-weight: 600; font-size: 13px;
+    cursor: pointer; text-decoration: none; transition: .15s;
+  }
+  .btn:hover { border-color: var(--line-strong); background: #1e2840; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #042421; }
+  .btn-primary:hover { background: #0d9488; border-color: #0d9488; color: #fff; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 18px;
+  }
+  .card h2 { margin: 0 0 4px; font: 700 16.5px var(--display); }
+  .card-sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  .ep-box {
+    background: #0d121d; border: 1px solid var(--line); border-radius: 11px;
+    padding: 4px 16px;
+  }
+  .ep-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 13px 0; border-bottom: 1px solid rgba(33, 44, 66, 0.65);
+  }
+  .ep-row:last-child { border-bottom: none; }
+  .ep-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .ep-val { font: 600 13.5px var(--mono); margin-top: 3px; word-break: break-all; }
+  .ep-hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .c-green { color: var(--ok); }
+  .c-blue { color: var(--info); }
+  .c-teal { color: var(--accent); }
+  .c-purple { color: var(--purple); }
+  input, select {
+    padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: #090c12; color: var(--fg); font: inherit; outline: none; width: 100%;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tab-btn {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card-alt); color: var(--fg-soft); font-weight: 600; font-size: 12.5px; cursor: pointer;
+  }
+  .tab-btn.active { background: var(--accent-soft); border-color: rgba(20, 184, 166, 0.42); color: var(--accent); }
+  pre.code {
+    margin: 0; padding: 14px 16px; border-radius: 10px;
+    background: #090c12; border: 1px solid var(--line);
+    font: 12.5px/1.55 var(--mono); color: #d6e3f8; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .m-get { color: var(--info); font-weight: 700; font-family: var(--mono); }
+  .m-post { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 10px 16px; border-radius: 9px;
+    background: #14b8a6; color: #042421; font-weight: 700; font-size: 13px;
+    opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  @media (max-width: 700px) {
+    .tester-grid { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/logo.png" alt="Logo W">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h1>Stockage DB — API Universelle</h1>
+          <span class="pill">v__APP_VERSION__</span>
+        </div>
+        <div class="muted" style="font-size:13px;margin-top:3px">
+          Documentation publique &amp; testeur en direct pour connecter n'importe quelle instance, addon ou application.
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/api/v1/openapi.json" target="_blank" rel="noopener">{ } Schéma OpenAPI 3.0</a>
+      <a class="btn" href="/admin">Dashboard Admin →</a>
+    </div>
+  </header>
+
+  <!-- Endpoints universels -->
+  <section class="card">
+    <h2>Points d'accès universels</h2>
+    <p class="card-sub">Utilisables depuis n'importe quel serveur, addon, site web, bot ou script disposant d'une clé API <span class="mono">sdb_…</span>.</p>
+
+    <div class="ep-box">
+      <div class="ep-row">
+        <div>
+          <div class="ep-label">URL de base du serveur (Fédération &amp; Addons)</div>
+          <div class="ep-val c-green" id="uBase"></div>
+          <div class="ep-hint">Les clients Stockage DB et addons compatibles ajoutent automatiquement <span class="mono">/api/v1</span></div>
+        </div>
+        <button class="btn" data-copy-el="uBase">Copier</button>
+      </div>
+
+      <div class="ep-row">
+        <div>
+          <div class="ep-label">URL complète de l'API (Clients REST / Applications)</div>
+          <div class="ep-val c-blue" id="uApi"></div>
+          <div class="ep-hint">Point d'entrée JSON universel (CORS activé · découverte auto sur <span class="mono">GET /api/v1</span>)</div>
+        </div>
+        <button class="btn" data-copy-el="uApi">Copier</button>
+      </div>
+
+      <div class="ep-row">
+        <div>
+          <div class="ep-label">Endpoint lecture universelle (ID IMDb, TMDB, Netflix, Stremio ou Titre)</div>
+          <div class="ep-val c-teal" id="uRead"></div>
+          <div class="ep-hint">Accepte <span class="mono">tt13016388</span>, <span class="mono">tt13016388:2:1</span>, <span class="mono">tmdb:95396</span>, <span class="mono">81944880</span> ou <span class="mono">?title=Severance</span></div>
+        </div>
+        <button class="btn" data-copy-el="uRead">Copier</button>
+      </div>
+
+      <div class="ep-row">
+        <div>
+          <div class="ep-label">Endpoint contribution / ajout de flux vidéo</div>
+          <div class="ep-val c-purple" id="uWrite"></div>
+          <div class="ep-hint">Header : <span class="mono">Authorization: Bearer VOTRE_CLE_API</span> (nécessite une clé avec droit d'ajout)</div>
+        </div>
+        <button class="btn" data-copy-el="uWrite">Copier</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;font-size:12.5px;color:var(--muted)">
+      <b>Authentification universelle acceptée partout :</b>
+      <span class="mono">Authorization: Bearer &lt;clé&gt;</span> ·
+      <span class="mono">X-API-Key: &lt;clé&gt;</span> ·
+      <span class="mono">Api-Key: &lt;clé&gt;</span> ·
+      ou paramètre URL <span class="mono">?apikey=&lt;clé&gt;</span>.
+    </div>
+  </section>
+
+  <!-- Testeur interactif en direct -->
+  <section class="card">
+    <h2>Tester votre clé API en direct</h2>
+    <p class="card-sub">Collez votre clé <span class="mono">sdb_…</span> pour vérifier la connexion et inspecter les flux MP4 renvoyés par cette instance.</p>
+
+    <form id="liveForm" style="display:grid;gap:10px">
+      <div class="tester-grid" style="display:grid;grid-template-columns:1.3fr 1.3fr .6fr auto;gap:8px">
+        <input id="tKey" type="password" class="mono" placeholder="Clé API (sdb_...)" autocomplete="off">
+        <input id="tQuery" type="text" placeholder="ID ou titre (ex. tt13016388, tt13016388:2:1, Severance)" value="tt13016388" required>
+        <input id="tSeason" type="number" min="1" max="50" placeholder="Saison (opt.)">
+        <button type="submit" class="btn btn-primary" id="tBtn">Tester →</button>
+      </div>
+    </form>
+
+    <div id="tResultWrap" style="display:none;margin-top:14px">
+      <div id="tMeta" style="margin-bottom:8px;font-size:12.5px"></div>
+      <pre class="code" id="tOut"></pre>
+    </div>
+  </section>
+
+  <!-- Exemples prêts à copier par langage / outil -->
+  <section class="card">
+    <h2>Exemples d'intégration universelle</h2>
+    <p class="card-sub">Choisissez votre type d'instance ou votre langage pour copier la configuration correspondante.</p>
+
+    <div class="tabs" id="snipTabs">
+      <button type="button" class="tab-btn active" data-snip="addon">🎬 Addon Stremio / Média</button>
+      <button type="button" class="tab-btn" data-snip="peer">🔗 Autre Stockage DB</button>
+      <button type="button" class="tab-btn" data-snip="js">⚡ Node.js / JavaScript</button>
+      <button type="button" class="tab-btn" data-snip="py">🐍 Python</button>
+      <button type="button" class="tab-btn" data-snip="curl">💻 cURL</button>
+    </div>
+
+    <div style="position:relative">
+      <button type="button" class="btn" id="copySnipBtn" style="position:absolute;top:10px;right:10px;padding:5px 10px;font-size:12px">Copier</button>
+      <pre class="code" id="snipCode"></pre>
+    </div>
+  </section>
+
+  <!-- Tableau complet des routes -->
+  <section class="card" style="margin-bottom:0">
+    <h2>Référence complète des routes</h2>
+    <p class="card-sub">Toutes les réponses sont au format JSON UTF-8 avec en-têtes <span class="mono">X-RateLimit-*</span> et <span class="mono">X-Response-Time</span>.</p>
+
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Méthode</th>
+            <th>Endpoint</th>
+            <th>Description &amp; Paramètres</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1</td>
+            <td>Découverte automatique de l'instance (version, endpoints disponibles, méthodes d'authentification).</td>
+          </tr>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1/status</td>
+            <td>Statut de l'instance, nombre de titres couverts et capacités actives.</td>
+          </tr>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1/trailers/:id</td>
+            <td>Récupération universelle en chemin direct : accepte <span class="mono">tt13016388</span>, <span class="mono">tt13016388:2:1</span> (extrait automatiquement la saison 2), <span class="mono">tmdb:95396</span> ou <span class="mono">nflx:81944880</span>.</td>
+          </tr>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1/trailers</td>
+            <td>Recherche par paramètres : <span class="mono">id</span>, <span class="mono">imdb</span>, <span class="mono">tmdb</span>, <span class="mono">netflix</span>, ou <span class="mono">title</span> (+ <span class="mono">year</span>, <span class="mono">type=movie|series</span>, <span class="mono">season</span>, <span class="mono">strict_season=1</span>, <span class="mono">fast=1</span>).</td>
+          </tr>
+          <tr>
+            <td class="m-post">POST</td>
+            <td class="mono">/api/v1/trailers/batch</td>
+            <td>Récupération groupée jusqu'à 25 titres en un seul appel : <span class="mono">{"items": [{"id": "tt13016388:2:1"}, {"title": "Dune", "year": 2021}]}</span>.</td>
+          </tr>
+          <tr>
+            <td class="m-post">POST</td>
+            <td class="mono">/api/v1/prewarm</td>
+            <td>Préchauffage asynchrone (<span class="mono">202 Accepted</span>) jusqu'à 50 titres en arrière-plan.</td>
+          </tr>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1/search</td>
+            <td>Recherche dans le catalogue local : <span class="mono">?q=Severance&amp;type=series&amp;limit=20</span>.</td>
+          </tr>
+          <tr>
+            <td class="m-get">GET</td>
+            <td class="mono">/api/v1/title/:id</td>
+            <td>Fiche complète (synopsis, affiche, genres, identifiants croisés, saisons et bandes-annonces).</td>
+          </tr>
+          <tr>
+            <td class="m-post">POST</td>
+            <td class="mono">/api/v1/trailers/submit</td>
+            <td>Ajoute un flux MP4 ou HLS (<span class="mono">.m3u8</span>) sur un titre (<span class="mono">{"imdb":"tt...","title":"Saison 2 VF","url":"https://..."}</span>) — clé avec droit d'écriture requise.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast">Copié !</div>
+
+<script>
+(function () {
+  var configuredBase = '__PUBLIC_BASE_URL__';
+  var base = (!configuredBase || /localhost|127\.0\.0\.1/.test(configuredBase))
+    ? window.location.origin
+    : configuredBase.replace(/\/+$/, '');
+
+  document.getElementById('uBase').textContent = base;
+  document.getElementById('uApi').textContent = base + '/api/v1';
+  document.getElementById('uRead').textContent = 'GET ' + base + '/api/v1/trailers/{id}';
+  document.getElementById('uWrite').textContent = 'POST ' + base + '/api/v1/trailers/submit';
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg || 'Copié !';
+    t.classList.add('show');
+    clearTimeout(showToast._tm);
+    showToast._tm = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  function copyStr(val) {
+    var clean = String(val || '').replace(/^(GET|POST)\s+/i, '');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(clean).then(function () { showToast('Copié dans le presse-papiers !'); });
+    }
+  }
+
+  document.querySelectorAll('[data-copy-el]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.getElementById(btn.getAttribute('data-copy-el'));
+      if (el) copyStr(el.textContent);
+    });
+  });
+
+  var snippets = {
+    addon: '# Pour tout addon Stremio ou service média externe (.env)\nSTOCKAGE_URL=' + base + '\nSTOCKAGE_API_KEY=VOTRE_CLE_API\n\n# Appel direct depuis un handler stream (supporte directement tt1234567:2:1) :\n# GET ' + base + '/api/v1/trailers/tt13016388:2:1',
+    peer: '# Relier une autre instance Stockage DB en cascade (.env)\nUPSTREAM_URL=' + base + '\nUPSTREAM_API_KEY=VOTRE_CLE_API',
+    js: 'const res = await fetch("' + base + '/api/v1/trailers/tt13016388:2:1", {\n  headers: { Authorization: "Bearer VOTRE_CLE_API" }\n});\nconst data = await res.json();\nconsole.log(data.trailers); // [{ title, url, season, kind, source }]',
+    py: 'import requests\n\nr = requests.get(\n    "' + base + '/api/v1/trailers",\n    params={"id": "tt13016388:2:1", "strict_season": 1},\n    headers={"Authorization": "Bearer VOTRE_CLE_API"},\n    timeout=10,\n)\nprint(r.json()["trailers"])',
+    curl: 'curl -H "Authorization: Bearer VOTRE_CLE_API" \\\n  "' + base + '/api/v1/trailers/tt13016388"'
+  };
+
+  var curSnip = 'addon';
+  var snipEl = document.getElementById('snipCode');
+  snipEl.textContent = snippets[curSnip];
+
+  document.getElementById('snipTabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-snip]');
+    if (!b) return;
+    curSnip = b.getAttribute('data-snip');
+    document.querySelectorAll('#snipTabs .tab-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+    snipEl.textContent = snippets[curSnip] || '';
+  });
+
+  document.getElementById('copySnipBtn').addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(snipEl.textContent).then(function () { showToast('Exemple copié !'); });
+    }
+  });
+
+  var savedKey = sessionStorage.getItem('sdb_doc_key') || '';
+  if (savedKey) document.getElementById('tKey').value = savedKey;
+
+  document.getElementById('liveForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var key = document.getElementById('tKey').value.trim();
+    var q = document.getElementById('tQuery').value.trim();
+    var s = document.getElementById('tSeason').value.trim();
+    if (key) sessionStorage.setItem('sdb_doc_key', key);
+
+    var btn = document.getElementById('tBtn');
+    var wrap = document.getElementById('tResultWrap');
+    var meta = document.getElementById('tMeta');
+    var out = document.getElementById('tOut');
+    btn.disabled = true;
+    btn.textContent = 'Test…';
+    wrap.style.display = 'block';
+    out.textContent = 'Requête en cours…';
+
+    try {
+      var params = new URLSearchParams();
+      if (/^(tt\d+|tmdb:|nflx:|\d+$)/i.test(q)) params.set('id', q);
+      else params.set('title', q);
+      if (s) params.set('season', s);
+      var headers = {};
+      if (key) headers['Authorization'] = 'Bearer ' + key;
+      var t0 = performance.now();
+      var r = await fetch('/api/v1/trailers?' + params.toString(), { headers: headers });
+      var ms = Math.round(performance.now() - t0);
+      var json = await r.json();
+      var okColor = r.ok ? 'var(--ok)' : 'var(--danger)';
+      meta.innerHTML = '<b style="color:' + okColor + '">HTTP ' + r.status + '</b> · <span class="mono">' + ms + ' ms</span>' +
+        (json && Array.isArray(json.trailers) ? ' · <b>' + json.trailers.length + ' flux MP4 disponible(s)</b>' : '');
+      out.textContent = JSON.stringify(json, null, 2);
+    } catch (err) {
+      meta.innerHTML = '<b style="color:var(--danger)">Erreur réseau</b>';
+      out.textContent = String(err && err.message || err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Tester →';
+    }
+  });
+})();
+</script>
+</body>
+</html>
