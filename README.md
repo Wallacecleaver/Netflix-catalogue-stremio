@@ -1,3 +1,7 @@
+<p align="left">
+  <img src="src/logo.png" width="76" height="76" alt="Stockage DB — Logo W" />
+</p>
+
 # Stockage DB — Serveur API & Relais MP4
 
 Serveur backend qui **stocke, convertit et expose par API des bandes-annonces MP4** (Netflix, Apple TV+, liens directs, instance amont).
@@ -36,7 +40,7 @@ stockage.mondomaine.fr {
 }
 ```
 
-Puis ouvre `https://stockage.mondomaine.fr/admin` et génère ta clé API dans l'onglet **API & Fédération**.
+Puis ouvre `https://stockage.mondomaine.fr/admin` et génère ta clé API dans l'onglet **API & Connexion**.
 
 **En local (Windows/macOS/Linux)**
 

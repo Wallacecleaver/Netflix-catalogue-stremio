@@ -269,15 +269,26 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.2.0 (sans manifest Stremio) ----
+    // ---- 5. Dashboard HTML + logo personnalisé W + nouveaux endpoints Admin v3.2.1 (sans manifest Stremio) ----
     const manifest404 = await fetch(`${base}/manifest.json`);
     assert.strictEqual(manifest404.status, 404, '/manifest.json ne doit plus exister en mode pur serveur API');
+
+    const logoSvgRes = await fetch(`${base}/logo.svg`);
+    assert.strictEqual(logoSvgRes.status, 200, '/logo.svg doit être servi publiquement');
+    assert.ok(String(logoSvgRes.headers.get('content-type') || '').includes('image/svg+xml'));
+    const logoSvgText = await logoSvgRes.text();
+    assert.ok(logoSvgText.includes('<svg') && logoSvgText.includes('Logo W'), 'Le SVG du logo W doit être valide');
+
+    const logoPngRes = await fetch(`${base}/logo.png`);
+    assert.strictEqual(logoPngRes.status, 200, '/logo.png doit être servi publiquement');
+    assert.ok(String(logoPngRes.headers.get('content-type') || '').includes('image/png'));
 
     const htmlRes = await fetch(`${base}/admin`);
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v3.2.0'), 'Le badge de version v3.2.0 doit être injecté dans /admin');
+    assert.ok(html.includes('v3.2.1'), 'Le badge de version v3.2.1 doit être injecté dans /admin');
+    assert.ok(html.includes('/logo.png') && html.includes('/logo.svg'), 'Le logo personnalisé W doit être intégré au dashboard et au favicon');
     assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
     assert.ok(html.includes('id="tab-streams"') && html.includes('Test des flux'), 'L\'onglet Test des flux doit être présent dans Exploitation');
     assert.ok(html.includes('API &amp; Connexion'), 'L\'onglet API & Connexion simplifié doit être présent');
@@ -295,7 +306,7 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '3.2.0');
+    assert.strictEqual(summary.version, '3.2.1');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
@@ -352,14 +363,14 @@ async function testHlsAndHttp() {
     assert.ok(Array.isArray(sampleRes.items) && sampleRes.items.length >= 1);
     assert.ok(sampleRes.items.every((it) => it.primary && typeof it.primary.url === 'string'));
 
-    // ---- 6. Système d'API v3.2.0 : clés scopées, quotas par clé, pause/rotation, batch, prewarm, search, title, submit, OpenAPI ----
+    // ---- 6. Système d'API v3.2.1 : clés scopées, quotas par clé, pause/rotation, batch, prewarm, search, title, submit, OpenAPI ----
     // 6a. Spécification OpenAPI 3.0.3 publique + CORS
     const oaRes = await fetch(`${base}/api/v1/openapi.json`);
     assert.strictEqual(oaRes.status, 200);
     assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
     const oaJson = await oaRes.json();
     assert.strictEqual(oaJson.openapi, '3.0.3');
-    assert.strictEqual(oaJson.info.version, '3.2.0');
+    assert.strictEqual(oaJson.info.version, '3.2.1');
     assert.ok(oaJson.paths['/api/trailers/batch']);
     assert.ok(oaJson.paths['/api/prewarm']);
 

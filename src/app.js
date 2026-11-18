@@ -1448,6 +1448,18 @@ app.post(['/api/prewarm', '/api/v1/prewarm'], apiGuard('trailers:read'), (req, r
 // Racine : redirige vers le dashboard d'administration (/admin).
 app.get('/', (_req, res) => res.redirect('/admin'));
 
+// Logo personnalisé « W » (vectoriel SVG + icône PNG haute résolution pour onglets, favoris et mobile).
+const LOGO_SVG_FILE = path.join(__dirname, 'logo.svg');
+const LOGO_PNG_FILE = path.join(__dirname, 'logo.png');
+app.get(['/logo.svg', '/favicon.svg'], (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.type('image/svg+xml').sendFile(LOGO_SVG_FILE);
+});
+app.get(['/logo.png', '/favicon.ico'], (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.type('image/png').sendFile(LOGO_PNG_FILE);
+});
+
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
 const UPSTREAM_HEADERS_TIMEOUT = 15000;
 // `content-type` est volontairement exclu : voir pipeUpstream().

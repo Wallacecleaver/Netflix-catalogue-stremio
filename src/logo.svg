@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="Stockage DB — Logo W">
+  <defs>
+    <linearGradient id="bgGrad" x1="16" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141E33"/>
+      <stop offset="55%" stop-color="#0C1322"/>
+      <stop offset="100%" stop-color="#070B14"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(64 22) rotate(90) scale(56 68)">
+      <stop offset="0%" stop-color="#14B8A6" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#14B8A6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="borderGrad" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5EEAD4" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#38BDF8" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#14B8A6" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="wTealFront" x1="22" y1="32" x2="50" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5EEAD4"/>
+      <stop offset="100%" stop-color="#0D9488"/>
+    </linearGradient>
+    <linearGradient id="wCyanMid" x1="64" y1="34" x2="44" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="wTealMid" x1="64" y1="34" x2="84" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2DD4BF"/>
+      <stop offset="100%" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="wCyanFront" x1="106" y1="32" x2="78" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#67E8F9"/>
+      <stop offset="50%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="playGrad" x1="56" y1="53" x2="76" y2="75" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#99F6E4"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fond squircle sombre + lueur -->
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#bgGrad)"/>
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#topGlow)"/>
+  <rect x="6" y="6" width="116" height="116" rx="28" stroke="url(#borderGrad)" stroke-width="2.5"/>
+
+  <!-- Monogramme géométrique W à 4 facettes -->
+  <path d="M38 95L57 35H68L51 95H38Z" fill="url(#wCyanMid)"/>
+  <path d="M60 35H71L90 95H77L60 35Z" fill="url(#wTealMid)"/>
+  <path d="M21 33H36L51 95H38L21 33Z" fill="url(#wTealFront)"/>
+  <path d="M77 95L92 33H107L90 95H77Z" fill="url(#wCyanFront)"/>
+
+  <!-- Découpe centrale Play (relais vidéo / flux MP4) -->
+  <path d="M53 47.5L81.5 64L53 80.5V47.5Z" fill="#0B1220" stroke="#0B1220" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M56.5 53.5L74.5 64L56.5 74.5V53.5Z" fill="url(#playGrad)" stroke="#5EEAD4" stroke-width="1.2" stroke-linejoin="round"/>
+</svg>

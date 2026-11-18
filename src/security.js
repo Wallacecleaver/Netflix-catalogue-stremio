@@ -170,7 +170,7 @@ function securityHeaders(req, res, next) {
       "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
       "font-src 'self' https://fonts.gstatic.com data:; " +
-      "img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self'; " +
+      "img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self'; " +
       "frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'");
   }
   next();
