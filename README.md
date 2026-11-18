@@ -1,284 +1,293 @@
-<p align="left">
-  <img src="src/logo.png" width="76" height="76" alt="Stockage DB — Logo W" />
-</p>
+<div align="center">
 
-# Stockage DB — Serveur API & Relais MP4
+<img src="src/logo.png" width="96" height="96" alt="Stockage DB — Logo W" />
 
-Serveur backend qui **stocke, convertit et expose par API des bandes-annonces MP4** (Netflix, Apple TV+, liens directs, instance amont).
-Il ne contient aucun manifest Stremio : tout passe par son **API REST (`/api/v1/*`)**, son **relais vidéo MP4/HLS** et son **Dashboard Admin (`/admin`)** pour alimenter `vf-trailer-wallace` ou tout autre client externe.
+# Stockage DB
 
-> Les anciennes bases `./data/netflix.db` sont automatiquement migrées vers `./data/stockage.db` au démarrage.
+**Serveur de stockage multi-sources, relais vidéo MP4/HLS et API REST de bandes-annonces**
 
-Stack : Node.js ≥ 20 · Express · SQLite (`better-sqlite3`) · `ffmpeg` · Docker.
+[![Version](https://img.shields.io/badge/version-v3.2.1-14b8a6?style=flat-square)](#)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-22c55e?style=flat-square&logo=node.js&logoColor=white)](#)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL-38bdf8?style=flat-square&logo=sqlite&logoColor=white)](#)
+[![Relais](https://img.shields.io/badge/Relais-MP4%20%2F%20HLS-0ea5e9?style=flat-square)](#)
+[![Docker](https://img.shields.io/badge/Docker-Pr%C3%AAt-2496ed?style=flat-square&logo=docker&logoColor=white)](#)
+
+</div>
 
 ---
 
-## Ce qu'il fait
+## Présentation
 
-| | |
-|---|---|
-| **Stocke** | synopsis, année, classification, genres, casting, épisodes, affiches et bandes-annonces par saison |
-| **Relaie** | `/trailer/<id>/<n>.mp4` renouvelle le lien Netflix signé à chaque lecture ; `/apple/<id>/<n>.mp4` et `/media/<id>/<n>.mp4` convertissent le HLS en MP4 (avec le son) |
-| **Trouve** | un titre absent de la base est résolu à la volée : TMDB → JustWatch → page Netflix → Apple TV+ → YouTube |
-| **Expose** | API REST complète (`/api/v1/trailers`, `/api/v1/trailers/batch`, `/api/v1/search`, `/api/v1/title/:id`, `/api/v1/trailers/submit`, `/api/v1/openapi.json`) avec clés scopées et quotas personnalisables |
+**Stockage DB** est un serveur backend autonome qui **collecte, convertit, met en cache et expose par API des bandes-annonces vidéo en MP4** (Netflix, Apple TV+, liens directs MP4/HLS, instance amont et repli YouTube).
 
-## Installation
+Il fonctionne **100 % en serveur d'API et de relais vidéo** (aucun manifest Stremio embarqué) afin d'alimenter proprement **[`vf-trailer-wallace`](https://github.com/Wallacecleaver/vf-trailer-wallace)** ou n'importe quel service externe via une API REST sécurisée et un **Dashboard d'administration complet (`/admin`)**.
 
-**Docker (VPS)**
+### Points clés
+
+- **Base SQLite centralisée (mode WAL)** — films et séries avec identifiants croisés (`imdb_id`, `tmdb_id`, `netflix_id`, Apple TV+), synopsis, genres, saisons et bandes-annonces VF/VO.
+- **Relais vidéo MP4 prêt à lire** :
+  - `/trailer/<id>/<n>.mp4` renouvelle automatiquement les liens signés Netflix lorsqu'ils expirent.
+  - `/apple/<id>/<n>.mp4` et `/media/<id>/<n>.mp4` convertissent à la volée les flux HLS (`.m3u8`) en vrai MP4 avec piste audio remuxée via `ffmpeg` et cache disque intelligent.
+- **Résolution automatique à la demande** — lorsqu'un titre inconnu est demandé à l'API, le serveur le résout automatiquement : *TMDB → JustWatch → Netflix → Apple TV+ → YouTube*.
+- **Sécurité intégrée** — clés API hashées en SHA-256 (`sdb_...`) avec permissions, pause en 1 clic, rotation, quotas par minute et protection anti-SSRF IPv4/IPv6 sur tous les relais.
+
+> **Migration automatique** : si une ancienne base `./data/netflix.db` est présente, elle est automatiquement migrée vers `./data/stockage.db` au premier démarrage.
+
+---
+
+## Démarrage rapide
+
+### Option 1 — Sur un VPS avec Docker *(recommandé)*
 
 ```bash
-git clone https://github.com/Wallacecleaver/stockage-db.git && cd stockage-db
-cp .env.example .env      # renseigne ADMIN_TOKEN, PUBLIC_URL et TMDB_API_KEY
+git clone https://github.com/Wallacecleaver/stockage-db.git
+cd stockage-db
+cp .env.example .env
+```
+
+Renseigne au minimum dans ton fichier `.env` :
+
+```env
+ADMIN_TOKEN=un_mot_de_passe_solide_de_16_caracteres_minimum
+PUBLIC_URL=https://stockage.mondomaine.fr
+TMDB_API_KEY=ta_cle_tmdb
+```
+
+Puis lance le conteneur :
+
+```bash
 docker compose up -d --build
 ```
 
-Derrière un reverse proxy HTTPS (Caddy) :
+Exemple de reverse proxy HTTPS avec **Caddy** :
 
-```
+```caddyfile
 stockage.mondomaine.fr {
-  reverse_proxy 127.0.0.1:7000
+    reverse_proxy 127.0.0.1:7000
 }
 ```
 
-Puis ouvre `https://stockage.mondomaine.fr/admin` et génère ta clé API dans l'onglet **API & Connexion**.
+### Option 2 — En local (Linux / macOS / Windows)
 
-**En local (Windows/macOS/Linux)**
+Prérequis : **Node.js ≥ 20** et **`ffmpeg`** installé dans le `PATH`.
 
 ```bash
 npm ci
-copy .env.example .env    # ou : cp .env.example .env
-npm run seed              # une fiche de démo
-npm start                 # http://localhost:7000
+cp .env.example .env      # sous Windows : copy .env.example .env
+npm start                 # ouvre http://localhost:7000/admin
 ```
 
-## Comment la base se remplit
+---
 
-Quatre étapes, dans cet ordre. Les trois premières sont dans l'onglet **Stockage** du dashboard
-(`/admin`), chacune a son équivalent en ligne de commande.
+## Relier `vf-trailer-wallace` en 2 étapes
 
-**1 · Collecter** — lister les titres et récupérer les IDs Netflix.
+1. Ouvre **`https://stockage.mondomaine.fr/admin`** et connecte-toi avec ton `ADMIN_TOKEN`.
+2. Va dans l'onglet **API & Connexion** :
+   - Crée une clé d'accès (ex. `vf-trailer-wallace` en **Lecture seule**).
+   - Copie directement le bloc `.env` généré dans la configuration de `vf-trailer-wallace` :
 
-```bash
-npm run harvest                          # tout le catalogue Netflix des pays configurés (JustWatch)
-npm run harvest:recent                   # seulement les sorties récentes
-npm run sync                             # titres des plateformes TMDB (Netflix, Apple TV+…)
-docker compose exec stockage-db node scripts/add.js 81944880   # un titre à la main
+```env
+STOCKAGE_URL=https://stockage.mondomaine.fr
+STOCKAGE_API_KEY=sdb_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-**2 · Lire les pages** — c'est ce qui donne vraiment les vidéos : le moissonnage ne pose que les
-`netflix_id`, et une fiche sans page lue n'a aucune bande-annonce.
+---
 
-```bash
-npm run netflix-trailers                 # ≈ 1,2 s par page ; reprise possible, arrêtable
-npm run netflix-trailers -- --limit 50   # pour tester
-```
+## Le Dashboard (`/admin`)
 
-**3 · Compléter les identifiants** — sans ID IMDb, un titre n'apparaît sur aucune fiche Stremio.
+Toute l'exploitation quotidienne se fait depuis l'interface web (thème sombre/clair, recherche rapide `Ctrl+K`, aucune étape de build).
 
-```bash
-npm run netflix-ids                      # nom → ID Netflix (JustWatch) pour les fiches non liées
-npm run vf                               # TMDB : ID IMDb, affiche, synopsis, genres, bande-annonce YouTube
-```
-
-**4 · Apple TV (optionnel)** — bandes-annonces du catalogue Apple, converties en MP4.
-
-Depuis le dashboard, la même chose en un clic, avec progression et bouton d'arrêt.
-
-## Dashboard
-
-`https://stockage.mondomaine.fr/admin` — mot de passe = `ADMIN_TOKEN`. Sept onglets :
+### Exploitation
 
 | Onglet | Rôle |
 |---|---|
-| **Stockage** | couverture réelle, état des sources, et les tâches : collecter → enrichir → brancher |
-| **Recherche** | trouve un titre par son nom (JustWatch, Apple TV) puis l'ajoute |
-| **Ajouter** | ajout direct par URL ou ID : Netflix, Prime Video, Apple TV, et **n'importe quelle vidéo par son URL** ; derniers ajouts en bas |
-| **Titres** | liste filtrable, avec les sources et la présence d'un ID IMDb |
-| **API** | gestion des clés API de fédération (création, libellé, dernière utilisation, révocation) |
-| **Paramètres** | toutes les variables ci-dessous, filtrables, persistées en base |
-| **Journal** | les 2 000 derniers événements, filtrables par niveau et par texte |
+| **Vue d'ensemble** | Couverture vidéo du catalogue, santé des sources, lancement et suivi en direct des tâches de collecte / enrichissement. |
+| **Catalogue** | Exploration filtrable et triable des fiches, inspecteur détaillé par saison, export JSON et suppression propre. |
+| **Ajouter & Chercher** | Recherche multi-sources (JustWatch, Apple TV+) et ajout manuel par URL/ID Netflix, Prime Video, Apple TV+ ou **lien direct MP4 / `.m3u8`**. |
+| **Test des flux** | Lecteur vidéo intégré + **sonde serveur réelle** (code HTTP, validation de l'en-tête MP4 `ftyp`, taille, latence en `ms`) + diagnostic rapide de 6 flux au hasard. |
 
-Les valeurs enregistrées depuis le dashboard vivent dans SQLite (`./data`) et survivent aux
-redéploiements. Priorité : **dashboard > `.env` > valeur par défaut**.
+### Intégration & Système
 
-## Configuration
-
-Toutes ces variables sont aussi modifiables dans **Paramètres**. Les valeurs entre parenthèses sont les
-défauts.
-
-**Essentiel**
-
-| Variable | Rôle |
+| Onglet | Rôle |
 |---|---|
-| `ADMIN_TOKEN` | mot de passe du dashboard — **obligatoire**, sinon `/admin` répond 503 |
-| `TMDB_API_KEY` | clé TMDB v3 ou jeton v4 — active la synchro, les IDs IMDb et les bandes-annonces YouTube |
-| `PUBLIC_URL` | adresse publique (`https://…`) servant les relais `/trailer/…` |
-| `PORT` (7000) · `DB_PATH` (`./data/stockage.db`) | écoute et base SQLite |
+| **API & Connexion** | Liaison guidée en 2 étapes, création/pause/rotation des clés `sdb_...`, compteurs de trafic et testeur de fédération. |
+| **Paramètres & HLS** | Réglages persistés en base SQLite, gestion du cache disque HLS, optimisation WAL et téléchargement de sauvegarde `.db` à chaud. |
+| **Journal** | Historique filtrable des 2 000 derniers événements serveur (`info`, `warn`, `error`, appels API et relais). |
 
-**Catalogues**
+> **Priorité des réglages** : toute valeur enregistrée dans l'onglet **Paramètres & HLS** est stockée dans SQLite et survit aux redéploiements (*Dashboard > `.env` > valeur par défaut*).
 
-| Variable | Rôle |
-|---|---|
-| `REGION` (FR) · `TMDB_LANG` (fr-FR) · `NETFLIX_COUNTRY` (fr) | région et langues |
-| `CATALOG_PROVIDERS` (`8,337`) | plateformes listées par TMDB : `8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime ; `all` = tout TMDB |
-| `SYNC_PAGES` (5) · `SYNC_EVERY_HOURS` (24) | ampleur et fréquence de la synchro |
-| `NETFLIX_REFRESH_HOURS` (4) | relecture automatique d'une page Netflix ouverte (nouveau teaser / nouvelle saison) |
-| `RECENT_DAYS` (90) · `RECENT_PAGES` (3) | fenêtre des « dernières sorties » |
-| `HARVEST_COUNTRIES` (`FR,US,GB,CA`) | pays moissonnés (l'ID Netflix est le même partout, on fait l'union) |
-| `RESOLVE_ENABLED` (1) | résolution à la demande à l'ouverture d'une fiche inconnue |
+---
 
-**Bandes-annonces**
+## Alimenter et enrichir la base
 
-| Variable | Rôle |
-|---|---|
-| `APPLETV_ENABLED` (1) | bandes-annonces Apple TV |
-| `HLS_MAX_HEIGHT` (720) · `HLS_MAX_MB` (60) · `HLS_CACHE_DAYS` (7) | conversion HLS → MP4 et cache disque |
-| `HLS_MAX_DISK_MB` (2048) · `HLS_MAX_CONCURRENT` (2) | plafond du cache disque et conversions ffmpeg simultanées |
-| `FFMPEG_PATH` | chemin de `ffmpeg` s'il n'est pas dans le `PATH` — sans lui, les vidéos Apple sont muettes |
-| `YOUTUBE_SEARCH` (1) | chercher sur YouTube quand TMDB n'a aucune vidéo |
-| `YOUTUBE_AS_SOURCE` (0) | proposer YouTube **en plus** de Netflix/Apple (1080p au lieu du 432p Netflix) |
-| `BRAVE_API_KEY` | inutile en pratique : JustWatch suffit, Brave n'est qu'un secours |
+Les tâches peuvent être lancées **en 1 clic depuis la Vue d'ensemble** ou en ligne de commande :
 
-**Fédération**
+```bash
+# 1. Collecter les identifiants de titres
+npm run harvest                          # tout le catalogue Netflix multi-pays (JustWatch)
+npm run harvest:recent                   # uniquement les sorties récentes
+npm run sync                             # synchronisation populaire / récente via TMDB
 
-| Variable | Rôle |
-|---|---|
-| `API_KEY` | clé historique exigée par `/api/trailers` - préfère les clés de l'onglet API (sans clé, l'API est fermée ; `ALLOW_OPEN_API=1` l'ouvre sans clé) |
-| `ALLOW_OPEN_API` | `1` = ouvrir `/api/trailers` sans clé (déconseillé) |
-| `UPSTREAM_URL` · `UPSTREAM_API_KEY` | instance amont dont on récupère les bandes-annonces |
-| `TRUST_PROXY_HOPS` (`1` en Docker) | nombre de reverse proxies de confiance (IP réelle, limiteurs, anti-brute-force) |
-| `ALLOW_PRIVATE_URLS` | `1` = autoriser les URL internes dans le relais/fédération (amont Docker uniquement) |
+# 2. Extraire les bandes-annonces MP4 des pages Netflix
+npm run netflix-trailers                 # reprise automatique, arrêtable à tout moment
+npm run netflix-trailers -- --limit 100  # par lot pour tester
 
-## D'où viennent les vidéos, et en quelle qualité
+# 3. Compléter les identifiants IMDb, affiches et replis VF
+npm run netflix-ids                      # associe nom -> ID Netflix via JustWatch
+npm run vf                               # enrichit via TMDB (ID IMDb, synopsis, YouTube VF)
+```
 
-| Source | Mécanisme | Qualité |
+---
+
+## API REST (`/api/v1`)
+
+Par défaut, **l'API est fermée** tant qu'aucune clé active n'existe (`403`).
+Chaque clé `sdb_...` s'envoie via l'en-tête `Authorization: Bearer <clé>` ou `X-API-Key: <clé>`.
+
+### Routes disponibles
+
+| Méthode | Route | Permission | Description |
+|---|---|---|---|
+| `GET` | `/health` | Public | État du serveur, version, uptime et nombre de titres (pour Docker / Uptime Kuma). |
+| `GET` | `/api/v1/openapi.json` | Public | Spécification **OpenAPI 3.0.3** importable dans Bruno, Postman ou Hoppscotch. |
+| `GET` | `/api/v1/status` | Lecture | Statut détaillé des sources, du cache et des capacités serveur. |
+| `GET` | `/api/v1/trailers` | Lecture | Bandes-annonces d'un titre (`imdb`, `tmdb`, `netflix`, `type`, `season`, `strict_season=1`, `fast=1`). |
+| `POST` | `/api/v1/trailers/batch` | Lecture | Récupération groupée jusqu'à **25 titres** en une seule requête HTTP. |
+| `POST` | `/api/v1/prewarm` | Lecture | Préchauffage asynchrone (`202 Accepted`) d'une liste de titres en tâche de fond. |
+| `GET` | `/api/v1/search` | Lecture | Recherche plein texte dans le catalogue local (`q`, `type`, `limit`). |
+| `GET` | `/api/v1/title/:id` | Lecture | Fiche complète par ID interne, IMDb (`tt...`) ou Netflix + saisons disponibles. |
+| `POST` | `/api/v1/trailers/submit` | Écriture | Ajoute une bande-annonce MP4 ou HLS (`.m3u8`) sur une fiche existante. |
+
+> Les routes courtes `/api/status` et `/api/trailers` restent actives comme alias de `/api/v1/*` pour une compatibilité totale.
+
+### Exemples d'appels
+
+```bash
+# Bande-annonce d'un film ou d'une série par ID IMDb
+curl -H "Authorization: Bearer sdb_votre_cle" \
+  "https://stockage.mondomaine.fr/api/v1/trailers?imdb=tt13016388"
+
+# Cibler strictement la Saison 2 d'une série
+curl -H "Authorization: Bearer sdb_votre_cle" \
+  "https://stockage.mondomaine.fr/api/v1/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"
+
+# Recherche locale rapide
+curl -H "Authorization: Bearer sdb_votre_cle" \
+  "https://stockage.mondomaine.fr/api/v1/search?q=Severance&type=series"
+```
+
+---
+
+## Sources vidéo & qualités
+
+| Source | Route de relais | Fonctionnement | Qualité typique |
+|---|---|---|---|
+| **Netflix** | `/trailer/<nid>/<n>.mp4` | Lien MP4 signé en clair, rafraîchi automatiquement à l'expiration | `768×432` |
+| **Apple TV+** | `/apple/<id>/<n>.mp4` | Flux HLS non chiffré remuxé en MP4 (vidéo + audio) par `ffmpeg` | Jusqu'à `720p` (`HLS_MAX_HEIGHT`) |
+| **Lien direct** | `/media/<id>/<n>.mp4` | Toute URL publique `.mp4` ou `.m3u8` rattachée à une fiche (Arte, distributeur…) | Qualité d'origine |
+| **YouTube** | Lien externe `ytId` | Repli via TMDB ou recherche VF filtrée (`YOUTUBE_AS_SOURCE=1` pour l'inclure systématiquement) | Jusqu'à `1080p` |
+
+> **Note sur les DRM** : le serveur ne contourne aucun chiffrement DRM. Les flux protégés (Prime Video, Disney+, Max) ne sont pas relayables ; seules leurs métadonnées et bandes-annonces publiques sont exploitées.
+
+---
+
+## Configuration (`.env`)
+
+### Variables principales
+
+| Variable | Défaut | Description |
 |---|---|---|
-| **Netflix** | lien signé en clair, renouvelé à chaque lecture | **768×432** (≈ 1,26 Mb/s) — mesuré, aucune variante dans la page |
-| **Apple TV** | HLS non chiffré, segments recollés en MP4 par ffmpeg | jusqu'à `HLS_MAX_HEIGHT` (720p par défaut) |
-| **YouTube** | clé `ytId` de TMDB, ou recherche filtrée strictement | selon la vidéo, souvent 1080p |
+| `ADMIN_TOKEN` | *(requis)* | Mot de passe administrateur de `/admin` (minimum 16 caractères recommandé). |
+| `PUBLIC_URL` | `http://localhost:7000` | URL publique du serveur utilisée pour construire les liens `/trailer/...`, `/apple/...` et `/media/...`. |
+| `TMDB_API_KEY` | *(vide)* | Clé TMDB v3 ou jeton v4 — active la synchro, le liage IMDb et la résolution à la demande. |
+| `PORT` | `7000` | Port d'écoute HTTP du serveur Node.js. |
+| `DB_PATH` | `./data/stockage.db` | Emplacement du fichier SQLite principal. |
+| `TRUST_PROXY_HOPS` | `1` | Nombre de reverse proxies de confiance devant l'application (`1` derrière Caddy/Nginx). |
 
-La bande-annonce YouTube sert de **repli** (bouton « Bande-annonce » et source quand rien d'autre
-n'existe) ; `YOUTUBE_AS_SOURCE=1` l'ajoute à côté de Netflix pour avoir le choix.
+<details>
+<summary><strong>Afficher toutes les variables avancées (Catalogues, Apple TV+, HLS, Fédération)</strong></summary>
 
-**Prime Video** ne peut pas être relayé : sa page n'expose aucun flux, seulement une enveloppe chiffrée
-(JWE). L'addon stocke donc les métadonnées, et la bande-annonce vient de TMDB/YouTube.
+<br>
 
-### Ajouter une vidéo d'une autre plateforme
+| Variable | Défaut | Description |
+|---|---|---|
+| `REGION` / `TMDB_LANG` / `NETFLIX_COUNTRY` | `FR` / `fr-FR` / `fr` | Pays et langues utilisés pour TMDB et Netflix. |
+| `CATALOG_PROVIDERS` | `8,337` | Plateformes synchronisées via TMDB (`8` Netflix, `337` Apple TV+, `2` Apple TV, `119` Prime Video, ou `all`). |
+| `HARVEST_COUNTRIES` | `FR,US,GB,CA` | Pays parcourus lors du moissonnage Netflix JustWatch. |
+| `SYNC_PAGES` / `SYNC_EVERY_HOURS` | `5` / `24` | Profondeur et intervalle de synchronisation automatique TMDB. |
+| `NETFLIX_REFRESH_HOURS` | `4` | Délai avant relecture d'une page Netflix pour détecter une nouvelle saison ou bande-annonce. |
+| `RESOLVE_ENABLED` | `1` | Active (`1`) ou désactive (`0`) la résolution automatique des titres inconnus. |
+| `APPLETV_ENABLED` | `1` | Active la recherche et conversion des bandes-annonces Apple TV+. |
+| `HLS_CACHE_DIR` | `./data/hls` | Dossier du cache disque des vidéos HLS converties en MP4. |
+| `HLS_MAX_HEIGHT` / `HLS_MAX_MB` | `720` / `60` | Résolution maximale et taille plafond d'un MP4 converti depuis HLS. |
+| `HLS_CACHE_DAYS` / `HLS_MAX_DISK_MB` | `7` / `2048` | Durée de rétention (jours) et quota disque total (Mo) du cache HLS. |
+| `HLS_MAX_CONCURRENT` | `2` | Nombre maximal de conversions `ffmpeg` simultanées. |
+| `FFMPEG_PATH` | *(auto)* | Chemin explicite vers le binaire `ffmpeg` s'il n'est pas dans le `PATH`. |
+| `YOUTUBE_SEARCH` / `YOUTUBE_AS_SOURCE` | `1` / `0` | Recherche YouTube de secours (`1`) et ajout systématique aux côtés des flux MP4 (`0`/`1`). |
+| `UPSTREAM_URL` / `UPSTREAM_API_KEY` | *(vide)* | Autre instance Stockage DB amont interrogée en cascade. |
+| `ALLOW_OPEN_API` | *(vide)* | `1` ouvre l'API en lecture sans clé (déconseillé en production). |
+| `ALLOW_PRIVATE_URLS` | *(vide)* | `1` autorise les adresses privées/locales dans le relais (réseau Docker interne uniquement). |
 
-Plutôt qu'un scraper par site, l'onglet **Ajouter** accepte n'importe quelle **URL de vidéo publique** (MP4 ou
-HLS `.m3u8`) pour un titre déjà en base :
+</details>
 
-```bash
-curl -X POST https://stockage.mondomaine.fr/admin/add/trailer \
-  -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"id":"81944880","url":"https://exemple/bande-annonce.mp4","title":"Bande-annonce VF"}'
-```
+---
 
-Le fichier est relayé par `/media/<id>/<n>.mp4` ; un HLS est converti en MP4 comme pour Apple TV, avec le
-même cache disque. C'est ce qui permet de couvrir Arte, Dailymotion, un MP4 de distributeur… sans écrire de
-code par plateforme. **Aucun DRM** : un flux protégé (Disney+, Max, Prime) échouera — l'addon ne contourne
-rien.
-
-## API
-
-**Fédération** — fermée par défaut : tant qu'aucune clé n'existe, `/api/trailers` et `/api/status` répondent
-`403`. Les clés se gèrent dans l'onglet **API** du dashboard : jusqu'à 5 clés avec un libellé, date de création
-et de dernière utilisation, révocation individuelle. Une clé (`sdb_…`) n'est affichée qu'une fois à la création
-(seule son empreinte SHA-256 est stockée) et s'envoie en `Authorization: Bearer <clé>`, `x-api-key` ou `?key=`.
-L'ancienne variable `API_KEY` continue de fonctionner. `ALLOW_OPEN_API=1` rouvre volontairement l'API sans clé
-(déconseillé).
-
-```bash
-curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?imdb=tt7777777"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?tmdb=777&type=movie"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/trailers?netflix=77777777"
-curl -H "Authorization: Bearer VOTRE_CLE" "https://stockage.mondomaine.fr/api/status"
-```
-
-Réponse : `{ found, pending, title: {…}, trailers: [{ title, url, runtime, source }] }`.
-Un titre inconnu déclenche la résolution à la demande (réponse au plus tard après 5 s, `pending: true`
-si elle continue en arrière-plan).
-
-La liste `trailers` contient **toutes les sources relayables** de la fiche, dans cet ordre : Netflix
-(`/trailer/…`), instance amont, **Apple TV** (`/apple/…`, HLS converti en MP4) et liens ajoutés à la main
-(`/media/…`). C'est ce qui permet à une instance cliente (par exemple `vf-trailer-wallace`) de trouver une
-bande-annonce même pour une série qui n'existe que sur Apple TV.
-
-Ajoute `&debug=1` pour savoir pourquoi une fiche ne donne rien : la réponse contient alors la fiche trouvée
-(`id`, `imdb_id`, `tmdb_id`, `netflix_id`), le nombre de bandes-annonces par source et l'état de la
-résolution. Chaque appel est aussi journalisé (source `federation`).
-
-En ligne de commande, depuis le conteneur (`docker` n'y existe pas) :
+## Tests & Diagnostic
 
 ```bash
-npm run api-check -- tt26598805              # la fiche est-elle en base ? que contient-elle ?
-npm run api-check -- 81763154 --type movie   # par ID Netflix
-npm run api-check -- tt26598805 --url https://stockage.mondomaine.fr --key <clé>
+# Suite complète (parseurs, fusion SQLite, anti-SSRF IPv4/IPv6, relais MP4, sonde de flux, API v1 et dashboard)
+npm test
+
+# Sous-suites ciblées
+npm run test:search
+npm run test:youtube
+
+# Diagnostic CLI d'une fiche en base ou sur une instance distante
+npm run api-check -- tt13016388
+npm run api-check -- tt13016388 --url https://stockage.mondomaine.fr --key sdb_votre_cle
 ```
 
-Il affiche la fiche, ses identifiants, les bandes-annonces par source et une conclusion :
-fiche absente, recherche en cours, ou fiche présente sans bande-annonce.
+---
 
-**Supervision** — `GET /health` renvoie la version, l'uptime et le total de titres. `GET /api/v1/status` (avec clé API) renvoie l'état détaillé des sources et capacités.
+## Dépannage rapide
 
-## Tests
-
-```bash
-npm test              # parseurs, fusion, SQL, anti-SSRF, API v1 et dashboard — sans réseau externe
-npm run test:search   # recherche des IDs (JustWatch, secours web) + API iTunes
-npm run test:youtube  # extraction YouTube, notation, refus du bruit
-```
-
-L'image Docker embarque `test/` : ces commandes fonctionnent aussi dans le conteneur.
-
-## Limites et bon usage
-
-- **Scraping** : `netflix.com` et `tv.apple.com` sont lus à contre-courant de leurs CGU. À usage personnel
-  et modéré ; le cache SQLite limite fortement les requêtes.
-- **Fragilité** : les parseurs dépendent du HTML et du JSON embarqués. En cas de changement, `npm run
-  inspect`, `npm run inspect-appletv` et `npm run inspect-prime -- <url|id>` affichent ce qui a été lu.
-- **Quotas** : JustWatch pour les IDs, TMDB pour les métadonnées, YouTube pour le repli (1 recherche à la
-  fois, espacées d'1,2 s).
-- **Couverture** : beaucoup de titres n'ont aucune bande-annonce exploitable — c'est normal, le serveur ne
-  fabrique rien.
-
-## Dépannage
-
-| Symptôme | Piste |
+| Symptôme | Solution |
 |---|---|
-| `/admin` répond 503 | `ADMIN_TOKEN` absent du `.env` |
-| `/api/v1/trailers` répond 403 ou 401 | Crée une clé API dans `/admin` → onglet **API & Fédération** |
-| Les bandes-annonces ne se lisent pas | `PUBLIC_URL` doit être l'adresse publique réellement accessible par les clients |
-| Vidéos Apple muettes | `ffmpeg` absent : installe-le ou renseigne `FFMPEG_PATH` |
-| Recherche Apple TV en erreur 400 | les paramètres du client web Apple ont changé : recopie `v`, `utscf` et `utsk` depuis tv.apple.com (F12 → Réseau) dans `APPLETV_API_VERSION`, `APPLETV_UTSCF`, `APPLETV_UTSK` |
-| Vérifier un relais à la main | ouvre `PUBLIC_URL/trailer/<id_netflix>/0.mp4` dans un navigateur |
-| Recherche : « réseau injoignable » | JustWatch est tombé ; DuckDuckGo est bloqué (ECONNRESET), Brave nécessite une clé |
-| Un titre n'est jamais trouvé | pas sur Netflix dans `REGION`, ou sorti trop récemment pour être indexé |
-| Aucune source sur une fiche | le titre n'a ni bande-annonce Netflix/Apple ni clé YouTube : lance `npm run netflix-trailers` puis `npm run vf` |
+| `/admin` renvoie `503` | Ajoute `ADMIN_TOKEN=...` dans ton fichier `.env` puis redémarre le serveur. |
+| L'API renvoie `401` ou `403` | Crée une clé dans **API & Connexion** et vérifie qu'elle n'est pas **En pause (`⏸`)**. |
+| Une vidéo ne se lance pas côté client | Vérifie que `PUBLIC_URL` correspond bien à l'URL HTTPS publique du serveur, puis teste le titre dans **Exploitation → Test des flux**. |
+| Bandes-annonces Apple TV+ sans son | Vérifie que `ffmpeg` est bien installé (déjà inclus dans l'image `Dockerfile` officielle). |
+| Recherche Apple TV+ en erreur `400` | Mets à jour `APPLETV_API_VERSION`, `APPLETV_UTSCF` et `APPLETV_UTSK` dans **Paramètres & HLS** depuis une requête réseau `tv.apple.com`. |
 
-## Structure
+---
 
+## Architecture du dépôt
+
+```text
+stockage-db/
+├── src/
+│   ├── index.js             # Démarrage HTTP + planificateur de synchro
+│   ├── app.js               # Routes Express : API v1, relais vidéo, sonde MP4, admin
+│   ├── admin.html           # Dashboard d'administration complet (SPA sans build)
+│   ├── logo.png / logo.svg  # Logo personnalisé W (dashboard & favicons)
+│   ├── db.js                # Couche SQLite (WAL, migrations, index, clés API, backup)
+│   ├── federation.js        # Résolution des flux relayables & filtrage par saison
+│   ├── security.js          # Protection anti-SSRF IPv4/IPv6, CSP, rate-limiting
+│   ├── hls.js               # Conversion HLS -> MP4 via ffmpeg + cache disque borné
+│   ├── netflix.js           # Extraction des pages et liens vidéo Netflix
+│   ├── appletv.js           # Recherche et flux bandes-annonces Apple TV+
+│   ├── tmdb.js              # Métadonnées, IDs IMDb et vidéos TMDB
+│   ├── justwatch.js         # Moissonnage et correspondance d'IDs Netflix
+│   ├── resolve.js           # Résolution automatique à la volée d'un titre inconnu
+│   └── enrich.js / link.js  # Fusion sans perte et liaison des identifiants
+├── scripts/                 # Outils CLI (harvest, sync, netflix-trailers, vf, api-check…)
+├── test/                    # Tests unitaires et d'intégration HTTP/SQLite
+├── Dockerfile               # Image Node 22 slim + ffmpeg (utilisateur non-root)
+└── docker-compose.yml       # Déploiement clé en main avec volume persistant ./data
 ```
-src/index.js            point d'entrée HTTP + planificateur de synchro
-src/app.js              routes Express : API v1, dashboard, relais MP4/HLS, /health
-src/netflix.js          scraper de la page Netflix
-src/primevideo.js       parseur de la page Prime Video (métadonnées)
-src/appletv.js          recherche Apple TV + HLS → MP4 (src/hls.js)
-src/youtube.js          recherche YouTube (dernier recours)
-src/justwatch.js        nom → ID Netflix, et catalogue paginé
-src/tmdb.js             métadonnées, IDs IMDb, vidéos
-src/enrich.js           fusion Netflix + TMDB
-src/link.js             liage des IDs et lecture des pages
-src/netflix-trailers.js tâche « remplir les bandes-annonces Netflix »
-src/sync.js · src/harvest.js   catalogues TMDB et JustWatch
-src/resolve.js          résolution à la demande d'une fiche inconnue
-src/federation.js       API/partage entre instances
-src/db.js               SQLite, schéma et requêtes
-src/admin.html          dashboard (une page, sans build)
-scripts/                CLI : add, sync, harvest, netflix-ids, netflix-trailers, vf, inspect…
-```
 
-## Licence et mentions
+---
 
-Aucune licence déclarée : tous droits réservés. Ce produit utilise l'API TMDB mais n'est ni approuvé ni
-certifié par TMDB.
+## Mentions
+
+Usage personnel et modéré. Ce projet utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
