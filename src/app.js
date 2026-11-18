@@ -995,6 +995,152 @@ app.post('/admin/api/test-batch', auth, wrap(async (req, res) => {
   res.json({ ok: true, count: results.length, foundCount: results.filter((r) => r.found).length, tookMs, results });
 }));
 
+// ---- Sonde réelle de flux vidéo MP4 (onglet « Test des flux » dans Exploitation) ----
+const LOCAL_RELAY_PATH_RE = /^\/(trailer|apple|media)\/[A-Za-z0-9%_.:-]+\/\d+\.mp4$/i;
+
+app.post('/admin/api/probe-stream', auth, wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const rawUrl = String((req.body && req.body.url) || '').trim();
+  if (!rawUrl) return res.status(400).json({ error: 'URL du flux requise' });
+
+  let relayPath = '';
+  if (rawUrl.startsWith('/')) {
+    if (!LOCAL_RELAY_PATH_RE.test(rawUrl)) return res.status(400).json({ error: 'Chemin de relais invalide' });
+    relayPath = rawUrl;
+  } else {
+    let parsed;
+    try { parsed = new URL(rawUrl); } catch { return res.status(400).json({ error: 'URL invalide' }); }
+    const pubOrigin = (() => { try { return new URL(config.publicUrl).origin; } catch { return ''; } })();
+    const reqHost = req.get('host');
+    const reqOrigin = reqHost ? `${req.protocol}://${reqHost}` : '';
+    if ((parsed.origin === pubOrigin || parsed.origin === reqOrigin) && LOCAL_RELAY_PATH_RE.test(parsed.pathname)) {
+      relayPath = parsed.pathname;
+    }
+  }
+
+  const t0 = Date.now();
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 14000);
+  try {
+    let up;
+    const probeHeaders = { 'user-agent': UA, range: 'bytes=0-1023' };
+    if (relayPath) {
+      const localPort = (req.socket && req.socket.localPort) || config.port;
+      up = await fetch(`http://127.0.0.1:${localPort}${relayPath}`, {
+        method: 'GET',
+        headers: probeHeaders,
+        signal: ctl.signal,
+      });
+    } else {
+      assertSafeUrlSync(rawUrl);
+      up = await safeFetch(rawUrl, { method: 'GET', headers: probeHeaders, signal: ctl.signal });
+    }
+
+    // Lecture des premiers octets uniquement (vérification de l'en-tête ISO BMFF / MP4 `ftyp`), puis coupure immédiate du flux.
+    const chunks = [];
+    let readBytes = 0;
+    if (up.body) {
+      const reader = up.body.getReader();
+      try {
+        while (readBytes < 1024) {
+          const { done, value } = await reader.read();
+          if (done || !value) break;
+          chunks.push(Buffer.from(value));
+          readBytes += value.byteLength;
+        }
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+    }
+    const headBuf = Buffer.concat(chunks);
+    const ms = Date.now() - t0;
+    const status = up.status;
+    const contentType = String(up.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const contentRange = String(up.headers.get('content-range') || '');
+    const contentLength = Number(up.headers.get('content-length')) || 0;
+    const acceptRanges = String(up.headers.get('accept-ranges') || '');
+    const durationSec = Number(up.headers.get('x-trailer-duration')) || null;
+    const rangeTotalMatch = /\/(\d+)$/.exec(contentRange);
+    const sizeBytes = rangeTotalMatch
+      ? Number(rangeTotalMatch[1])
+      : (status === 200 && contentLength > 0 ? contentLength : null);
+    const isMp4 = headBuf.includes(Buffer.from('ftyp')) || headBuf.includes(Buffer.from('moov'));
+    const httpOk = status === 200 || status === 206;
+    const ok = httpOk && /video\/mp4|video\/quicktime|application\/octet-stream/i.test(contentType) && isMp4;
+
+    let error = null;
+    if (!httpOk) error = `HTTP ${status} — flux source indisponible ou expiré`;
+    else if (!isMp4) error = `Réponse reçue (${contentType || 'inconnue'}) sans en-tête vidéo MP4 valide`;
+
+    res.json({
+      ok,
+      status,
+      ms,
+      contentType,
+      acceptRanges: acceptRanges || (contentRange ? 'bytes' : ''),
+      sizeBytes,
+      durationSec,
+      isMp4,
+      relay: relayPath ? relayPath.split('/')[1] : 'external',
+      ...(error ? { error } : {}),
+    });
+  } catch (e) {
+    const ms = Date.now() - t0;
+    const timedOut = e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
+    res.json({
+      ok: false,
+      status: 0,
+      ms,
+      isMp4: false,
+      error: timedOut ? 'Délai dépassé (> 14 s)' : (e.message || 'Échec de connexion au flux'),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}));
+
+app.get('/admin/api/stream-sample', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const limit = Math.min(Math.max(1, Number(req.query.limit) || 6), 12);
+  const filter = String(req.query.filter || 'any').trim() || 'any';
+  const { rows } = store.listTitles({ filter, sort: 'added', limit: 60, offset: 0 });
+  const candidates = [];
+  for (const r of rows) {
+    const trailers = federation.trailerUrls(r, { includeApple: true, includeManual: true });
+    if (!trailers.length) continue;
+    candidates.push({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      year: r.year || null,
+      imdb: r.imdb_id || null,
+      netflixId: r.netflix_id || null,
+      poster: r.poster || null,
+      trailersCount: trailers.length,
+      primary: trailers[0],
+    });
+  }
+  // Mélange léger pour varier l'échantillon tout en privilégiant la diversité des sources (Netflix, Apple TV+, direct)
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const picked = [];
+  const seenSources = new Set();
+  for (const c of candidates) {
+    if (picked.length >= limit) break;
+    if (!seenSources.has(c.primary.source)) {
+      seenSources.add(c.primary.source);
+      picked.push(c);
+    }
+  }
+  for (const c of candidates) {
+    if (picked.length >= limit) break;
+    if (!picked.includes(c)) picked.push(c);
+  }
+  res.json({ ok: true, count: picked.length, items: picked });
+});
+
 // ---- Spécification OpenAPI 3.0.3 (importable dans Bruno, Postman, Hoppscotch, Swagger) ----
 function buildOpenApiSpec() {
   const base = String(config.publicUrl || 'http://localhost:7000').replace(/\/+$/, '');

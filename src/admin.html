@@ -624,33 +624,75 @@
     margin: 0;
   }
   .secret-banner {
-    padding: 13px 15px;
-    border-radius: 10px;
-    background: var(--accent-soft);
-    border: 1px solid rgba(20, 184, 166, 0.42);
-    margin: 12px 0;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--ok-soft);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    margin-bottom: 16px;
   }
-  .subtabs {
-    display: inline-flex;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 9px;
-    background: var(--bg);
-    border: 1px solid var(--line);
+  .alert-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 16px;
+    border-radius: 11px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .alert-banner.warn {
+    background: var(--warn-soft);
+    border: 1px solid rgba(245, 158, 11, 0.38);
+    color: var(--fg);
+  }
+  .alert-banner.info {
+    background: var(--info-soft);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--fg);
+  }
+  .api-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .step-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
   }
-  .subtab {
-    padding: 5px 11px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
+  .step-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-  .subtab:hover { color: var(--fg); background: var(--card-alt); }
-  .subtab.active { background: var(--accent-soft); color: var(--accent); }
-
+  .step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(20, 184, 166, 0.35);
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .hint-note {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--card-alt);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--fg-soft);
+    line-height: 1.5;
+  }
   .route-row {
     display: flex;
     align-items: center;
@@ -664,13 +706,111 @@
     flex-wrap: wrap;
   }
   .key-card {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card-alt);
+    margin-bottom: 10px;
+  }
+  .key-card.paused { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04); }
+
+  .dev-drawer {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .dev-drawer > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    user-select: none;
+  }
+  .dev-drawer > summary::-webkit-details-marker { display: none; }
+  .dev-drawer > summary:hover { background: var(--card-alt); }
+  .dev-drawer-body {
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* ---- Test des flux (Exploitation) ---- */
+  .stream-suggest-wrap { position: relative; flex: 1; min-width: 240px; }
+  .stream-suggest-pop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    background: var(--bg-elev);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 45;
+  }
+  .stream-studio {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .stream-player-card {
+    position: sticky;
+    top: 72px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stream-video-stage {
+    background: #000;
+    aspect-ratio: 16 / 9;
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+  .stream-video-stage video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #000;
+  }
+  .stream-row {
     padding: 12px 14px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--card-alt);
-    margin-bottom: 8px;
+    margin-bottom: 9px;
+    transition: border-color .15s ease, background .15s ease;
   }
-  .key-card.paused { opacity: .68; border-style: dashed; }
+  .stream-row:hover { border-color: var(--line-strong); }
+  .stream-row.is-playing {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .sample-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .sample-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: var(--card-alt);
+    border: 1px solid var(--line);
+  }
 
   /* ---- Modal (Trailer Inspector & Inline Video Player) ---- */
   .modal-backdrop {
@@ -747,7 +887,11 @@
 
   @media (max-width: 1080px) {
     .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .api-summary-strip { grid-template-columns: 1fr; }
     .cols-2 { grid-template-columns: 1fr; }
+    .stream-studio { grid-template-columns: 1fr; }
+    .stream-player-card { position: static; }
+    .sample-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 900px) {
     .shell { display: block; }
@@ -851,6 +995,12 @@
             <span>Ajouter &amp; Chercher</span>
           </span>
         </button>
+        <button type="button" class="nav-btn" data-tab="streams">
+          <span class="nav-btn-left">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Test des flux</span>
+          </span>
+        </button>
       </nav>
 
       <div class="nav-group-label">Intégration &amp; Système</div>
@@ -858,7 +1008,7 @@
         <button type="button" class="nav-btn" data-tab="api">
           <span class="nav-btn-left">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <span>API &amp; Fédération</span>
+            <span>API &amp; Connexion</span>
           </span>
           <span class="nav-count" id="navApiBadge">—</span>
         </button>
@@ -914,8 +1064,8 @@
               <p class="page-desc">Supervision du stockage multi-sources, du relais MP4/HLS, de l'API de fédération et des jobs d'enrichissement.</p>
             </div>
             <div class="head-actions">
-              <button type="button" class="btn-sm" data-jump-tab="titles">Explorer le catalogue</button>
-              <button type="button" class="btn-sm btn-primary" data-jump-tab="api">Studio API &amp; Clés →</button>
+              <button type="button" class="btn-sm" data-jump-tab="streams">▶ Tester un flux</button>
+              <button type="button" class="btn-sm btn-primary" data-jump-tab="api">API &amp; Connexion →</button>
             </div>
           </div>
 
@@ -1216,253 +1366,252 @@
           </div>
         </section>
 
-        <!-- ==================== TAB 4: STUDIO API & FÉDÉRATION ==================== -->
-        <section id="tab-api" class="hide">
+        <!-- ==================== TAB 3B: TEST DES FLUX (EXPLOITATION) ==================== -->
+        <section id="tab-streams" class="hide">
           <div class="page-head">
             <div>
-              <h1 class="page-title">API &amp; Fédération (<span class="mono">vf-trailer-wallace</span>)</h1>
-              <p class="page-desc">Gère les clés d'accès avec quotas et permissions, surveille la latence en direct et teste toutes les routes REST (<span class="mono">/api/v1/*</span>).</p>
+              <h1 class="page-title">Test des flux vidéo</h1>
+              <p class="page-desc">Vérifie les bandes-annonces MP4 d'un film ou d'une série, teste si les liens vidéo répondent vraiment et regarde l'aperçu avec le son.</p>
             </div>
             <div class="head-actions">
-              <span id="apiStateBadge" class="badge">Chargement…</span>
-              <a href="/api/openapi.json" target="_blank" rel="noopener" class="btn btn-sm">Spécification OpenAPI ↗</a>
+              <button type="button" class="btn-sm" id="runSampleProbeBtn">🩺 Tester 6 flux au hasard</button>
             </div>
           </div>
 
-          <!-- 4 KPIs temps réel dédiés à l'API -->
-          <div class="kpi-grid" id="apiKpis"></div>
+          <!-- Barre de recherche intuitive par titre ou identifiant -->
+          <div class="card">
+            <form id="streamTestForm" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+              <div class="stream-suggest-wrap" id="stSuggestWrap">
+                <label class="kpi-label" style="display:block;margin-bottom:5px" for="stQuery">Film, série ou identifiant (<span class="mono">tt…</span> / Netflix)</label>
+                <input id="stQuery" type="search" autocomplete="off" placeholder="Tape un nom (ex. Severance, Stranger Things…) ou un ID tt13016388">
+                <div id="stSuggestPop" class="stream-suggest-pop hide"></div>
+              </div>
+              <div style="min-width:135px">
+                <label class="kpi-label" style="display:block;margin-bottom:5px" for="stType">Type</label>
+                <select id="stType">
+                  <option value="">Automatique</option>
+                  <option value="series">Série</option>
+                  <option value="movie">Film</option>
+                </select>
+              </div>
+              <div style="width:115px">
+                <label class="kpi-label" style="display:block;margin-bottom:5px" for="stSeason">Saison</label>
+                <input id="stSeason" type="number" min="1" max="50" placeholder="Toutes">
+              </div>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;padding:8px 4px;color:var(--fg-soft)" title="Ne garde que les vidéos correspondant exactement au numéro de saison choisi (comportement de vf-trailer-wallace)">
+                <input type="checkbox" id="stStrict" checked>
+                <span>Saison exacte</span>
+              </label>
+              <button type="submit" class="btn-primary" id="stSubmitBtn" style="padding:9px 18px">▶ Tester ce titre</button>
+            </form>
+          </div>
 
-          <div class="cols-2">
-            <!-- Connexion rapide vf-trailer-wallace -->
-            <div class="card card-accent" style="margin-bottom:0">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title">Connexion rapide à <span class="mono">vf-trailer-wallace</span></h2>
-                  <p class="card-sub">Colle ces valeurs dans ton addon VF (onglet <b>Paramètres</b> ou fichier <span class="mono">.env</span>) :</p>
+          <!-- Diagnostic rapide d'échantillon (6 titres du catalogue) -->
+          <div id="sampleProbeCard" class="card hide">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Diagnostic rapide d'un échantillon du catalogue</h2>
+                <p class="card-sub" id="sampleProbeSub">Vérification réelle des relais MP4 (code HTTP + en-tête vidéo)…</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="badge" id="sampleProbeScore">En cours…</span>
+                <button type="button" class="btn-xs" id="closeSampleProbeBtn">Fermer</button>
+              </div>
+            </div>
+            <div class="progress" style="margin-bottom:10px"><div id="sampleProbeBar"></div></div>
+            <div id="sampleProbeGrid" class="sample-grid"></div>
+          </div>
+
+          <!-- Studio en 2 colonnes : Liste des flux vérifiés + Lecteur vidéo 16:9 -->
+          <div class="stream-studio">
+            <div class="card" style="margin-bottom:0" id="stResultsCard">
+              <div id="stEmptyState" style="padding:26px 12px;text-align:center">
+                <div style="font-weight:600;font-size:15px;margin-bottom:6px">Choisis un titre ci-dessus pour tester ses flux</div>
+                <div class="muted" style="font-size:13px;max-width:460px;margin:0 auto 14px">
+                  Tu peux chercher n'importe quelle fiche de ton catalogue par son nom, coller un ID IMDb (<span class="mono">tt…</span>), ou lancer un diagnostic automatique sur 6 fiches au hasard.
                 </div>
-                <button type="button" class="btn-sm btn-primary" id="quickVfKeyBtn">⚡ Créer une clé vf-trailer</button>
+                <button type="button" class="btn-sm btn-primary" id="stEmptySampleBtn">🩺 Tester 6 flux de mon catalogue</button>
               </div>
 
-              <div style="display:grid;gap:12px">
+              <div id="stLoadedWrap" class="hide">
+                <div id="stTitleHeader" style="padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:12px"></div>
+                <div id="stSeasonChips" class="chip-bar hide"></div>
+                <div id="stStreamsList"></div>
+              </div>
+            </div>
+
+            <div class="stream-player-card">
+              <div class="stream-video-stage">
+                <video id="stVideo" controls preload="metadata" class="hide"></video>
+                <div id="stVideoPlaceholder" class="muted" style="text-align:center;padding:24px;font-size:13px">
+                  <div style="font-size:24px;margin-bottom:6px;opacity:.6">▶</div>
+                  Clique sur <b>Lire</b> en face d'un flux pour vérifier l'image et la piste audio VF.
+                </div>
+              </div>
+              <div style="padding:14px 16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-weight:600;font-size:13.5px" id="stPlayerTitle">Aucun flux sélectionné</div>
+                  <span class="badge hide" id="stPlayerMetaBadge"></span>
+                </div>
+                <div class="muted mono" style="font-size:11.5px;margin-top:6px;word-break:break-all" id="stPlayerUrl">Sélectionne une bande-annonce dans la liste à gauche.</div>
+                <div id="stPlayerActions" class="hide" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+                  <button type="button" class="btn-xs" id="stCopyCurrentUrlBtn">Copier l'URL du flux</button>
+                  <a id="stOpenRawLink" href="#" target="_blank" rel="noopener" class="btn btn-xs">Ouvrir dans un nouvel onglet ↗</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB 4: API & CONNEXION ( SIMPLIFIÉ & VISUEL ) ==================== -->
+        <section id="tab-api" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">API &amp; Connexion</h1>
+              <p class="page-desc">Relie ton addon <span class="mono">vf-trailer-wallace</span> à cette base en deux clics et gère tes clés d'accès simplement.</p>
+            </div>
+            <div class="head-actions">
+              <span id="apiStateBadge" class="badge">Chargement…</span>
+              <button type="button" class="btn-sm" data-jump-tab="streams">▶ Tester des flux vidéo</button>
+            </div>
+          </div>
+
+          <!-- Alerte intelligente (ex: clé mise en pause par erreur) -->
+          <div id="apiAlertBanner" class="alert-banner warn hide"></div>
+
+          <!-- Bandeau bien visible lorsqu'un nouveau code secret vient d'être créé -->
+          <div id="keyCreatedBox" class="secret-banner hide">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+              <div>
+                <b style="font-size:14px;color:var(--ok)" id="keyCreatedTitle">Nouvelle clé créée — copie-la maintenant !</b>
+                <div class="muted" style="font-size:12px;margin-top:2px">Par sécurité, ce code secret complet ne sera plus réaffiché une fois la page quittée (il est déjà pré-rempli dans l'étape 1 ci-dessous).</div>
+              </div>
+              <button type="button" class="btn-sm btn-primary" id="copyNewKeyBtn">📋 Copier la clé</button>
+            </div>
+            <div id="keyCreatedVal" class="code-box" style="font-weight:700;color:var(--fg);font-size:13px"></div>
+          </div>
+
+          <!-- Résumé clair en 3 indicateurs simples -->
+          <div class="api-summary-strip" id="apiKpis"></div>
+
+          <!-- Étape 1 & Étape 2 côte à côte -->
+          <div class="cols-2">
+            <!-- ÉTAPE 1 : Connecter vf-trailer-wallace -->
+            <div class="card card-accent" style="margin-bottom:0">
+              <div class="step-head">
+                <div class="step-title-row">
+                  <span class="step-num">1</span>
+                  <div>
+                    <h2 class="card-title">Relier <span class="mono">vf-trailer-wallace</span></h2>
+                    <p class="card-sub">Copie ces 2 lignes dans le fichier <span class="mono">.env</span> (ou les paramètres) de ton addon VF.</p>
+                  </div>
+                </div>
+                <button type="button" class="btn-sm btn-primary" id="quickVfKeyBtn">⚡ Créer ma clé vf-trailer</button>
+              </div>
+
+              <div style="display:grid;gap:14px">
                 <div>
-                  <div class="kpi-label" style="margin-bottom:4px">URL publique du serveur Stockage DB</div>
+                  <div class="kpi-label" style="margin-bottom:5px">Adresse de ce serveur Stockage DB</div>
                   <div style="display:flex;gap:8px;align-items:center">
                     <input id="fedBaseUrl" type="text" class="mono" readonly>
-                    <button type="button" class="btn-sm" id="copyFedUrlBtn">Copier l'URL</button>
+                    <button type="button" class="btn-sm" id="copyFedUrlBtn">Copier</button>
                   </div>
                 </div>
 
                 <div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                    <span class="kpi-label">Bloc de configuration prêt à coller (<span class="mono">.env</span>)</span>
-                    <button type="button" class="btn-xs" id="copyEnvSnippetBtn">Copier le bloc .env</button>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap">
+                    <span class="kpi-label">Configuration prête à coller (<span class="mono">.env</span>)</span>
+                    <button type="button" class="btn-xs btn-primary" id="copyEnvSnippetBtn">📋 Copier les 2 lignes</button>
                   </div>
                   <pre class="code-box" id="vfEnvSnippet"></pre>
                 </div>
 
-                <div class="muted" style="font-size:12px;line-height:1.5">
-                  Les clés nommées disposent de leur propre quota dédié (ex. <b>600 req/min</b>) pour que <span class="mono">vf-trailer-wallace</span> ne soit jamais ralenti même avec beaucoup d'utilisateurs Stremio simultanés.
+                <div class="hint-note" id="vfEnvKeyHint">
+                  Clique sur <b>⚡ Créer ma clé vf-trailer</b> pour générer automatiquement une clé prête à coller ci-dessus.
                 </div>
               </div>
             </div>
 
-            <!-- Gestion avancée des clés API -->
+            <!-- ÉTAPE 2 : Gérer mes clés d'accès -->
             <div class="card" style="margin-bottom:0">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title">Clés d'accès API (<span class="mono">sdb_…</span>)</h2>
-                  <p class="card-sub" id="keysCountLabel">Chargement…</p>
-                </div>
-              </div>
-
-              <form id="keyCreateForm" style="display:grid;gap:8px;margin-bottom:12px;padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)">
-                <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px">
-                  <input id="keyLabel" type="text" placeholder="Nom (ex. vf-trailer-prod)" maxlength="60" required>
-                  <select id="keyRateLimit" title="Quota maximal par minute">
-                    <option value="300">Quota : 300 / min</option>
-                    <option value="600" selected>Quota : 600 / min</option>
-                    <option value="1200">Quota : 1 200 / min</option>
-                    <option value="60">Quota : 60 / min</option>
-                    <option value="0">Quota : Illimité</option>
-                  </select>
-                  <select id="keyExpires" title="Durée de validité">
-                    <option value="0">Sans expiration</option>
-                    <option value="30">Expire dans 30 j</option>
-                    <option value="90">Expire dans 90 j</option>
-                    <option value="365">Expire dans 1 an</option>
-                  </select>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-                  <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--fg-soft)">
-                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scTrailersRead" checked disabled> <span class="mono">trailers:read</span></label>
-                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scCatalogRead" checked> <span class="mono">catalog:read</span></label>
-                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scTrailersWrite"> <span class="mono">trailers:write</span></label>
+              <div class="step-head">
+                <div class="step-title-row">
+                  <span class="step-num">2</span>
+                  <div>
+                    <h2 class="card-title">Mes clés d'accès</h2>
+                    <p class="card-sub" id="keysCountLabel">Chargement…</p>
                   </div>
-                  <button type="submit" class="btn-sm btn-primary" id="keyCreateBtn">+ Générer la clé</button>
                 </div>
-              </form>
-
-              <div id="keyCreatedBox" class="secret-banner hide">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-                  <b style="font-size:12.5px;color:var(--accent)" id="keyCreatedTitle">Clé générée (affichée une seule fois — copie-la maintenant) :</b>
-                  <button type="button" class="btn-xs btn-primary" id="copyNewKeyBtn">Copier la clé</button>
-                </div>
-                <div id="keyCreatedVal" class="mono" style="word-break:break-all;font-weight:600;color:var(--fg)"></div>
               </div>
 
-              <div id="legacyKeyBox" class="hide" style="margin-bottom:10px;padding:9px 12px;border-radius:8px;background:var(--card-alt);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">
-                <span id="legacyKeyText"></span>
-                <button type="button" class="btn-xs hide" id="clearLegacyKeyBtn">Retirer la surcharge DB</button>
-              </div>
-
+              <!-- Liste des clés existantes -->
               <div id="keysList"></div>
+
+              <!-- Ancienne clé globale éventuelle -->
+              <div id="legacyKeyBox" class="hint-note hide" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+                <span id="legacyKeyText"></span>
+                <button type="button" class="btn-xs hide" id="clearLegacyKeyBtn">Supprimer cette ancienne clé</button>
+              </div>
+
+              <!-- Créer une autre clé personnalisée -->
+              <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+                <div class="kpi-label" style="margin-bottom:8px">Créer une clé personnalisée</div>
+                <form id="keyCreateForm" style="display:grid;gap:8px">
+                  <div style="display:grid;grid-template-columns:1.2fr 1.2fr;gap:8px">
+                    <input id="keyLabel" type="text" placeholder="Nom (ex. Mon deuxième serveur)" maxlength="60" required>
+                    <select id="keyPermPreset" title="Droits accordés à cette clé">
+                      <option value="read" selected>Lecture seule (Recommandé)</option>
+                      <option value="write">Lecture + Ajout de vidéos</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <select id="keyRateLimit" style="flex:1;min-width:150px" title="Limite d'appels par minute">
+                      <option value="600" selected>Limite : 600 appels / min</option>
+                      <option value="0">Limite : Illimité</option>
+                      <option value="1200">Limite : 1 200 appels / min</option>
+                      <option value="300">Limite : 300 appels / min</option>
+                    </select>
+                    <select id="keyExpires" style="flex:1;min-width:140px" title="Durée de validité">
+                      <option value="0" selected>Valable sans limite</option>
+                      <option value="90">Expire dans 90 jours</option>
+                      <option value="365">Expire dans 1 an</option>
+                    </select>
+                    <button type="submit" class="btn-sm btn-primary" id="keyCreateBtn">+ Créer la clé</button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
 
-          <!-- Console / Playground API multi-endpoints -->
-          <div class="card" style="margin-top:16px">
+          <!-- Activité récente en direct -->
+          <div class="card" style="margin-top:16px;margin-bottom:0">
             <div class="card-head">
               <div>
-                <h2 class="card-title">Console interactive de test API</h2>
-                <p class="card-sub">Teste les routes en conditions réelles, mesure le temps de réponse et lis directement les MP4 renvoyés.</p>
+                <h2 class="card-title">Derniers appels reçus par l'API</h2>
+                <p class="card-sub">Suivi en direct des demandes envoyées par <span class="mono">vf-trailer-wallace</span> ou tes autres outils.</p>
               </div>
-              <div class="subtabs" id="pgTabs">
-                <button type="button" class="subtab active" data-pg="trailers">GET /api/trailers</button>
-                <button type="button" class="subtab" data-pg="search">GET /api/search</button>
-                <button type="button" class="subtab" data-pg="batch">POST /api/trailers/batch</button>
-                <button type="button" class="subtab" data-pg="status">GET /api/status</button>
+              <div style="display:flex;gap:6px">
+                <button type="button" class="btn-xs" id="refreshMetricsBtn">↻ Actualiser</button>
+                <button type="button" class="btn-xs" id="resetMetricsBtn">Remettre à zéro</button>
               </div>
             </div>
-
-            <!-- Mode 1: /api/trailers -->
-            <form id="pgTrailersForm">
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end">
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID IMDb</label>
-                  <input id="ftImdb" type="text" class="mono" placeholder="tt13016388">
-                </div>
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID TMDB (opt.)</label>
-                  <input id="ftTmdb" type="text" class="mono" placeholder="108545">
-                </div>
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID Netflix (opt.)</label>
-                  <input id="ftNetflix" type="text" class="mono" placeholder="81024821">
-                </div>
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Type</label>
-                  <select id="ftType">
-                    <option value="series">Série (series)</option>
-                    <option value="movie">Film (movie)</option>
-                    <option value="">Auto</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Saison</label>
-                  <input id="ftSeason" type="number" min="1" max="50" placeholder="Ex. 2">
-                </div>
-                <div>
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Source (opt.)</label>
-                  <select id="ftSource">
-                    <option value="">Toutes sources</option>
-                    <option value="netflix">Netflix seul</option>
-                    <option value="appletv">Apple TV+ seul</option>
-                    <option value="manual">Liens directs</option>
-                    <option value="upstream">Amont</option>
-                  </select>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px">
-                <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px">
-                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftStrict" checked> <span class="mono">strict_season=1</span> (mode vf-trailer)</label>
-                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftExtras"> <span class="mono">include_extras=1</span></label>
-                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftFast"> <span class="mono">fast=1</span> (cache SQLite seul, 0 ms réseau)</label>
-                </div>
-                <button type="submit" class="btn-primary">Exécuter la requête</button>
-              </div>
-            </form>
-
-            <!-- Mode 2: /api/search -->
-            <form id="pgSearchForm" class="hide">
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
-                <div style="flex:1;min-width:220px">
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Recherche (<span class="mono">q</span>)</label>
-                  <input id="pgSearchQ" type="text" placeholder="Ex. Stranger, Severance, tt…">
-                </div>
-                <div style="min-width:150px">
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Filtre source</label>
-                  <select id="pgSearchFilter">
-                    <option value="any">Avec flux MP4</option>
-                    <option value="">Toutes les fiches</option>
-                    <option value="netflix">Netflix</option>
-                    <option value="apple">Apple TV+</option>
-                    <option value="manual">Lien direct</option>
-                  </select>
-                </div>
-                <div style="min-width:130px">
-                  <label class="kpi-label" style="display:block;margin-bottom:4px">Type</label>
-                  <select id="pgSearchType">
-                    <option value="">Tous</option>
-                    <option value="series">Séries</option>
-                    <option value="movie">Films</option>
-                  </select>
-                </div>
-                <button type="submit" class="btn-primary">Tester /api/search</button>
-              </div>
-            </form>
-
-            <!-- Mode 3: /api/trailers/batch -->
-            <form id="pgBatchForm" class="hide">
-              <label class="kpi-label" style="display:block;margin-bottom:4px">Corps JSON (<span class="mono">items</span> — jusqu'à 25 titres vérifiés en un seul appel)</label>
-              <textarea id="pgBatchJson">{
-  "items": [
-    { "imdb": "tt13016388", "type": "series", "season": 1, "strict_season": 1 },
-    { "imdb": "tt13016388", "type": "series", "season": 2, "strict_season": 1 }
-  ]
-}</textarea>
-              <div style="display:flex;justify-content:flex-end;margin-top:8px">
-                <button type="submit" class="btn-primary">Exécuter le batch</button>
-              </div>
-            </form>
-
-            <!-- Mode 4: /api/status -->
-            <div id="pgStatusBox" class="hide">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-                <span class="muted" style="font-size:13px">Interroge <span class="mono">GET /api/status</span> (version, sources actives, capacités et compteurs du catalogue).</span>
-                <button type="button" class="btn-primary" id="pgStatusBtn">Exécuter /api/status</button>
-              </div>
-            </div>
-
-            <div id="fedTestOut" class="hide" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"></div>
+            <div id="apiRecentCallsBox" class="muted" style="font-size:13px">Aucun appel reçu depuis le démarrage du serveur.</div>
           </div>
 
-          <div class="cols-2">
-            <!-- Flux en direct des appels API -->
-            <div class="card" style="margin-bottom:0">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title">Trafic API récent</h2>
-                  <p class="card-sub">40 derniers appels reçus sur <span class="mono">/api/*</span> avec client et latence.</p>
-                </div>
-                <div style="display:flex;gap:6px">
-                  <button type="button" class="btn-xs" id="refreshMetricsBtn">↻</button>
-                  <button type="button" class="btn-xs" id="resetMetricsBtn">Réinitialiser</button>
-                </div>
-              </div>
-              <div id="apiRecentCallsBox" class="muted" style="font-size:12.5px">Aucun appel enregistré depuis le démarrage.</div>
-            </div>
-
-            <!-- Référence propre des routes HTTP -->
-            <div class="card" style="margin-bottom:0">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title">Référence des routes REST (<span class="mono">/api</span> &amp; <span class="mono">/api/v1</span>)</h2>
-                  <p class="card-sub">Clique sur <b>Copier curl</b> pour récupérer la commande prête à l'emploi.</p>
-                </div>
+          <!-- Documentation technique repliée par défaut pour garder une page épurée -->
+          <details class="dev-drawer">
+            <summary>
+              <span>Documentation technique, commandes <span class="mono">curl</span> &amp; OpenAPI <span class="muted" style="font-weight:400">(Mode développeur)</span></span>
+              <span class="badge">Afficher / Masquer</span>
+            </summary>
+            <div class="dev-drawer-body">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+                <span class="muted" style="font-size:12.5px">Toutes les routes acceptent <span class="mono">/api/…</span> et <span class="mono">/api/v1/…</span> avec l'en-tête <span class="mono">x-api-key</span> ou <span class="mono">Authorization: Bearer</span>.</span>
+                <a href="/api/v1/openapi.json" target="_blank" rel="noopener" class="btn btn-xs">Ouvrir openapi.json ↗</a>
               </div>
               <div id="routesDocList"></div>
             </div>
-          </div>
+          </details>
         </section>
 
         <!-- ==================== TAB 5: PARAMÈTRES & HLS ==================== -->
@@ -1603,7 +1752,7 @@
         <div id="mdIds" class="id-pills" style="margin-top:6px"></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button type="button" class="btn-sm" id="mdJumpApiBtn" title="Pré-remplir le testeur API avec cette fiche">⚡ Tester dans l'API</button>
+        <button type="button" class="btn-sm" id="mdJumpApiBtn" title="Tester les flux vidéo de cette fiche">⚡ Tester les flux</button>
         <button type="button" class="btn-sm" id="mdRecheckBtn">↻ Re-vérifier</button>
         <button type="button" class="btn-sm" id="mdCloseBtn">✕ Fermer</button>
       </div>
@@ -1643,15 +1792,16 @@
 
   let token = sessionStorage.getItem(TOKEN_KEY) || '';
   let activeTab = 'overview';
-  let activePgMode = 'trailers';
   let summaryData = null;
   let lastCreatedSecret = '';
+  let hasNamedKeys = false;
   let currentModalDetail = null;
   let currentModalId = null;
   let dirty = new Map();
   let resetKeys = new Set();
   let titlesState = { search: '', filter: '', type: '', sort: 'added', offset: 0, limit: 50, total: 0 };
   let logsState = { limit: 200, offset: 0, total: 0, items: [] };
+  let streamState = { currentQuery: null, lastResult: null, playingUrl: '' };
   let jobTimer = null;
   let logTailTimer = null;
 
@@ -1793,15 +1943,22 @@
 
   $('menuBtn').addEventListener('click', () => $('sidebar').classList.toggle('open'));
 
+  function stopStreamStudioVideo() {
+    const v = $('stVideo');
+    if (v && !v.paused) v.pause();
+  }
+
   function switchTab(tab) {
+    if (activeTab === 'streams' && tab !== 'streams') stopStreamStudioVideo();
     activeTab = tab;
     $('sidebar').classList.remove('open');
     document.querySelectorAll('.nav-btn[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    ['overview', 'titles', 'add', 'api', 'settings', 'logs'].forEach((t) => {
+    ['overview', 'titles', 'add', 'streams', 'api', 'settings', 'logs'].forEach((t) => {
       $(`tab-${t}`).classList.toggle('hide', t !== tab);
     });
     if (tab === 'overview') { loadSummary(); refreshOverviewExtras(); }
     else if (tab === 'titles') loadTitles();
+    else if (tab === 'streams') { setTimeout(() => $('stQuery').focus(), 40); }
     else if (tab === 'api') loadKeys();
     else if (tab === 'settings') loadSummary();
     else if (tab === 'logs') loadLogs(false);
@@ -1820,6 +1977,7 @@
       $('quickSearchInput').select();
     } else if (e.key === 'Escape') {
       $('quickPop').classList.add('hide');
+      $('stSuggestPop').classList.add('hide');
       if (!$('titleModal').classList.contains('hide')) $('mdCloseBtn').click();
     }
   });
@@ -1861,6 +2019,7 @@
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#quickWrap')) $('quickPop').classList.add('hide');
+    if (!e.target.closest('#stSuggestWrap')) $('stSuggestPop').classList.add('hide');
     const jumpTab = e.target.closest('[data-jump-tab]');
     if (jumpTab) { switchTab(jumpTab.dataset.jumpTab); return; }
     const jumpTitles = e.target.closest('[data-jump-titles]');
@@ -1892,8 +2051,17 @@
 
   function renderVfEnvSnippet(baseUrl) {
     const base = String(baseUrl || location.origin).replace(/\/+$/, '');
-    const keyExample = lastCreatedSecret || 'sdb_COLLE_ICI_TA_CLE_GENEREE';
+    const keyExample = lastCreatedSecret || 'sdb_TA_CLE_ICI';
     $('vfEnvSnippet').textContent = `STOCKAGE_URL=${base}\nSTOCKAGE_API_KEY=${keyExample}`;
+    const hint = $('vfEnvKeyHint');
+    if (!hint) return;
+    if (lastCreatedSecret) {
+      hint.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ Clé prête !</span> Clique sur <b>📋 Copier les 2 lignes</b> et colle-les directement dans le fichier <span class="mono">.env</span> de <span class="mono">vf-trailer-wallace</span>.`;
+    } else if (hasNamedKeys) {
+      hint.innerHTML = `Tu as déjà une clé enregistrée à droite. Si elle est déjà dans <span class="mono">vf-trailer-wallace</span>, tout est prêt ! Si tu as perdu le code secret, clique sur <b>Nouveau code</b> sur ta clé.`;
+    } else {
+      hint.innerHTML = `Clique sur <b>⚡ Créer ma clé vf-trailer</b> en haut de cette carte pour générer automatiquement une clé prête à coller.`;
+    }
   }
 
   function renderSummary(d) {
@@ -2215,6 +2383,7 @@
     loadSummary();
     if (activeTab === 'overview') refreshOverviewExtras();
     else if (activeTab === 'titles') loadTitles();
+    else if (activeTab === 'streams' && streamState.currentQuery) runStreamTest(streamState.currentQuery);
     else if (activeTab === 'api') loadKeys();
     else if (activeTab === 'logs') loadLogs(false);
     toast('Données actualisées');
@@ -2327,7 +2496,7 @@
           <td class="muted mono">${esc(fmtDate(r.added))}</td>
           <td style="text-align:right;white-space:nowrap">
             <button type="button" class="btn-xs btn-primary" data-inspect="${esc(r.id)}">▶ Détails</button>
-            <button type="button" class="btn-xs" data-test-row="${esc(r.id)}" data-imdb="${esc(r.imdb || '')}" data-tmdb="${esc(r.tmdbId || '')}" data-nflx="${esc(r.netflixId || '')}" data-type="${esc(r.type)}" title="Tester dans le Studio API">⚡ API</button>
+            <button type="button" class="btn-xs" data-test-row="${esc(r.id)}" data-name="${esc(r.name)}" data-imdb="${esc(r.imdb || '')}" data-tmdb="${esc(r.tmdbId || '')}" data-nflx="${esc(r.netflixId || '')}" data-type="${esc(r.type)}" title="Tester la lecture et la validité des flux MP4">⚡ Flux</button>
             <button type="button" class="btn-xs" data-recheck="${esc(r.id)}" title="Re-vérifier toutes les sources">↻</button>
             <button type="button" class="btn-xs btn-danger" data-delete="${esc(r.id)}" data-name="${esc(r.name)}" title="Supprimer la fiche">✕</button>
           </td>
@@ -2338,16 +2507,13 @@
     }
   }
 
-  function jumpToPlaygroundWith({ imdb = '', tmdb = '', netflix = '', type = 'series' }) {
-    setPlaygroundMode('trailers');
-    $('ftImdb').value = imdb || '';
-    $('ftTmdb').value = tmdb ? String(tmdb) : '';
-    $('ftNetflix').value = netflix || '';
-    $('ftType').value = type || 'series';
-    $('ftSeason').value = type === 'series' ? '1' : '';
-    $('ftStrict').checked = type === 'series';
-    switchTab('api');
-    setTimeout(() => $('pgTrailersForm').requestSubmit(), 60);
+  function jumpToStreamTester({ id = '', imdb = '', tmdb = '', netflix = '', type = '', name = '' }) {
+    $('stQuery').value = name || imdb || netflix || id || '';
+    $('stType').value = type || '';
+    $('stSeason').value = '';
+    $('stStrict').checked = true;
+    switchTab('streams');
+    runStreamTest({ id, imdb, tmdb: tmdb ? String(tmdb) : '', netflix, type, season: '', strict: true });
   }
 
   $('titlesBody').addEventListener('click', async (e) => {
@@ -2356,7 +2522,9 @@
 
     const testRowBtn = e.target.closest('[data-test-row]');
     if (testRowBtn) {
-      jumpToPlaygroundWith({
+      jumpToStreamTester({
+        id: testRowBtn.dataset.testRow,
+        name: testRowBtn.dataset.name,
         imdb: testRowBtn.dataset.imdb,
         tmdb: testRowBtn.dataset.tmdb,
         netflix: testRowBtn.dataset.nflx,
@@ -2639,96 +2807,504 @@
     }
   });
 
-  // ---- TAB 4: API & Fédération Studio ----
+  // ---- TAB 3B: Test des flux (Exploitation) ----
+  const srcLabelMap = { netflix: 'Netflix', appletv: 'Apple TV+', manual: 'Lien direct', upstream: 'Serveur amont' };
+  const srcBadgeClass = { netflix: 'badge-netflix', appletv: 'badge-apple', manual: 'badge-manual', upstream: 'badge-upstream' };
+
+  let stSuggestTimer = null;
+  $('stQuery').addEventListener('input', () => {
+    clearTimeout(stSuggestTimer);
+    const q = $('stQuery').value.trim();
+    if (q.length < 2) { $('stSuggestPop').classList.add('hide'); return; }
+    stSuggestTimer = setTimeout(async () => {
+      try {
+        const d = await api(`/admin/api/titles?search=${encodeURIComponent(q)}&limit=7`);
+        const rows = d.rows || [];
+        const pop = $('stSuggestPop');
+        if (!rows.length) { pop.classList.add('hide'); return; }
+        pop.classList.remove('hide');
+        pop.innerHTML = rows.map((r) => {
+          const mp4Total = (r.netflix || 0) + (r.apple || 0) + (r.upstream || 0) + ((r.manual && r.manual.length) || 0);
+          return `<div class="quick-item" data-st-pick="${esc(r.id)}" data-name="${esc(r.name)}" data-imdb="${esc(r.imdb || '')}" data-tmdb="${esc(r.tmdbId || '')}" data-nflx="${esc(r.netflixId || '')}" data-type="${esc(r.type)}">
+            <div style="min-width:0">
+              <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+              <div class="muted" style="font-size:11.5px">${r.type === 'series' ? 'Série' : 'Film'}${r.year ? ` · ${r.year}` : ''}${r.imdb ? ` · <span class="mono">${esc(r.imdb)}</span>` : ''}</div>
+            </div>
+            <span class="badge ${mp4Total ? 'badge-ok' : ''}">${mp4Total ? `${mp4Total} MP4` : (r.youtube ? 'YouTube' : '0 vidéo')}</span>
+          </div>`;
+        }).join('');
+      } catch {}
+    }, 170);
+  });
+
+  $('stSuggestPop').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-st-pick]');
+    if (!item) return;
+    $('stSuggestPop').classList.add('hide');
+    $('stQuery').value = item.dataset.name || item.dataset.imdb || item.dataset.stPick;
+    $('stType').value = item.dataset.type || '';
+    runStreamTest({
+      id: item.dataset.stPick,
+      imdb: item.dataset.imdb,
+      tmdb: item.dataset.tmdb,
+      netflix: item.dataset.nflx,
+      type: item.dataset.type,
+      season: $('stSeason').value.trim(),
+      strict: $('stStrict').checked,
+    });
+  });
+
+  $('streamTestForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('stSuggestPop').classList.add('hide');
+    const raw = $('stQuery').value.trim();
+    if (!raw) { toast('Saisis un titre ou un identifiant à tester', 'err'); return; }
+    const type = $('stType').value;
+    const season = $('stSeason').value.trim();
+    const strict = $('stStrict').checked;
+
+    if (/^tt\d+$/i.test(raw)) {
+      return runStreamTest({ imdb: raw, type, season, strict });
+    }
+    if (/^\d{5,12}$/.test(raw)) {
+      return runStreamTest({ netflix: raw, type, season, strict });
+    }
+    const nflxUrlMatch = /netflix\.com\/(?:[a-z-]+\/)?title\/(\d+)/i.exec(raw);
+    if (nflxUrlMatch) {
+      return runStreamTest({ netflix: nflxUrlMatch[1], type, season, strict });
+    }
+    if (/^(nflx:|tmdb:|ap:)/i.test(raw)) {
+      return runStreamTest({ id: raw, type, season, strict });
+    }
+
+    // Recherche intelligente par nom dans le catalogue local
+    $('stSubmitBtn').disabled = true;
+    try {
+      const found = await api(`/admin/api/titles?search=${encodeURIComponent(raw)}&limit=1${type ? `&type=${encodeURIComponent(type)}` : ''}`);
+      const first = (found.rows || [])[0];
+      if (!first) {
+        $('stEmptyState').classList.add('hide');
+        $('stLoadedWrap').classList.remove('hide');
+        $('stTitleHeader').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:15px">Aucune fiche trouvée pour « ${esc(raw)} »</div>
+            <div class="muted" style="font-size:12.5px;margin-top:3px">Ce titre n'est pas encore dans ton catalogue local. Tu peux l'ajouter depuis l'onglet <b>Ajouter &amp; Chercher</b> ou coller directement son ID IMDb (<span class="mono">tt…</span>).</div>
+          </div>
+          <button type="button" class="btn-sm btn-primary" data-jump-tab="add">+ Ajouter ce titre</button>
+        </div>`;
+        $('stSeasonChips').classList.add('hide');
+        $('stStreamsList').innerHTML = '';
+        return;
+      }
+      await runStreamTest({
+        id: first.id,
+        imdb: first.imdb || '',
+        tmdb: first.tmdbId ? String(first.tmdbId) : '',
+        netflix: first.netflixId || '',
+        type: type || first.type || '',
+        season,
+        strict,
+      });
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      $('stSubmitBtn').disabled = false;
+    }
+  });
+
+  function selectStreamInPlayer(url, title, autoPlay = true) {
+    streamState.playingUrl = url;
+    document.querySelectorAll('#stStreamsList .stream-row').forEach((row) => {
+      row.classList.toggle('is-playing', row.dataset.streamUrl === url);
+    });
+    const v = $('stVideo');
+    $('stVideoPlaceholder').classList.add('hide');
+    v.classList.remove('hide');
+    $('stPlayerTitle').textContent = title || 'Flux vidéo';
+    $('stPlayerUrl').textContent = url;
+    $('stOpenRawLink').href = toPlayablePath(url);
+    $('stPlayerActions').classList.remove('hide');
+    $('stPlayerMetaBadge').classList.add('hide');
+    v.src = toPlayablePath(url);
+    if (autoPlay) v.play().catch(() => {});
+  }
+
+  $('stVideo').addEventListener('loadedmetadata', () => {
+    const v = $('stVideo');
+    if (v.videoWidth && v.videoHeight) {
+      const dur = fmtDuration(v.duration);
+      $('stPlayerMetaBadge').textContent = `${v.videoWidth}×${v.videoHeight}${dur ? ` · ${dur}` : ''}`;
+      $('stPlayerMetaBadge').className = 'badge badge-ok mono';
+    }
+  });
+
+  $('stCopyCurrentUrlBtn').addEventListener('click', () => {
+    if (streamState.playingUrl) copyText(streamState.playingUrl, 'URL du flux copiée');
+  });
+
+  async function probeSingleStreamBadge(url, badgeEl) {
+    if (!badgeEl) return null;
+    badgeEl.className = 'badge mono';
+    badgeEl.textContent = '⏳ Vérification…';
+    try {
+      const r = await api('/admin/api/probe-stream', { method: 'POST', body: { url } });
+      if (r.ok) {
+        const sizeTxt = r.sizeBytes ? ` · ${fmtBytes(r.sizeBytes)}` : '';
+        badgeEl.className = 'badge badge-ok mono';
+        badgeEl.textContent = `✓ MP4 valide · ${r.ms} ms${sizeTxt}`;
+      } else {
+        badgeEl.className = 'badge badge-err';
+        badgeEl.textContent = `✕ ${r.error || `HTTP ${r.status || 'erreur'}`}`;
+      }
+      return r;
+    } catch (e) {
+      badgeEl.className = 'badge badge-err';
+      badgeEl.textContent = `✕ ${e.message}`;
+      return { ok: false, error: e.message };
+    }
+  }
+
+  async function runStreamTest(q) {
+    streamState.currentQuery = { ...q };
+    $('stEmptyState').classList.add('hide');
+    $('stLoadedWrap').classList.remove('hide');
+    $('stTitleHeader').innerHTML = '<div class="muted">Recherche et vérification des flux en cours…</div>';
+    $('stStreamsList').innerHTML = '';
+    $('stSeasonChips').classList.add('hide');
+    $('stSubmitBtn').disabled = true;
+
+    try {
+      // Si seule la clé interne `id` est disponible (fiche sans IMDb/TMDB/Netflix mais avec Apple TV+ ou lien manuel), on lit la fiche directe
+      let imdb = q.imdb || '';
+      let tmdb = q.tmdb || '';
+      let netflix = q.netflix || '';
+      let type = q.type || '';
+      let fallbackDetail = null;
+
+      if (!imdb && !tmdb && !netflix && q.id) {
+        fallbackDetail = await api(`/admin/api/titles/${encodeURIComponent(q.id)}`);
+        imdb = fallbackDetail.imdb || '';
+        tmdb = fallbackDetail.tmdbId ? String(fallbackDetail.tmdbId) : '';
+        netflix = fallbackDetail.netflixId || '';
+        type = type || fallbackDetail.type || '';
+      }
+
+      let d;
+      if (imdb || tmdb || netflix) {
+        const p = new URLSearchParams();
+        if (imdb) p.set('imdb', imdb);
+        if (tmdb) p.set('tmdb', tmdb);
+        if (netflix) p.set('netflix', netflix);
+        if (type) p.set('type', type);
+        if (q.season) p.set('season', String(q.season));
+        if (q.strict) p.set('strict_season', '1');
+        d = await api(`/admin/api/test-federation?${p}`);
+      } else if (fallbackDetail) {
+        const allT = fallbackDetail.trailers || [];
+        const sNum = Number(q.season) || null;
+        const filtered = (q.strict && sNum) ? allT.filter((t) => t.season === sNum && t.kind !== 'extra') : allT;
+        d = {
+          found: filtered.length > 0,
+          tookMs: 1,
+          seasonsAvailable: [...new Set(allT.map((t) => t.season).filter(Boolean))].sort((a, b) => a - b),
+          title: { id: fallbackDetail.id, name: fallbackDetail.name, type: fallbackDetail.type, year: fallbackDetail.year, imdb_id: fallbackDetail.imdb, netflix_id: fallbackDetail.netflixId, tmdb_id: fallbackDetail.tmdbId },
+          trailers: filtered,
+          youtube: fallbackDetail.youtubeKey ? { key: fallbackDetail.youtubeKey, url: `https://www.youtube.com/watch?v=${fallbackDetail.youtubeKey}` } : null,
+        };
+      }
+
+      streamState.lastResult = d;
+      const list = (d && d.trailers) || [];
+      const tInfo = d && d.title;
+
+      const idPills = [];
+      if (tInfo?.imdb_id) idPills.push(`<button type="button" class="copy-tag" data-copy="${esc(tInfo.imdb_id)}">${esc(tInfo.imdb_id)}</button>`);
+      if (tInfo?.netflix_id) idPills.push(`<button type="button" class="copy-tag" data-copy="${esc(tInfo.netflix_id)}">Netflix ${esc(tInfo.netflix_id)}</button>`);
+      if (tInfo?.tmdb_id) idPills.push(`<button type="button" class="copy-tag" data-copy="${esc(tInfo.tmdb_id)}">TMDB ${esc(tInfo.tmdb_id)}</button>`);
+
+      $('stTitleHeader').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-family:var(--font-display);font-weight:700;font-size:18px">${esc(tInfo ? tInfo.name : 'Titre introuvable')}</span>
+              ${tInfo ? `<span class="badge">${tInfo.type === 'series' ? 'Série' : 'Film'}${tInfo.year ? ` · ${tInfo.year}` : ''}</span>` : ''}
+              <span class="badge ${list.length ? 'badge-ok' : 'badge-warn'}">${list.length ? pl(list.length, 'flux MP4 trouvé', 'flux MP4 trouvés') : 'Aucun flux MP4'}</span>
+              <span class="badge badge-info mono">${d?.tookMs ?? 0} ms</span>
+            </div>
+            ${idPills.length ? `<div class="id-pills" style="margin-top:6px">${idPills.join('')}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${list.length ? `<button type="button" class="btn-xs" id="stReprobeAllBtn">🩺 Re-tester les flux</button>` : ''}
+            ${tInfo ? `<button type="button" class="btn-xs" data-st-recheck="${esc(tInfo.id)}">↻ Re-extraire les sources</button>` : ''}
+            ${tInfo ? `<button type="button" class="btn-xs" data-st-inspect="${esc(tInfo.id)}">Fiche complète</button>` : ''}
+          </div>
+        </div>
+      `;
+
+      // Filtres rapides par saison si la série possède plusieurs saisons détectées
+      const seasons = (d && d.seasonsAvailable) || [];
+      if (seasons.length > 0) {
+        const activeS = String(q.season || '');
+        $('stSeasonChips').classList.remove('hide');
+        $('stSeasonChips').innerHTML = [
+          `<button type="button" class="chip ${!activeS ? 'active' : ''}" data-st-season="">Toutes saisons</button>`,
+          ...seasons.map((n) => `<button type="button" class="chip ${activeS === String(n) ? 'active' : ''}" data-st-season="${n}">Saison ${n}</button>`),
+        ].join('');
+      }
+
+      if (!list.length) {
+        const ytNote = d?.youtube?.url
+          ? `<div style="margin-top:10px"><a href="${esc(d.youtube.url)}" target="_blank" rel="noopener" class="btn btn-sm">Ouvrir le repli YouTube VF ↗</a></div>`
+          : '';
+        const seasonHint = q.season && q.strict && seasons.length
+          ? `Aucune vidéo taguée <b>Saison ${esc(q.season)}</b> (saisons disponibles : ${seasons.map((n) => `S${n}`).join(', ')}). Clique sur <b>Toutes saisons</b> ci-dessus pour voir les bandes-annonces génériques.`
+          : `Aucun flux vidéo MP4/HLS n'est disponible pour cette sélection.`;
+        $('stStreamsList').innerHTML = `<div class="hint-note" style="text-align:center;padding:18px">${seasonHint}${ytNote}</div>`;
+        return;
+      }
+
+      const kindNames = { trailer: 'Bande-annonce', teaser: 'Teaser', extra: 'Bonus / Extrait' };
+      $('stStreamsList').innerHTML = list.map((t, idx) => {
+        const dur = fmtDuration(t.runtime);
+        return `<div class="stream-row" data-stream-url="${esc(t.url)}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div style="min-width:200px;flex:1">
+              <div style="font-weight:600;font-size:13.5px">${esc(t.title)} ${dur ? `<span class="muted mono">(${dur})</span>` : ''}</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+                <span class="badge ${srcBadgeClass[t.source] || ''}">${esc(srcLabelMap[t.source] || t.source)}</span>
+                <span class="badge badge-accent">${t.season ? `Saison ${t.season}` : 'Générique'}</span>
+                <span class="badge">${esc(kindNames[t.kind] || t.kind || 'Bande-annonce')}</span>
+                ${t.lang ? `<span class="badge mono">${esc(t.lang)}</span>` : ''}
+                <span class="badge mono" data-probe-idx="${idx}">⏳ En attente…</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="btn-xs btn-primary" data-st-play="${esc(t.url)}" data-st-title="${esc(t.title)}">▶ Lire</button>
+              <button type="button" class="btn-xs" data-st-probe="${idx}" data-st-url="${esc(t.url)}">🩺 Tester</button>
+              <button type="button" class="btn-xs" data-copy="${esc(t.url)}">Copier lien</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      // Charge le 1er flux dans le lecteur (prêt à lire sans lancer le son par surprise, sauf clic explicite)
+      selectStreamInPlayer(list[0].url, list[0].title, false);
+
+      // Teste automatiquement l'état réel des flux affichés (jusqu'à 8 flux)
+      const toProbe = list.slice(0, 8);
+      for (let i = 0; i < toProbe.length; i++) {
+        const badgeEl = document.querySelector(`#stStreamsList [data-probe-idx="${i}"]`);
+        await probeSingleStreamBadge(toProbe[i].url, badgeEl);
+      }
+    } catch (err) {
+      $('stTitleHeader').innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
+    } finally {
+      $('stSubmitBtn').disabled = false;
+    }
+  }
+
+  $('stSeasonChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-st-season]');
+    if (!chip || !streamState.currentQuery) return;
+    const sVal = chip.dataset.stSeason;
+    $('stSeason').value = sVal;
+    runStreamTest({ ...streamState.currentQuery, season: sVal, strict: !!sVal && $('stStrict').checked });
+  });
+
+  $('stResultsCard').addEventListener('click', async (e) => {
+    const playBtn = e.target.closest('[data-st-play]');
+    if (playBtn) {
+      selectStreamInPlayer(playBtn.dataset.stPlay, playBtn.dataset.stTitle, true);
+      return;
+    }
+    const probeBtn = e.target.closest('[data-st-probe]');
+    if (probeBtn) {
+      const idx = probeBtn.dataset.stProbe;
+      const badgeEl = document.querySelector(`#stStreamsList [data-probe-idx="${idx}"]`);
+      await probeSingleStreamBadge(probeBtn.dataset.stUrl, badgeEl);
+      return;
+    }
+    if (e.target.closest('#stReprobeAllBtn')) {
+      const list = streamState.lastResult?.trailers || [];
+      for (let i = 0; i < list.length; i++) {
+        const badgeEl = document.querySelector(`#stStreamsList [data-probe-idx="${i}"]`);
+        await probeSingleStreamBadge(list[i].url, badgeEl);
+      }
+      return;
+    }
+    const recheckBtn = e.target.closest('[data-st-recheck]');
+    if (recheckBtn) {
+      recheckBtn.disabled = true;
+      try {
+        await api('/admin/titles/recheck', { method: 'POST', body: { id: recheckBtn.dataset.stRecheck } });
+        toast('Sources revérifiées avec succès', 'ok');
+        if (streamState.currentQuery) await runStreamTest(streamState.currentQuery);
+      } catch (err) { toast(err.message, 'err'); }
+      finally { recheckBtn.disabled = false; }
+      return;
+    }
+    const inspectBtn = e.target.closest('[data-st-inspect]');
+    if (inspectBtn) openInspector(inspectBtn.dataset.stInspect);
+  });
+
+  // Diagnostic rapide sur 6 titres au hasard du catalogue
+  async function runSampleDiagnostic() {
+    switchTab('streams');
+    const card = $('sampleProbeCard');
+    card.classList.remove('hide');
+    $('sampleProbeBar').style.width = '5%';
+    $('sampleProbeScore').className = 'badge badge-info';
+    $('sampleProbeScore').textContent = 'Chargement…';
+    $('sampleProbeGrid').innerHTML = '';
+
+    try {
+      const d = await api('/admin/api/stream-sample?limit=6');
+      const items = d.items || [];
+      if (!items.length) {
+        $('sampleProbeScore').className = 'badge badge-warn';
+        $('sampleProbeScore').textContent = '0 flux en base';
+        $('sampleProbeSub').textContent = 'Aucune fiche avec flux MP4 dans le catalogue pour le moment.';
+        $('sampleProbeBar').style.width = '0%';
+        return;
+      }
+
+      $('sampleProbeSub').textContent = `Vérification en direct de ${pl(items.length, 'flux vidéo')} issus de ton catalogue…`;
+      $('sampleProbeGrid').innerHTML = items.map((it, idx) => `
+        <div class="sample-item">
+          <div style="min-width:0">
+            <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</div>
+            <div class="muted" style="font-size:11.5px">
+              <span class="badge ${srcBadgeClass[it.primary.source] || ''}" style="margin-right:4px">${esc(srcLabelMap[it.primary.source] || it.primary.source)}</span>
+              ${it.year ? esc(it.year) : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span class="badge mono" id="sampleBadge_${idx}">⏳ Test…</span>
+            <button type="button" class="btn-xs" data-sample-open="${esc(it.id)}" data-name="${esc(it.name)}" data-imdb="${esc(it.imdb || '')}" data-nflx="${esc(it.netflixId || '')}" data-type="${esc(it.type)}">Ouvrir</button>
+          </div>
+        </div>
+      `).join('');
+
+      let okCount = 0;
+      for (let i = 0; i < items.length; i++) {
+        const badge = $(`sampleBadge_${i}`);
+        const res = await probeSingleStreamBadge(items[i].primary.url, badge);
+        if (res && res.ok) okCount++;
+        $('sampleProbeBar').style.width = `${Math.round(((i + 1) / items.length) * 100)}%`;
+        $('sampleProbeScore').textContent = `${okCount} / ${i + 1} valides`;
+      }
+      $('sampleProbeScore').className = `badge ${okCount === items.length ? 'badge-ok' : (okCount > 0 ? 'badge-warn' : 'badge-err')}`;
+      $('sampleProbeScore').textContent = `${okCount} / ${items.length} flux opérationnels`;
+      $('sampleProbeSub').textContent = okCount === items.length
+        ? 'Tous les relais vidéo testés répondent correctement avec un conteneur MP4 valide.'
+        : 'Certains flux ont échoué : clique sur Ouvrir puis ↻ Re-extraire les sources sur les titres concernés.';
+    } catch (err) {
+      toast(err.message, 'err');
+    }
+  }
+
+  $('runSampleProbeBtn').addEventListener('click', runSampleDiagnostic);
+  $('stEmptySampleBtn').addEventListener('click', runSampleDiagnostic);
+  $('closeSampleProbeBtn').addEventListener('click', () => $('sampleProbeCard').classList.add('hide'));
+  $('sampleProbeGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sample-open]');
+    if (!b) return;
+    jumpToStreamTester({
+      id: b.dataset.sampleOpen,
+      name: b.dataset.name,
+      imdb: b.dataset.imdb,
+      netflix: b.dataset.nflx,
+      type: b.dataset.type,
+    });
+  });
+
+  // ---- TAB 4: API & Connexion (Simplifié & Visuel) ----
   function renderApiMetrics(m = {}, keySummary = {}) {
     const activeCount = keySummary.activeCount || 0;
     const isOpen = !!keySummary.open;
     $('apiKpis').innerHTML = [
       {
-        label: 'Sécurité & Clés',
-        val: isOpen ? 'Ouverte' : pl(activeCount, 'clé active', 'clés actives'),
-        foot: isOpen ? 'ALLOW_OPEN_API=1 (accès sans clé)' : (activeCount ? `Authentification SHA-256 + quotas par clé` : 'Crée une clé pour ouvrir la fédération'),
+        label: "Accès à l'API",
+        val: isOpen ? 'Ouverte à tous' : (activeCount ? pl(activeCount, 'clé active', 'clés actives') : 'Aucune clé active'),
+        foot: isOpen ? 'Accès public sans clé activé' : (activeCount ? 'Connexion sécurisée prête pour vf-trailer-wallace' : 'Crée une clé à l’étape 1 pour activer la connexion'),
       },
       {
-        label: 'Appels reçus (session)',
+        label: 'Demandes reçues',
         val: fmtInt(m.totalCalls || 0),
-        foot: `${fmtInt(m.trailersCalls || 0)} /trailers · ${fmtInt(m.batchCalls || 0)} batch · ${fmtInt(m.searchCalls || 0)} search`,
+        foot: m.trailersCalls
+          ? `${fmtInt(m.trailersHits || 0)} réponses avec bande-annonce MP4 (${m.hitRate ?? 0} %)`
+          : 'En attente des premiers appels de ton addon VF',
       },
       {
-        label: 'Taux de réponse MP4',
-        val: m.hitRate != null ? `${m.hitRate} %` : '—',
-        foot: m.trailersCalls ? `${fmtInt(m.trailersHits || 0)} réponses avec MP4 sur ${fmtInt(m.trailersCalls)}` : 'En attente du premier appel /api/trailers',
-      },
-      {
-        label: 'Latence API',
+        label: 'Vitesse de réponse',
         val: m.totalCalls ? `${m.avgLatencyMs || 0} ms` : '—',
-        foot: m.totalCalls ? `P95 : ${m.p95LatencyMs || 0} ms · ${pl(m.rateLimited || 0, 'rejet quota', 'rejets quota')}` : 'Mesure automatique sur chaque requête',
+        foot: m.totalCalls ? 'Temps moyen mesuré sur cette session' : 'Sera mesurée automatiquement dès le 1er appel',
       },
     ].map((k) => `<div class="kpi-card"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-val">${esc(k.val)}</div><div class="kpi-foot">${esc(k.foot)}</div></div>`).join('');
 
     const calls = m.recentCalls || [];
     $('apiRecentCallsBox').innerHTML = calls.length
-      ? `<div class="table-wrap"><table><thead><tr><th>Heure</th><th>Client</th><th>Requête</th><th>Résultat</th><th>Durée</th></tr></thead><tbody>` +
+      ? `<div class="table-wrap"><table><thead><tr><th>Heure</th><th>Clé utilisée</th><th>Demande</th><th>Résultat</th><th>Temps</th></tr></thead><tbody>` +
         calls.slice(0, 12).map((c) => {
           const resBadge = c.found === true
-            ? `<span class="badge badge-ok">${c.count} MP4</span>`
+            ? `<span class="badge badge-ok">✓ ${pl(c.count, 'vidéo')}</span>`
             : c.found === false
-              ? `<span class="badge">0 MP4</span>`
-              : `<span class="badge badge-info">HTTP ${c.status}</span>`;
+              ? `<span class="badge">Aucune vidéo</span>`
+              : `<span class="badge badge-info">OK (${c.status})</span>`;
           return `<tr>
             <td class="mono muted">${esc(fmtDate(c.ts))}</td>
             <td><span class="badge">${esc(c.client || 'API')}</span></td>
-            <td class="mono">${esc(c.method)} ${esc(c.path)}${c.query ? ` <span class="muted">(${esc(c.query)})</span>` : ''}</td>
+            <td class="mono">${esc(c.path)}${c.query ? ` <span class="muted">(${esc(c.query)})</span>` : ''}</td>
             <td>${resBadge}</td>
             <td class="mono">${c.ms} ms</td>
           </tr>`;
         }).join('') + `</tbody></table></div>`
-      : 'Aucun appel API enregistré depuis le démarrage.';
+      : 'Aucun appel reçu depuis le démarrage du serveur.';
   }
 
   function renderRoutesDoc(base) {
-    const keyPlaceholder = lastCreatedSecret || 'sdb_VOTRE_CLE';
+    const keyPlaceholder = lastCreatedSecret || 'sdb_TA_CLE';
     const routes = [
       {
         method: 'GET',
         path: '/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1',
-        desc: 'Flux MP4 triés pour une saison précise (appel principal utilisé par vf-trailer-wallace). Ajoute &fast=1 pour du cache SQLite pur.',
+        desc: 'Route principale appelée par vf-trailer-wallace : renvoie les flux MP4 triés pour le film ou la saison demandée.',
         curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"`,
       },
       {
         method: 'POST',
         path: '/api/trailers/batch',
-        desc: 'Vérifie jusqu’à 25 films/saisons en une seule requête HTTP ultra-rapide.',
-        curl: `curl -X POST "${base}/api/trailers/batch" \\\n  -H "x-api-key: ${keyPlaceholder}" \\\n  -H "content-type: application/json" \\\n  -d '{"items":[{"imdb":"tt13016388","type":"series","season":2,"strict_season":1}]}'`,
+        desc: 'Vérifie jusqu’à 25 films ou saisons en un seul appel groupé.',
+        curl: `curl -X POST "${base}/api/trailers/batch" -H "x-api-key: ${keyPlaceholder}" -H "content-type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series","season":2,"strict_season":1}]}'`,
       },
       {
         method: 'GET',
         path: '/api/search?q=Severance&filter=any',
-        desc: 'Recherche dans le catalogue local avec saisons disponibles et URLs MP4 prêtes à lire.',
+        desc: 'Recherche dans le catalogue local avec saisons disponibles et liens MP4.',
         curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/search?q=Severance&filter=any"`,
       },
       {
         method: 'GET',
         path: '/api/title/tt13016388',
-        desc: 'Métadonnées complètes et liste des bandes-annonces par ID IMDb, ID Netflix ou ID interne.',
+        desc: 'Fiche complète et liste des bandes-annonces par ID IMDb, ID Netflix ou ID interne.',
         curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/title/tt13016388"`,
       },
       {
         method: 'POST',
         path: '/api/trailers/submit',
-        desc: 'Attache un flux MP4/HLS ou ingère une URL Netflix/Prime à distance (requiert le scope trailers:write).',
-        curl: `curl -X POST "${base}/api/trailers/submit" \\\n  -H "x-api-key: ${keyPlaceholder}" \\\n  -H "content-type: application/json" \\\n  -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
+        desc: 'Ajoute une bande-annonce MP4/HLS à distance (nécessite une clé avec droit « Lecture + Ajout de vidéos »).',
+        curl: `curl -X POST "${base}/api/trailers/submit" -H "x-api-key: ${keyPlaceholder}" -H "content-type: application/json" -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
       },
       {
         method: 'POST',
         path: '/api/v1/prewarm',
-        desc: 'Pré-chauffe jusqu’à 50 titres en arrière-plan (réponse immédiate 202 Accepted).',
+        desc: 'Pré-chauffe jusqu’à 50 titres en arrière-plan (réponse immédiate 202).',
         curl: `curl -X POST -H "x-api-key: ${keyPlaceholder}" -H "Content-Type: application/json" -d '{"items":[{"imdb":"tt13016388","type":"series"}]}' "${base}/api/v1/prewarm"`,
       },
       {
         method: 'GET',
         path: '/api/status',
-        desc: 'État de santé, version, sources actives et statistiques globales.',
+        desc: 'État du serveur, version et statistiques du catalogue.',
         curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/status"`,
       },
     ];
@@ -2754,33 +3330,65 @@
     };
   }
 
+  function humanPermLabel(scopesStr) {
+    const s = String(scopesStr || '');
+    if (s.includes('trailers:write')) return { text: 'Lecture + Ajout de vidéos', cls: 'badge-warn' };
+    return { text: 'Lecture seule', cls: 'badge-accent' };
+  }
+
   async function loadKeys() {
     if (!token) return;
     try {
       const d = await api('/admin/api/keys');
+      const keys = d.keys || [];
+      hasNamedKeys = keys.length > 0;
       const base = (d.baseUrl || location.origin).replace(/\/+$/, '');
       $('fedBaseUrl').value = base;
       renderVfEnvSnippet(base);
       renderRoutesDoc(base);
 
-      const keys = d.keys || [];
       const max = d.max || 5;
       const now = Date.now();
       const activeNamed = keys.filter((k) => k.enabled && (!k.expires_at || k.expires_at > now)).length;
+      const pausedKeys = keys.filter((k) => !k.enabled && (!k.expires_at || k.expires_at > now));
       const leg = d.legacyInfo || { active: !!d.legacy, source: d.legacy ? 'env' : null, hint: '••••' };
       const totalActive = activeNamed + (leg.active ? 1 : 0);
 
-      $('keysCountLabel').textContent = `${keys.length} / ${max} emplacements utilisés · Empreinte SHA-256 uniquement en base.`;
+      $('keysCountLabel').textContent = `${keys.length} sur ${max} clés créées`;
       $('keyCreateBtn').disabled = keys.length >= max;
       $('quickVfKeyBtn').disabled = keys.length >= max;
+
+      // Alerte claire en haut si une clé est en pause (ex: vf-trailer-wallace en pause !)
+      const alertEl = $('apiAlertBanner');
+      if (pausedKeys.length > 0) {
+        const pk = pausedKeys[0];
+        alertEl.className = 'alert-banner warn';
+        alertEl.innerHTML = `
+          <div>
+            <b>Attention : ta clé « ${esc(pk.label)} » est actuellement en pause.</b>
+            <span style="color:var(--fg-soft)"> Tant qu'elle est en pause, l'addon qui l'utilise ne peut pas récupérer les bandes-annonces.</span>
+          </div>
+          <button type="button" class="btn-sm btn-primary" data-banner-resume="${pk.id}">▶ Réactiver « ${esc(pk.label)} »</button>
+        `;
+      } else if (!d.open && totalActive === 0) {
+        alertEl.className = 'alert-banner info';
+        alertEl.innerHTML = `
+          <div>
+            <b>Aucune clé active pour le moment.</b>
+            <span style="color:var(--fg-soft)"> Clique sur <b>⚡ Créer ma clé vf-trailer</b> à l'étape 1 pour ouvrir l'accès à ton addon.</span>
+          </div>
+        `;
+      } else {
+        alertEl.classList.add('hide');
+      }
 
       if (leg.active) {
         $('legacyKeyBox').classList.remove('hide');
         if (leg.source === 'dashboard') {
-          $('legacyKeyText').innerHTML = `Clé globale <span class="mono">API_KEY</span> active via surcharge base (<span class="mono">${esc(leg.hint || '••••')}</span>) — lecture seule.`;
+          $('legacyKeyText').innerHTML = `Une ancienne clé globale (<span class="mono">${esc(leg.hint || '••••')}</span>) est aussi enregistrée dans la base.`;
           $('clearLegacyKeyBtn').classList.remove('hide');
         } else {
-          $('legacyKeyText').innerHTML = `Clé globale <span class="mono">API_KEY</span> définie dans <span class="mono">.env</span> (<span class="mono">${esc(leg.hint || '••••')}</span>) — active en parallèle des clés nommées.`;
+          $('legacyKeyText').innerHTML = `Clé globale définie dans ton fichier <span class="mono">.env</span> (<span class="mono">${esc(leg.hint || '••••')}</span>) — active en plus des clés ci-dessus.`;
           $('clearLegacyKeyBtn').classList.add('hide');
         }
       } else {
@@ -2788,13 +3396,13 @@
       }
 
       if (d.open) {
-        $('apiStateBadge').textContent = 'API ouverte (ALLOW_OPEN_API=1)';
+        $('apiStateBadge').textContent = 'API publique (sans clé)';
         $('apiStateBadge').className = 'badge badge-warn';
       } else if (totalActive > 0) {
-        $('apiStateBadge').textContent = `API active & protégée · ${pl(totalActive, 'clé')}`;
+        $('apiStateBadge').textContent = `✓ API prête · ${pl(totalActive, 'clé active', 'clés actives')}`;
         $('apiStateBadge').className = 'badge badge-ok';
       } else {
-        $('apiStateBadge').textContent = 'API fermée — génère une clé pour activer la fédération';
+        $('apiStateBadge').textContent = 'En attente d’une clé';
         $('apiStateBadge').className = 'badge badge-warn';
       }
 
@@ -2807,53 +3415,62 @@
             const stBadge = expired
               ? `<span class="badge badge-err">Expirée</span>`
               : paused
-                ? `<span class="badge badge-warn">En pause</span>`
-                : `<span class="badge badge-ok">Active</span>`;
-            const quotaLabel = k.rate_limit > 0 ? `${k.rate_limit}/min` : 'Illimité';
-            const scopes = String(k.scopes || 'trailers:read').split(',').filter(Boolean);
-            const masked = `${k.prefix || 'sdb_'}…••••${k.last4}`;
+                ? `<span class="badge badge-warn">⏸ En pause</span>`
+                : `<span class="badge badge-ok">✓ Active</span>`;
+            const quotaLabel = k.rate_limit > 0 ? `${k.rate_limit} appels/min` : 'Illimité';
+            const perm = humanPermLabel(k.scopes);
+            const masked = `${k.prefix || 'sdb_'}••••${k.last4}`;
             return `<div class="key-card ${paused || expired ? 'paused' : ''}">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                 <div>
-                  <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-                    <b style="font-size:13.5px">${esc(k.label)}</b>
-                    <span class="mono muted">${esc(masked)}</span>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <b style="font-size:14px">${esc(k.label)}</b>
                     ${stBadge}
-                    <span class="badge">${esc(quotaLabel)}</span>
+                    <span class="badge ${perm.cls}">${esc(perm.text)}</span>
                   </div>
-                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
-                    ${scopes.map((sc) => `<span class="badge ${sc === 'trailers:write' ? 'badge-warn' : 'badge-accent'} mono">${esc(sc)}</span>`).join('')}
+                  <div class="muted" style="font-size:12px;margin-top:6px">
+                    Code : <span class="mono">${esc(masked)}</span> · Limite : <b>${esc(quotaLabel)}</b>
                   </div>
-                  <div class="muted" style="font-size:11.5px;margin-top:6px">
-                    <b>${fmtInt(k.calls_total || 0)}</b> appels (<b>${fmtInt(k.hits_total || 0)}</b> hits MP4)
-                    · Dernier accès : ${k.last_used_at ? `${esc(fmtDate(k.last_used_at))}${k.last_ip ? ` (${esc(k.last_ip)})` : ''}` : 'jamais utilisée'}
-                    ${k.expires_at ? ` · Expire le ${esc(fmtDate(k.expires_at))}` : ''}
+                  <div class="muted" style="font-size:12px;margin-top:3px">
+                    <b>${fmtInt(k.calls_total || 0)}</b> demandes reçues (<b>${fmtInt(k.hits_total || 0)}</b> avec vidéo)
+                    · Dernière activité : ${k.last_used_at ? esc(fmtDate(k.last_used_at)) : 'jamais utilisée'}
                   </div>
                 </div>
-                <div style="display:flex;gap:5px;flex-wrap:wrap">
-                  <button type="button" class="btn-xs" data-toggle-key="${k.id}" data-next-enabled="${paused ? '1' : '0'}">${paused ? '▶ Reprendre' : '⏸ Pause'}</button>
-                  <button type="button" class="btn-xs" data-rotate-key="${k.id}" data-label="${esc(k.label)}" title="Générer un nouveau secret pour cette clé">↻ Rotation</button>
-                  <button type="button" class="btn-xs btn-danger" data-del-key="${k.id}" data-label="${esc(k.label)}">Révoquer</button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <button type="button" class="btn-xs ${paused ? 'btn-primary' : ''}" data-toggle-key="${k.id}" data-next-enabled="${paused ? '1' : '0'}">${paused ? '▶ Activer' : '⏸ Pause'}</button>
+                  <button type="button" class="btn-xs" data-rotate-key="${k.id}" data-label="${esc(k.label)}" title="Génère un nouveau code secret à copier">Nouveau code</button>
+                  <button type="button" class="btn-xs btn-danger" data-del-key="${k.id}" data-label="${esc(k.label)}">Supprimer</button>
                 </div>
               </div>
             </div>`;
           }).join('')
-        : '<div class="muted" style="font-size:12.5px">Aucune clé nommée créée — clique sur <b>⚡ Créer une clé vf-trailer</b> ou utilise le formulaire ci-dessus.</div>';
+        : '<div class="hint-note" style="margin-bottom:12px">Aucune clé créée pour l’instant. Clique sur <b>⚡ Créer ma clé vf-trailer</b> à gauche !</div>';
     } catch (e) { toast(e.message, 'err'); }
   }
 
+  $('apiAlertBanner').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-banner-resume]');
+    if (!btn) return;
+    try {
+      await api('/admin/api/keys/update', { method: 'POST', body: { id: Number(btn.dataset.bannerResume), enabled: true } });
+      toast('Clé réactivée !', 'ok');
+      loadKeys();
+      loadSummary();
+    } catch (err) { toast(err.message, 'err'); }
+  });
+
   function revealGeneratedSecret(secret, label) {
     lastCreatedSecret = secret;
-    $('keyCreatedTitle').textContent = `Secret pour « ${label} » (affiché une seule fois — copie-le maintenant) :`;
+    $('keyCreatedTitle').textContent = `✓ Clé « ${label} » prête — copie ton code secret maintenant :`;
     $('keyCreatedVal').textContent = secret;
     $('keyCreatedBox').classList.remove('hide');
     renderVfEnvSnippet($('fedBaseUrl').value);
     renderRoutesDoc($('fedBaseUrl').value);
   }
 
-  $('copyFedUrlBtn').addEventListener('click', () => copyText($('fedBaseUrl').value, 'URL du serveur copiée'));
-  $('copyEnvSnippetBtn').addEventListener('click', () => copyText($('vfEnvSnippet').textContent, 'Bloc .env copié'));
-  $('copyNewKeyBtn').addEventListener('click', () => copyText($('keyCreatedVal').textContent, 'Clé API copiée'));
+  $('copyFedUrlBtn').addEventListener('click', () => copyText($('fedBaseUrl').value, 'Adresse du serveur copiée'));
+  $('copyEnvSnippetBtn').addEventListener('click', () => copyText($('vfEnvSnippet').textContent, 'Configuration .env copiée !'));
+  $('copyNewKeyBtn').addEventListener('click', () => copyText($('keyCreatedVal').textContent, 'Clé API copiée !'));
 
   $('quickVfKeyBtn').addEventListener('click', async () => {
     try {
@@ -2861,8 +3478,9 @@
         method: 'POST',
         body: { label: 'vf-trailer-wallace', scopes: 'trailers:read,catalog:read', rateLimit: 600, expiresInDays: 0 },
       });
+      hasNamedKeys = true;
       revealGeneratedSecret(r.key, r.label);
-      toast('Clé dédiée vf-trailer-wallace générée !', 'ok');
+      toast('Clé vf-trailer-wallace créée et prête à copier !', 'ok');
       loadKeys();
       loadSummary();
     } catch (e) { toast(e.message, 'err'); }
@@ -2872,21 +3490,22 @@
     e.preventDefault();
     const label = $('keyLabel').value.trim();
     if (!label) return;
-    const scopes = ['trailers:read'];
-    if ($('scCatalogRead').checked) scopes.push('catalog:read');
-    if ($('scTrailersWrite').checked) scopes.push('trailers:write');
+    const scopes = $('keyPermPreset').value === 'write'
+      ? 'trailers:read,catalog:read,trailers:write'
+      : 'trailers:read,catalog:read';
     try {
       const r = await api('/admin/api/keys', {
         method: 'POST',
         body: {
           label,
-          scopes: scopes.join(','),
+          scopes,
           rateLimit: Number($('keyRateLimit').value),
           expiresInDays: Number($('keyExpires').value) || 0,
         },
       });
       $('keyLabel').value = '';
-      $('scTrailersWrite').checked = false;
+      $('keyPermPreset').value = 'read';
+      hasNamedKeys = true;
       revealGeneratedSecret(r.key, r.label);
       toast(`Clé « ${r.label} » créée`, 'ok');
       loadKeys();
@@ -2897,7 +3516,7 @@
   $('clearLegacyKeyBtn').addEventListener('click', async () => {
     try {
       await api('/admin/api/keys/legacy/clear', { method: 'POST', body: {} });
-      toast('Surcharge API_KEY retirée', 'ok');
+      toast('Ancienne clé globale supprimée', 'ok');
       loadKeys();
       loadSummary();
     } catch (e) { toast(e.message, 'err'); }
@@ -2909,7 +3528,7 @@
       try {
         const enabled = toggleBtn.dataset.nextEnabled === '1';
         await api('/admin/api/keys/update', { method: 'POST', body: { id: Number(toggleBtn.dataset.toggleKey), enabled } });
-        toast(enabled ? 'Clé réactivée' : 'Clé mise en pause', 'ok');
+        toast(enabled ? 'Clé activée' : 'Clé mise en pause', 'ok');
         loadKeys();
         loadSummary();
       } catch (err) { toast(err.message, 'err'); }
@@ -2918,11 +3537,11 @@
 
     const rotBtn = e.target.closest('[data-rotate-key]');
     if (rotBtn) {
-      if (!confirm(`Régénérer le secret de « ${rotBtn.dataset.label} » ? L'ancienne clé cessera immédiatement de fonctionner.`)) return;
+      if (!confirm(`Générer un nouveau code secret pour « ${rotBtn.dataset.label} » ? L'ancien code ne fonctionnera plus.`)) return;
       try {
         const r = await api('/admin/api/keys/rotate', { method: 'POST', body: { id: Number(rotBtn.dataset.rotateKey) } });
         revealGeneratedSecret(r.key, r.label);
-        toast(`Nouveau secret généré pour « ${r.label} »`, 'ok');
+        toast(`Nouveau code généré pour « ${r.label} »`, 'ok');
         loadKeys();
       } catch (err) { toast(err.message, 'err'); }
       return;
@@ -2930,10 +3549,10 @@
 
     const delBtn = e.target.closest('[data-del-key]');
     if (delBtn) {
-      if (!confirm(`Révoquer définitivement la clé « ${delBtn.dataset.label} » ?`)) return;
+      if (!confirm(`Supprimer définitivement la clé « ${delBtn.dataset.label} » ?`)) return;
       try {
         await api('/admin/api/keys/delete', { method: 'POST', body: { id: Number(delBtn.dataset.delKey) } });
-        toast('Clé API révoquée', 'ok');
+        toast('Clé supprimée', 'ok');
         loadKeys();
         loadSummary();
       } catch (err) { toast(err.message, 'err'); }
@@ -2944,159 +3563,10 @@
   $('resetMetricsBtn').addEventListener('click', async () => {
     try {
       await api('/admin/api/metrics/reset', { method: 'POST', body: {} });
-      toast('Compteurs de session réinitialisés', 'ok');
+      toast('Compteurs remis à zéro', 'ok');
       loadKeys();
       loadSummary();
     } catch (e) { toast(e.message, 'err'); }
-  });
-
-  // ---- Multi-Mode API Playground ----
-  function setPlaygroundMode(mode) {
-    activePgMode = mode;
-    document.querySelectorAll('#pgTabs .subtab').forEach((b) => b.classList.toggle('active', b.dataset.pg === mode));
-    $('pgTrailersForm').classList.toggle('hide', mode !== 'trailers');
-    $('pgSearchForm').classList.toggle('hide', mode !== 'search');
-    $('pgBatchForm').classList.toggle('hide', mode !== 'batch');
-    $('pgStatusBox').classList.toggle('hide', mode !== 'status');
-  }
-  document.querySelectorAll('#pgTabs .subtab').forEach((b) => {
-    b.addEventListener('click', () => setPlaygroundMode(b.dataset.pg));
-  });
-
-  $('pgTrailersForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const p = new URLSearchParams();
-    if ($('ftImdb').value.trim()) p.set('imdb', $('ftImdb').value.trim());
-    if ($('ftTmdb').value.trim()) p.set('tmdb', $('ftTmdb').value.trim());
-    if ($('ftNetflix').value.trim()) p.set('netflix', $('ftNetflix').value.trim());
-    if ($('ftType').value) p.set('type', $('ftType').value);
-    if ($('ftSeason').value.trim()) p.set('season', $('ftSeason').value.trim());
-    if ($('ftSource').value) p.set('source', $('ftSource').value);
-    if ($('ftStrict').checked) p.set('strict_season', '1');
-    if ($('ftExtras').checked) p.set('include_extras', '1');
-    if ($('ftFast').checked) p.set('fast', '1');
-
-    const box = $('fedTestOut');
-    box.classList.remove('hide');
-    box.innerHTML = '<div class="muted">Exécution de GET /api/trailers…</div>';
-    const base = ($('fedBaseUrl').value || location.origin).replace(/\/+$/, '');
-    const keyEx = lastCreatedSecret || 'sdb_VOTRE_CLE';
-    const curlCmd = `curl -H "x-api-key: ${keyEx}" "${base}/api/trailers?${p}"`;
-
-    try {
-      const d = await api(`/admin/api/test-federation?${p}`);
-      const list = d.trailers || [];
-      const seasonsInfo = (d.seasonsAvailable || []).length
-        ? ` · Saisons détectées sur la fiche : ${d.seasonsAvailable.map((n) => `S${n}`).join(', ')}`
-        : '';
-      let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="badge ${d.found ? 'badge-ok' : 'badge-warn'}">${d.found ? `✓ ${pl(list.length, 'flux MP4 renvoyé', 'flux MP4 renvoyés')}` : '0 flux MP4 renvoyé'}</span>
-          <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span>
-          ${d.title ? `<span style="font-weight:600">${esc(d.title.name)} <span class="muted mono">(${esc(d.title.id)}${esc(seasonsInfo)})</span></span>` : '<span class="muted">Aucune fiche correspondante en base</span>'}
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" class="btn-xs" data-copy="${esc(curlCmd)}">Copier curl</button>
-          ${d.title ? `<button type="button" class="btn-xs" data-inspect-tested="${esc(d.title.id)}">Ouvrir la fiche complète →</button>` : ''}
-        </div>
-      </div>`;
-
-      if (list.length) {
-        html += list.map((t) => `<div class="trailer-item">
-          <div>
-            <div style="font-weight:600">${esc(t.title)}</div>
-            <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
-              <span class="badge">${esc(t.source)}</span>
-              <span class="badge badge-accent">${t.season ? `Saison ${t.season}` : 'Toutes saisons'}</span>
-              <span class="badge">${esc(t.kind || 'trailer')}</span>
-            </div>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button type="button" class="btn-xs btn-primary" data-pg-play="${esc(t.url)}" data-pg-title="${esc(t.title)}" data-pg-id="${esc(d.title?.id || '')}">▶ Lire</button>
-            <button type="button" class="btn-xs" data-copy="${esc(t.url)}">Copier URL</button>
-          </div>
-        </div>`).join('');
-      }
-      if (d.debug) {
-        html += `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:12px">Réponse &amp; diagnostic JSON complet</summary><pre class="code-box" style="margin-top:6px">${esc(JSON.stringify(d, null, 2))}</pre></details>`;
-      }
-      box.innerHTML = html;
-    } catch (err) {
-      box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
-    }
-  });
-
-  $('pgSearchForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const p = new URLSearchParams({ limit: '10' });
-    if ($('pgSearchQ').value.trim()) p.set('q', $('pgSearchQ').value.trim());
-    if ($('pgSearchFilter').value) p.set('filter', $('pgSearchFilter').value);
-    if ($('pgSearchType').value) p.set('type', $('pgSearchType').value);
-    const box = $('fedTestOut');
-    box.classList.remove('hide');
-    box.innerHTML = '<div class="muted">Exécution de GET /api/search…</div>';
-    try {
-      const d = await api(`/admin/api/test-search?${p}`);
-      box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div><span class="badge badge-ok">${pl(d.total || 0, 'fiche correspondante', 'fiches correspondantes')}</span> <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span></div>
-      </div>
-      <pre class="code-box">${esc(JSON.stringify(d, null, 2))}</pre>`;
-    } catch (err) { box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`; }
-  });
-
-  $('pgBatchForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const box = $('fedTestOut');
-    box.classList.remove('hide');
-    try {
-      const parsed = JSON.parse($('pgBatchJson').value);
-      box.innerHTML = '<div class="muted">Exécution de POST /api/trailers/batch…</div>';
-      const d = await api('/admin/api/test-batch', { method: 'POST', body: parsed });
-      box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-        <span class="badge badge-ok">${d.foundCount} / ${d.count} avec MP4</span>
-        <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span>
-      </div>
-      <pre class="code-box">${esc(JSON.stringify(d, null, 2))}</pre>`;
-    } catch (err) {
-      box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
-    }
-  });
-
-  $('pgStatusBtn').addEventListener('click', async () => {
-    const box = $('fedTestOut');
-    box.classList.remove('hide');
-    try {
-      const sum = await api('/admin/api/summary');
-      const statusSample = {
-        ok: true,
-        version: sum.version,
-        uptime: Math.round(sum.uptime || 0),
-        capabilities: ['trailers', 'batch', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
-        sources: {
-          netflix: true,
-          appletv: !!sum.sources?.appletv,
-          ffmpeg: !!sum.sources?.ffmpeg,
-          resolve: !!sum.sources?.resolve,
-          upstream: !!sum.sources?.upstream,
-        },
-        stats: sum.stats,
-      };
-      box.innerHTML = `<pre class="code-box">${esc(JSON.stringify(statusSample, null, 2))}</pre>`;
-    } catch (err) {
-      box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
-    }
-  });
-
-  $('fedTestOut').addEventListener('click', async (e) => {
-    const playBtn = e.target.closest('[data-pg-play]');
-    if (playBtn) {
-      const id = playBtn.dataset.pgId;
-      if (id) await openInspector(id);
-      playInModal(playBtn.dataset.pgPlay, playBtn.dataset.pgTitle);
-      return;
-    }
-    const b = e.target.closest('[data-inspect-tested]');
-    if (b) openInspector(b.dataset.inspectTested);
   });
 
   // ---- TAB 5: Settings, SQLite Backup & HLS Cache ----
@@ -3108,7 +3578,7 @@
     try {
       const qs = new URLSearchParams({
         search: $('titlesSearch').value.trim(),
-        filter: titlesFilter,
+        filter: titlesState.filter,
         type: $('titlesType').value,
         sort: $('titlesSort').value,
         limit: '5000',

@@ -269,7 +269,7 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.1.0 (sans manifest Stremio) ----
+    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.2.0 (sans manifest Stremio) ----
     const manifest404 = await fetch(`${base}/manifest.json`);
     assert.strictEqual(manifest404.status, 404, '/manifest.json ne doit plus exister en mode pur serveur API');
 
@@ -277,8 +277,10 @@ async function testHlsAndHttp() {
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v3.1.0'), 'Le badge de version v3.1.0 doit être injecté dans /admin');
+    assert.ok(html.includes('v3.2.0'), 'Le badge de version v3.2.0 doit être injecté dans /admin');
     assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
+    assert.ok(html.includes('id="tab-streams"') && html.includes('Test des flux'), 'L\'onglet Test des flux doit être présent dans Exploitation');
+    assert.ok(html.includes('API &amp; Connexion'), 'L\'onglet API & Connexion simplifié doit être présent');
     assert.ok(html.includes('white-space: pre-wrap'), 'Les blocs code-box doivent préserver les retours à la ligne');
     assert.ok(!html.includes('/manifest.json') && !html.includes('stremio://'), 'Aucune trace de manifest.json ou stremio:// ne doit rester dans /admin');
 
@@ -293,7 +295,7 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '3.1.0');
+    assert.strictEqual(summary.version, '3.2.0');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
@@ -325,14 +327,39 @@ async function testHlsAndHttp() {
     assert.strictEqual(testFedJson.trailers.length, 1);
     assert.ok(testFedJson.debug && testFedJson.debug.counts);
 
-    // ---- 6. Système d'API v3.1.0 : clés scopées, quotas par clé, pause/rotation, batch, prewarm, search, title, submit, OpenAPI ----
+    // /admin/api/probe-stream + /admin/api/stream-sample (onglet Exploitation -> Test des flux)
+    const brokenProbe = await fetch(`${base}/admin/api/probe-stream`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ url: `${base}/trailer/880099/0.mp4` }),
+    }).then((r) => r.json());
+    assert.strictEqual(brokenProbe.ok, false, 'Un flux relais cassé doit être détecté comme KO par probe-stream');
+    assert.strictEqual(brokenProbe.status, 502);
+    assert.strictEqual(brokenProbe.isMp4, false);
+
+    const okProbe = await fetch(`${base}/admin/api/probe-stream`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ url: `${base}/trailer/880099/1.mp4` }),
+    }).then((r) => r.json());
+    assert.strictEqual(okProbe.ok, true, 'Un flux MP4 valide doit être validé (ftyp) par probe-stream');
+    assert.strictEqual(okProbe.isMp4, true);
+    assert.ok(okProbe.status === 200 || okProbe.status === 206);
+    assert.strictEqual(okProbe.relay, 'trailer');
+
+    const sampleRes = await fetch(`${base}/admin/api/stream-sample?limit=4`, { headers: adminHeaders }).then((r) => r.json());
+    assert.strictEqual(sampleRes.ok, true);
+    assert.ok(Array.isArray(sampleRes.items) && sampleRes.items.length >= 1);
+    assert.ok(sampleRes.items.every((it) => it.primary && typeof it.primary.url === 'string'));
+
+    // ---- 6. Système d'API v3.2.0 : clés scopées, quotas par clé, pause/rotation, batch, prewarm, search, title, submit, OpenAPI ----
     // 6a. Spécification OpenAPI 3.0.3 publique + CORS
     const oaRes = await fetch(`${base}/api/v1/openapi.json`);
     assert.strictEqual(oaRes.status, 200);
     assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
     const oaJson = await oaRes.json();
     assert.strictEqual(oaJson.openapi, '3.0.3');
-    assert.strictEqual(oaJson.info.version, '3.1.0');
+    assert.strictEqual(oaJson.info.version, '3.2.0');
     assert.ok(oaJson.paths['/api/trailers/batch']);
     assert.ok(oaJson.paths['/api/prewarm']);
 
@@ -486,7 +513,7 @@ async function testHlsAndHttp() {
 }
 
 testHlsAndHttp().then(() => {
-  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée, sauvegarde SQLite et dashboard v3.1.0 vérifiés');
+  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée, sonde de flux MP4, sauvegarde SQLite et dashboard v3.2.0 vérifiés');
 }).catch((err) => {
   console.error(err);
   process.exit(1);
