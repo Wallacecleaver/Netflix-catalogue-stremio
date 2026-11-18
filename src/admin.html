@@ -1491,14 +1491,15 @@
             <div class="card" style="margin-bottom:0">
               <div class="card-head">
                 <div>
-                  <h2 class="card-title">Mode addon Stremio autonome (optionnel)</h2>
-                  <p class="card-sub">Si tu utilises aussi Stockage DB directement dans Stremio sans passer par <span class="mono">vf-trailer-wallace</span>.</p>
+                  <h2 class="card-title">Points d'entrée du serveur API</h2>
+                  <p class="card-sub">Stockage DB fonctionne uniquement comme serveur API REST, base SQLite et relais vidéo MP4/HLS (sans manifest).</p>
                 </div>
               </div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <input id="stremioManifestInput" type="text" class="mono" readonly style="flex:1;min-width:220px">
-                <button type="button" class="btn-sm" id="copyManifestBtn">Copier</button>
-                <a id="stremioInstallLink" class="btn btn-sm" href="#">Ouvrir dans Stremio</a>
+                <input id="apiBaseEntryInput" type="text" class="mono" readonly style="flex:1;min-width:220px">
+                <button type="button" class="btn-sm" id="copyApiBaseEntryBtn">Copier l'URL API</button>
+                <a id="openApiSpecSysLink" class="btn btn-sm" href="/api/v1/openapi.json" target="_blank" rel="noopener">OpenAPI JSON ↗</a>
+                <a id="healthCheckSysLink" class="btn btn-sm" href="/health" target="_blank" rel="noopener">Sonde /health ↗</a>
               </div>
             </div>
           </div>
@@ -2000,11 +2001,11 @@
       <div class="muted" style="font-size:12px">Conservation : ${pl(hls.cacheDays, 'jour')} · Conversions actives : ${hls.inflight || 0} · Dossier : <span class="mono">${esc(hls.dir || 'data/hls')}</span></div>
     `;
 
-    // Stremio standalone manifest URL
+    // URLs publiques du serveur API
     const pub = ((d.addon && d.addon.publicUrl) || location.origin).replace(/\/+$/, '');
-    const manifestUrl = `${pub}/manifest.json`;
-    $('stremioManifestInput').value = manifestUrl;
-    $('stremioInstallLink').href = manifestUrl.replace(/^https?:\/\//, 'stremio://');
+    $('apiBaseEntryInput').value = `${pub}/api/v1`;
+    $('openApiSpecSysLink').href = `${pub}/api/v1/openapi.json`;
+    $('healthCheckSysLink').href = `${pub}/health`;
     $('fedBaseUrl').value = pub;
     renderVfEnvSnippet(pub);
 
@@ -3070,7 +3071,7 @@
   });
 
   // ---- TAB 5: Settings & HLS Cache ----
-  $('copyManifestBtn').addEventListener('click', () => copyText($('stremioManifestInput').value, 'URL du manifest copiée'));
+  $('copyApiBaseEntryBtn').addEventListener('click', () => copyText($('apiBaseEntryInput').value, 'URL API v1 copiée'));
 
   $('clearHlsBtn').addEventListener('click', async () => {
     if (!confirm('Purger tous les fichiers MP4 convertis du cache HLS ? Ils seront reconvertis à la demande.')) return;

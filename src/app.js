@@ -1,10 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
 const { Readable } = require('stream');
-const { getRouter } = require('stremio-addon-sdk');
+const { version: APP_VERSION } = require('../package.json');
 const config = require('./config');
 const store = require('./db');
-const { builder, manifest } = require('./addon');
 const { HTML: ADMIN_HTML } = require('./admin');
 const settings = require('./settings');
 const log = require('./log');
@@ -31,8 +30,7 @@ app.use(express.json({ limit: '64kb' }));
 // 'loopback' = comportement historique (l'en-tête n'est lu que si le pair est local).
 app.set('trust proxy', config.trustProxy);
 
-// Limiteurs dédiés : les routes publiques coûteuses (résolution, relais vidéo) sont bornées.
-const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, name: 'api' });
+// Limiteur dédié sur le relais vidéo public (/trailer, /apple, /media).
 const mediaLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'media' });
 
 // ---- Accès admin : mot de passe = ADMIN_TOKEN (.env) ----
@@ -175,7 +173,7 @@ const keyBucketTimer = setInterval(() => {
 if (keyBucketTimer.unref) keyBucketTimer.unref();
 
 function checkBucket(bucketKey, limitPerMin, res) {
-  res.setHeader('X-Stockage-Version', manifest.version);
+  res.setHeader('X-Stockage-Version', APP_VERSION);
   if (!limitPerMin || limitPerMin <= 0) {
     res.setHeader('X-RateLimit-Limit', 'unlimited');
     return true; // 0 = illimité pour cette clé
@@ -394,7 +392,7 @@ app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
   const effectiveKeyCount = activeKeys + (leg.active ? 1 : 0);
   const hasKey = effectiveKeyCount > 0;
   res.json({
-    version: manifest.version, uptime: process.uptime(), node: process.version,
+    version: APP_VERSION, uptime: process.uptime(), node: process.version,
     stats: store.stats(), settings: settings.view(), hls: hlsStats,
     apiMetrics: getApiMetricsView(),
     addon: {
@@ -745,7 +743,7 @@ app.post('/admin/api/logs/clear', auth, (_req, res) => {
 });
 // Sonde de santé : volontairement minimale (pas d'inventaire des sources ni des erreurs).
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, version: manifest.version, uptime: Math.round(process.uptime()), titles: store.stats().total });
+  res.json({ ok: true, version: APP_VERSION, uptime: Math.round(process.uptime()), titles: store.stats().total });
 });
 
 // ---- Logique partagée de l'API de fédération (/api/trailers + batch + console interactive du dashboard) ----
@@ -939,7 +937,7 @@ function buildOpenApiSpec() {
     openapi: '3.0.3',
     info: {
       title: 'Stockage DB — API de Fédération & Catalogue',
-      version: manifest.version,
+      version: APP_VERSION,
       description: 'API REST de Stockage DB : bandes-annonces MP4/HLS multi-sources (Netflix, Apple TV+, liens directs, instance amont) triées par saison pour vf-trailer-wallace et clients externes.',
     },
     servers: [{ url: base }],
@@ -1019,7 +1017,7 @@ app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res)
   res.setHeader('X-Response-Time', `${ms}ms`);
   res.json({
     ok: true,
-    version: manifest.version,
+    version: APP_VERSION,
     uptime: Math.round(process.uptime()),
     capabilities: ['trailers', 'batch', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
     sources: {
@@ -1191,7 +1189,7 @@ app.post(['/api/trailers/submit', '/api/v1/trailers/submit'], apiGuard('trailers
   }
 }));
 
-// Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).
+// Racine : redirige vers le dashboard d'administration (/admin).
 app.get('/', (_req, res) => res.redirect('/admin'));
 
 // ---- Bande-annonce Netflix : relais de la vidéo (avec lien renouvelé si expiré) ----
@@ -1342,18 +1340,8 @@ async function manualTrailerHandler(req, res) {
 app.get('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
 app.head('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
 
-// Stremio relit le manifest régulièrement : un cache court évite de le régénérer à chaque ouverture.
-app.use((req, res, next) => {
-  if (req.path === '/manifest.json') res.set('cache-control', 'public, max-age=300');
-  next();
-});
-
-// Une route d'API inconnue répond en JSON (et non avec la page d'erreur HTML d'Express).
-app.use(['/admin/api', '/api'], (_req, res) => res.status(404).json({ error: 'Route inconnue' }));
-
-// Limitation de débit sur les routes publiques Stremio (/stream et /meta déclenchent de la résolution réseau).
-app.use(['/stream', '/meta'], apiLimiter);
-app.use(getRouter(builder.getInterface()));
+// Toute route inconnue répond proprement en JSON 404 (plus de /manifest.json ni de routes Stremio).
+app.use((_req, res) => res.status(404).json({ error: 'Route inconnue' }));
 
 // Dernier filet : JSON invalide, corps trop gros, erreur inattendue → réponse JSON propre, jamais de requête pendue.
 app.use((err, req, res, _next) => {

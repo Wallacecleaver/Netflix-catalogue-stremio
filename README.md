@@ -1,13 +1,11 @@
-# Stockage DB — addon Stremio
+# Stockage DB — Serveur API & Relais MP4
 
-Un addon Stremio qui **stocke et relaie des bandes-annonces**. Aucun film, aucune série, aucun catalogue :
-pour chaque titre, il garde la bande-annonce Netflix et Apple TV, et la propose comme source sur n'importe
-quelle fiche Stremio dont l'ID IMDb est connu — films, séries, épisodes.
+Serveur backend qui **stocke, convertit et expose par API des bandes-annonces MP4** (Netflix, Apple TV+, liens directs, instance amont).
+Il ne contient aucun manifest Stremio : tout passe par son **API REST (`/api/v1/*`)**, son **relais vidéo MP4/HLS** et son **Dashboard Admin (`/admin`)** pour alimenter `vf-trailer-wallace` ou tout autre client externe.
 
 > Les anciennes bases `./data/netflix.db` sont automatiquement migrées vers `./data/stockage.db` au démarrage.
-> Si l'addon était déjà installé dans Stremio sous son ancien identifiant, réinstalle-le depuis `/manifest.json`.
 
-Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqlite3`) · Docker.
+Stack : Node.js ≥ 20 · Express · SQLite (`better-sqlite3`) · `ffmpeg` · Docker.
 
 ---
 
@@ -15,10 +13,10 @@ Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqli
 
 | | |
 |---|---|
-| **Stocke** | synopsis, année, classification, genres, casting, épisodes, affiches et bandes-annonces |
-| **Relaie** | `/trailer/<id>/<n>.mp4` renouvelle le lien Netflix signé à chaque lecture ; `/apple/<id>/<n>.mp4` convertit le HLS Apple en MP4 (avec le son) |
-| **Trouve** | un titre absent de la base est résolu à la volée : TMDB → JustWatch → page Netflix → Apple TV → YouTube |
-| **Partage** | une instance peut exposer ses bandes-annonces à une autre (`/api/trailers`) |
+| **Stocke** | synopsis, année, classification, genres, casting, épisodes, affiches et bandes-annonces par saison |
+| **Relaie** | `/trailer/<id>/<n>.mp4` renouvelle le lien Netflix signé à chaque lecture ; `/apple/<id>/<n>.mp4` et `/media/<id>/<n>.mp4` convertissent le HLS en MP4 (avec le son) |
+| **Trouve** | un titre absent de la base est résolu à la volée : TMDB → JustWatch → page Netflix → Apple TV+ → YouTube |
+| **Expose** | API REST complète (`/api/v1/trailers`, `/api/v1/trailers/batch`, `/api/v1/search`, `/api/v1/title/:id`, `/api/v1/trailers/submit`, `/api/v1/openapi.json`) avec clés scopées et quotas personnalisables |
 
 ## Installation
 
@@ -26,11 +24,11 @@ Stack : Node.js ≥ 20 · `stremio-addon-sdk` · Express · SQLite (`better-sqli
 
 ```bash
 git clone https://github.com/Wallacecleaver/stockage-db.git && cd stockage-db
-cp .env.example .env      # renseigne ADMIN_TOKEN et TMDB_API_KEY
+cp .env.example .env      # renseigne ADMIN_TOKEN, PUBLIC_URL et TMDB_API_KEY
 docker compose up -d --build
 ```
 
-Le reverse proxy HTTPS est obligatoire pour Stremio :
+Derrière un reverse proxy HTTPS (Caddy) :
 
 ```
 stockage.mondomaine.fr {
@@ -38,7 +36,7 @@ stockage.mondomaine.fr {
 }
 ```
 
-Puis dans Stremio : *Addons → Install from URL* → `https://stockage.mondomaine.fr/manifest.json`.
+Puis ouvre `https://stockage.mondomaine.fr/admin` et génère ta clé API dans l'onglet **API & Fédération**.
 
 **En local (Windows/macOS/Linux)**
 
@@ -217,13 +215,12 @@ npm run api-check -- tt26598805 --url https://stockage.mondomaine.fr --key <clé
 Il affiche la fiche, ses identifiants, les bandes-annonces par source et une conclusion :
 fiche absente, recherche en cours, ou fiche présente sans bande-annonce.
 
-**Supervision** — `GET /health` renvoie la version, l'uptime, les compteurs par source, le travail
-restant et l'état des sources. `GET /manifest.json` est mis en cache 5 min.
+**Supervision** — `GET /health` renvoie la version, l'uptime et le total de titres. `GET /api/v1/status` (avec clé API) renvoie l'état détaillé des sources et capacités.
 
 ## Tests
 
 ```bash
-npm test              # parseurs, fusion, SQL, handlers Stremio — sans réseau
+npm test              # parseurs, fusion, SQL, anti-SSRF, API v1 et dashboard — sans réseau externe
 npm run test:search   # recherche des IDs (JustWatch, secours web) + API iTunes
 npm run test:youtube  # extraction YouTube, notation, refus du bruit
 ```
@@ -238,7 +235,7 @@ L'image Docker embarque `test/` : ces commandes fonctionnent aussi dans le conte
   inspect`, `npm run inspect-appletv` et `npm run inspect-prime -- <url|id>` affichent ce qui a été lu.
 - **Quotas** : JustWatch pour les IDs, TMDB pour les métadonnées, YouTube pour le repli (1 recherche à la
   fois, espacées d'1,2 s).
-- **Couverture** : beaucoup de titres n'ont aucune bande-annonce exploitable — c'est normal, l'addon ne
+- **Couverture** : beaucoup de titres n'ont aucune bande-annonce exploitable — c'est normal, le serveur ne
   fabrique rien.
 
 ## Dépannage
@@ -246,8 +243,8 @@ L'image Docker embarque `test/` : ces commandes fonctionnent aussi dans le conte
 | Symptôme | Piste |
 |---|---|
 | `/admin` répond 503 | `ADMIN_TOKEN` absent du `.env` |
-| Stremio refuse d'installer l'addon | HTTPS obligatoire pour un addon distant |
-| Les bandes-annonces ne se lisent pas | `PUBLIC_URL` doit être l'adresse réellement accessible par Stremio |
+| `/api/v1/trailers` répond 403 ou 401 | Crée une clé API dans `/admin` → onglet **API & Fédération** |
+| Les bandes-annonces ne se lisent pas | `PUBLIC_URL` doit être l'adresse publique réellement accessible par les clients |
 | Vidéos Apple muettes | `ffmpeg` absent : installe-le ou renseigne `FFMPEG_PATH` |
 | Recherche Apple TV en erreur 400 | les paramètres du client web Apple ont changé : recopie `v`, `utscf` et `utsk` depuis tv.apple.com (F12 → Réseau) dans `APPLETV_API_VERSION`, `APPLETV_UTSCF`, `APPLETV_UTSK` |
 | Vérifier un relais à la main | ouvre `PUBLIC_URL/trailer/<id_netflix>/0.mp4` dans un navigateur |
@@ -258,8 +255,8 @@ L'image Docker embarque `test/` : ces commandes fonctionnent aussi dans le conte
 ## Structure
 
 ```
-src/addon.js            manifest, handlers meta et stream
-src/app.js              routes Express : dashboard, relais, API, /health
+src/index.js            point d'entrée HTTP + planificateur de synchro
+src/app.js              routes Express : API v1, dashboard, relais MP4/HLS, /health
 src/netflix.js          scraper de la page Netflix
 src/primevideo.js       parseur de la page Prime Video (métadonnées)
 src/appletv.js          recherche Apple TV + HLS → MP4 (src/hls.js)

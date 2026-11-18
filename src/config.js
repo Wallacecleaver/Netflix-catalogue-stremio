@@ -5,7 +5,6 @@ module.exports = {
   dbPath: process.env.DB_PATH || './data/stockage.db',
   tmdbKey: process.env.TMDB_API_KEY || '',
   publicUrl: (process.env.PUBLIC_URL || `http://localhost:${num(process.env.PORT, 7000)}`).replace(/\/+$/, ''),
-  metaCacheSeconds: num(process.env.META_CACHE_SECONDS, 300),
   apiKey: process.env.API_KEY || '',
   // API de fédération ouverte uniquement sur demande explicite (sinon une clé est obligatoire).
   allowOpenApi: process.env.ALLOW_OPEN_API === '1',
@@ -27,9 +26,7 @@ module.exports = {
   syncEveryHours: num(process.env.SYNC_EVERY_HOURS, 24),
   recentDays: num(process.env.RECENT_DAYS, 90),
   recentPages: num(process.env.RECENT_PAGES, 3),
-  // Pays dont on moissonne le catalogue Netflix (l'ID Netflix est le même partout : on fait l'union, dédoublonnée).
-  // Bandes-annonces Apple TV (API web non documentée ; sf 143442 = France).
-  // Résolution à la demande (TMDB → recherche web → page Netflix) quand Stremio ouvre une fiche inconnue. Nécessite TMDB_API_KEY.
+  // Résolution à la demande (TMDB → recherche web → page Netflix) lors d'un appel /api/trailers sur un ID IMDb inconnu. Nécessite TMDB_API_KEY.
   resolveEnabled: process.env.RESOLVE_ENABLED !== '0',
   // Relecture automatique d'une page Netflix déjà connue au bout de N heures (détecte les nouveaux teasers/saisons).
   netflixRefreshEnabled: process.env.NETFLIX_REFRESH !== '0',
@@ -44,7 +41,7 @@ module.exports = {
   appletvUtsk: process.env.APPLETV_UTSK || '6e3013c6d6fae3c2::::::235656c069bb0efb',
   appletvMaxTrailers: num(process.env.APPLETV_MAX_TRAILERS, 2),
   appletvTimeoutMs: num(process.env.APPLETV_TIMEOUT_MS, 6000),
-  // Bandes-annonces HLS (Apple TV) recollées en MP4 dans un cache disque, pour qu'elles se lisent partout.
+  // Bandes-annonces HLS (Apple TV / liens manuels) recollées en MP4 dans un cache disque, pour qu'elles se lisent partout.
   hlsCacheDir: process.env.HLS_CACHE_DIR || './data/hls',
   hlsMaxHeight: num(process.env.HLS_MAX_HEIGHT, 720),      // hauteur maximale des variantes téléchargées
   hlsMaxMB: num(process.env.HLS_MAX_MB, 60),               // poids maximal estimé d'une bande-annonce
@@ -58,13 +55,8 @@ module.exports = {
   braveCountry: (process.env.BRAVE_COUNTRY || process.env.REGION || 'FR').toUpperCase(),
   braveLang: (process.env.BRAVE_LANG || String(process.env.TMDB_LANG || 'fr-FR').slice(0, 2)).toLowerCase(),
   // Plateformes dont on liste le catalogue dans TMDB : 8 = Netflix, 337 = Apple TV+, 2 = Apple TV,
-  // 119 = Prime Video, « all » = aucune filtre (tout TMDB, plusieurs centaines de milliers de titres).
+  // 119 = Prime Video, « all » = aucun filtre (tout TMDB, plusieurs centaines de milliers de titres).
   catalogProviders: (process.env.CATALOG_PROVIDERS || '8,337').trim(),
-  // Proposer AUSSI la vidéo YouTube de TMDB quand une bande-annonce Netflix/Apple existe.
-  // Netflix ne sert ses bandes-annonces qu'en 768x432 ; YouTube monte à 1080p, mais se joue via
-  // l'intégration YouTube de Stremio (clé `ytId`), pas comme un fichier relayé par ce serveur.
-  // '1' / '0' (chaîne) pour que le réglage du dashboard affiche la bonne valeur.
-  youtubeAsSource: process.env.YOUTUBE_AS_SOURCE === '1' ? '1' : '0',
   // Dernier recours quand TMDB ne fournit aucune bande-annonce : recherche YouTube (sans clé API).
   // '0' pour désactiver (YouTube peut bloquer un serveur trop bavard).
   youtubeSearchEnabled: process.env.YOUTUBE_SEARCH === '0' ? '0' : '1',

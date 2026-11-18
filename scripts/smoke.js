@@ -1,4 +1,4 @@
-// Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL et handlers Stremio. Aucun appel réseau.
+// Test hors-ligne : parseur (structure réelle d'une page Netflix), SQL, résolution et serveur API REST. Aucun appel réseau externe.
 process.env.DB_PATH = require('path').join(require('os').tmpdir(), `stockage-db-smoke-${Date.now()}.db`);
 process.env.ADMIN_TOKEN = 'test-token';
 process.env.APPLETV_ENABLED = '0';   // test hors-ligne : pas de recherche Apple TV automatique
@@ -11,7 +11,6 @@ const assert = require('assert');
 const { parseNetflixHtml } = require('../src/netflix');
 const store = require('../src/db');
 const { withReleased, mergeEpisodes } = require('../src/enrich');
-const { builder } = require('../src/addon');
 const jw = require('../src/justwatch');
 
 const ep = (n, title, syn, sec, id) => ({ node: { __typename: 'Episode', videoId: id, number: n, runtimeSec: sec, shortSynopsis: syn, title,
@@ -122,49 +121,38 @@ store.upsertTitle({ id: 'nflx:81944880', netflix_id: '81944880', type: p.type, n
 store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
 
 (async () => {
-  const iface = builder.getInterface();
-  // Plus de catalogue : manifest sans catalogue, flux sur les IDs IMDb (tt…) et sur les anciennes fiches nflx:, meta seulement nflx:
-  assert.equal(iface.manifest.name, 'Stockage DB');
-  assert.equal(iface.manifest.id, 'community.wallacecleaver.stockage-db');
-  assert.deepEqual(iface.manifest.catalogs, []);
-  assert.ok(!iface.manifest.resources.some((r) => r.name === 'catalog'));
-  assert.deepEqual(iface.manifest.resources.find((r) => r.name === 'stream').idPrefixes, ['nflx:', 'prime:', 'apple:', 'tt']);
-  const { meta } = await iface.get('meta', 'series', 'nflx:81944880');
-  assert.equal(meta.videos.length, 4); assert.equal(meta.videos[0].id, 'nflx:81944880:1:1');
-  assert.ok(new Date(meta.videos[3].released) < new Date());                         // pas d'épisode "dans le futur"
-  assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(meta.trailerStreams[0].url));   // bande-annonce Netflix d'abord (relayée)
-  assert.equal(meta.trailerStreams.length, 1); assert.equal(meta.trailers, undefined); // pas de YouTube quand Netflix est dispo
-  assert.equal(meta.posterShape, 'landscape'); assert.deepEqual(meta.director, ['Kasper Barfoed']);
-  // Flux : la bande-annonce Netflix est proposée dans le panneau « flux » (fiche et épisodes)
-  assert.ok(iface.manifest.resources.some((r) => r.name === 'stream'));
-  const sEp = await iface.get('stream', 'series', 'nflx:81944880:1:1');
-  assert.equal(sEp.streams.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(sEp.streams[0].url));
-  assert.deepEqual((await iface.get('stream', 'series', 'nflx:inconnu:1:1')).streams, []);
+  const fedCheck = require('../src/federation');
+  const resolveMod = require('../src/resolve');
+  // Stockage SQLite des épisodes + relais MP4 multi-sources (sans manifest Stremio)
+  const storedRow = store.getTitle('nflx:81944880');
+  const storedEps = store.getEpisodes('nflx:81944880');
+  assert.equal(storedEps.length, 4);
+  assert.ok(new Date(storedEps[3].released) < new Date());                           // pas d'épisode "dans le futur"
+  assert.equal(storedRow.extra.posterShape, 'landscape');
+  assert.deepEqual(storedRow.extra.directors, ['Kasper Barfoed']);
+  const initTrailers = fedCheck.trailerUrls(storedRow, { includeApple: true, includeManual: true });
+  assert.equal(initTrailers.length, 1);
+  assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(initTrailers[0].url));               // bande-annonce Netflix relayée
   assert.equal(store.listVfPending().some((r) => r.id === 'nflx:81944880'), true);   // jamais vérifié
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', vf_checked: Date.now() });
   assert.equal(store.listVfPending().some((r) => r.id === 'nflx:81944880'), false);
-  assert.ok(!(await iface.get('stream', 'series', 'nflx:81944880:1:1')).streams.some((x) => x.ytId));   // plus aucun flux YouTube
-  // Flux via l'ID IMDb : n'importe quelle fiche Stremio (film, série, épisode) dont l'IMDb est stocké
+  // Lookup fédération par ID IMDb
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', imdb_id: 'tt9999999' });
-  const streamsImdb = (await iface.get('stream', 'series', 'tt9999999:1:2')).streams;
-  assert.equal(streamsImdb.length, 1); assert.ok(/\/trailer\/81944880\/0\.mp4$/.test(streamsImdb[0].url));
-  assert.deepEqual((await iface.get('stream', 'movie', 'tt0000001')).streams, []);   // IMDb inconnu
-  assert.deepEqual((await iface.get('stream', 'movie', 'kitsu:1')).streams, []);       // ID non géré
+  const hitImdb = fedCheck.lookup({ imdb: 'tt9999999' });
+  assert.ok(hitImdb && hitImdb.id === 'nflx:81944880');
+  assert.equal(fedCheck.lookup({ imdb: 'tt0000001' }), null);                        // IMDb inconnu
   // Apple TV : flux stockés, exposés via le relais /apple/<id>/<n>.mp4.
-  // Un HLS n'est annoncé que si ffmpeg peut le convertir (sinon Stremio recevrait un flux mort) ;
-  // un MP4 direct l'est toujours.
+  // Un HLS n'est annoncé que si ffmpeg peut le convertir ; un MP4 direct l'est toujours.
   const hasFfmpeg = require('../src/hls').ffmpegAvailable();
   const appleRelayOf = (i) => `${require('../src/config').publicUrl}/apple/${encodeURIComponent('nflx:81944880')}/${i}.mp4`;
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.m3u8', source: 'appletv', ver: 2 }], appletv_checked: Date.now() });
-  const withHls = (await iface.get('stream', 'series', 'tt9999999')).streams;
+  const withHls = fedCheck.trailerUrls(store.getTitle('nflx:81944880'), { includeApple: true });
   assert.equal(withHls.length, hasFfmpeg ? 2 : 1);
   if (hasFfmpeg) assert.equal(withHls[1].url, appleRelayOf(0));
 
   store.upsertTitle({ id: 'nflx:81944880', type: 'series', name: 'Trouble échange', appletv: [{ title: 'Bande-annonce', url: 'https://apple.test/a.mp4', source: 'appletv', ver: 2 }], appletv_checked: Date.now() });
-  const withApple = (await iface.get('stream', 'series', 'tt9999999')).streams;
-  assert.equal(withApple.length, 2); assert.equal(withApple[1].name, 'Apple TV'); assert.equal(withApple[1].url, appleRelayOf(0));
-  assert.equal(withApple[1].behaviorHints.notWebReady, false);
-  assert.equal((await iface.get('meta', 'series', 'nflx:81944880')).meta.trailerStreams.at(-1).url, appleRelayOf(0));
+  const withApple = fedCheck.trailerUrls(store.getTitle('nflx:81944880'), { includeApple: true });
+  assert.equal(withApple.length, 2); assert.equal(withApple[1].source, 'appletv'); assert.equal(withApple[1].url, appleRelayOf(0));
   assert.equal(store.listAppletvPending().some((r) => r.id === 'nflx:81944880'), false);
   const ddg = require('../src/search').parse(`<div class="result"><h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.netflix.com%2Ffr%2Ftitle%2F81944880&amp;rut=x">Watch Trouble échange | Netflix Official Site</a></h2><a class="result__snippet" href="x">Un échange de maisons &amp; <b>plus</b></a></div>
     <div class="result"><a rel="nofollow" class="result__a" href="https://www.netflix.com/title/81727408">Autre &#x27;série&#x27;</a></div>
@@ -180,20 +168,21 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
     findByImdb: async (imdb) => { rcalls.tmdb++; return imdb === 'tt5550001' ? { tmdbType: 'tv', tmdbId: 5, type: 'series', name: 'Trouble échange', originalName: 'Utbyte', year: 2026, release_date: '2026-10-30' } : null; },
     basics: async () => ({ genres: [] }), searchMatch: async () => null });
   searchMod.netflix = async () => { rcalls.ddg++; return [{ id: '70000001', title: 'Autre série', snippet: '' }, { id: '81944999', title: 'Trouble échange', snippet: '' }]; };
-  nfMod.fetchNetflixPage = async (nid) => { rcalls.page++; return html; };
+  nfMod.fetchNetflixPage = async () => { rcalls.page++; return html; };
   const oldTmdbKey = cfgR.tmdbKey; cfgR.tmdbKey = 'test';
-  const resolved1 = (await iface.get('stream', 'series', 'tt5550001:1:1')).streams;
+  const resolvedRow1 = await resolveMod.ensure('tt5550001', 'series', null, { timeoutMs: 9000 });
+  const resolved1 = fedCheck.trailerUrls(resolvedRow1);
   assert.ok(resolved1.some((x) => /\/trailer\/81944999\/0\.mp4$/.test(x.url)));     // Netflix trouvé
   assert.equal(rcalls.page, 1);                                                      // 'Autre série' écartée sans lire sa page
   assert.equal(store.findByImdbId('tt5550001').id, 'nflx:81944999');
-  await iface.get('stream', 'series', 'tt5550001:1:2');
+  await resolveMod.ensure('tt5550001', 'series', store.findByImdbId('tt5550001'), { timeoutMs: 9000 });
   assert.deepEqual(rcalls, { tmdb: 1, ddg: 1, page: 1 });                            // 2e ouverture : aucune requête
-  assert.deepEqual((await iface.get('stream', 'movie', 'tt5550002')).streams, []);  // inconnu de TMDB
-  await iface.get('stream', 'movie', 'tt5550002'); assert.equal(rcalls.tmdb, 2);     // l'échec est mis en cache
+  assert.equal(await resolveMod.ensure('tt5550002', 'movie', null, { timeoutMs: 9000 }), null); // inconnu de TMDB
+  await resolveMod.ensure('tt5550002', 'movie', null, { timeoutMs: 9000 }); assert.equal(rcalls.tmdb, 2); // l'échec est mis en cache
   assert.equal(store.stats().lookups, 2); assert.equal(store.stats().lookupsFound, 1);
   searchMod.netflix = async () => [{ id: '81944998', title: 'Trouble échange' }];   // même nom, année trop ancienne → refusé
   tmdbMod.findByImdb = async () => ({ tmdbType: 'tv', tmdbId: 6, type: 'series', name: 'Trouble échange', year: 2030 });
-  assert.equal((await require('../src/resolve').findNetflix({ name: 'Trouble échange', type: 'series', year: 2030 })).nid, null);
+  assert.equal((await resolveMod.findNetflix({ name: 'Trouble échange', type: 'series', year: 2030 })).nid, null);
   cfgR.tmdbKey = oldTmdbKey;
   const ap = require('../src/appletv');
   // La playlist HLS d'Apple n'est pas chiffrée (les clés FairPlay ne concernent que l'app) : la vraie bande-annonce est gardée.
@@ -409,10 +398,8 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(remoteRow.trailers.length, 1);
   assert.equal(remoteRow.trailers[0].source, 'upstream');
   assert.equal(federation.trailerUrls(remoteRow)[0].url, 'https://amont.example/trailer/9/0.mp4');
-  const remoteMeta = await iface.get('meta', 'movie', 'nflx:remote');
-  assert.equal(remoteMeta.meta.trailerStreams[0].url, 'https://amont.example/trailer/9/0.mp4');
-  const remoteStreams = await iface.get('stream', 'movie', 'nflx:remote');
-  assert.equal(remoteStreams.streams[0].url, 'https://amont.example/trailer/9/0.mp4');
+  const remoteApi = await (await fetch(`${base}/api/v1/trailers?imdb=tt8888888&fast=1`, { headers: apiKey })).json();
+  assert.equal(remoteApi.trailers[0].url, 'https://amont.example/trailer/9/0.mp4');
   remoteUpstream.close();
 
   // IDs Netflix : statut du liage + export des IDs stockés (nom + TMDB/IMDb)
@@ -459,15 +446,15 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   assert.equal(badJson.status, 400); assert.equal((await badJson.json()).error, 'JSON invalide');
   assert.equal((await fetch(`${base}/admin`)).headers.get('x-frame-options'), 'DENY');
 
-  // Date de sortie illisible en base : la fiche reste servie (RangeError auparavant)
+  // Date de sortie illisible en base : la fiche reste servie sans erreur via l'API
   store.upsertTitle({ id: 'nflx:55550001', netflix_id: '55550001', type: 'movie', name: 'Date cassée', release_date: 'pas-une-date', year: 2020, enriched: 1 });
-  const brokenMeta = await iface.get('meta', 'movie', 'nflx:55550001');
-  assert.equal(brokenMeta.meta.name, 'Date cassée'); assert.equal(brokenMeta.meta.released, undefined);
+  const brokenTitle = await (await fetch(`${base}/api/v1/title/${encodeURIComponent('nflx:55550001')}`, { headers: apiKey })).json();
+  assert.equal(brokenTitle.title.name, 'Date cassée');
 
-  // Les fiches `prime:` / `apple:` obtiennent aussi leurs flux directement
+  // Les fiches `prime:` / `apple:` exposent aussi leurs métadonnées et leur clé YouTube via l'API
   store.upsertTitle({ id: 'prime:BRK01', type: 'movie', name: 'Film Prime', imdb_id: 'tt5559991', trailer_yt: 'abcDEF12345', enriched: 1 });
-  const primeStreams = await iface.get('stream', 'movie', 'prime:BRK01');
-  assert.ok(primeStreams.streams.length >= 1);
+  const primeTitle = await (await fetch(`${base}/api/v1/title/${encodeURIComponent('prime:BRK01')}`, { headers: apiKey })).json();
+  assert.equal(primeTitle.youtube.key, 'abcDEF12345');
 
   // Stats en cache, mais invalidées dès qu'une fiche change
   const before = store.stats().total;
@@ -528,16 +515,20 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   nfMod.fetchNetflixPage = async (nid) => { assert.equal(nid, '81024821'); refreshHits++; return s2Html; };
   cfgR.netflixRefreshEnabled = true;
 
-  // Ouverture d'un épisode de la Saison 2 : la page Netflix est relue et le Teaser Saison 2 passe n°1
-  const s2Streams = (await iface.get('stream', 'series', 'tt13016388:2:1')).streams;
+  // Vérifie que /manifest.json et /stream/* n'existent plus (pur serveur API)
+  assert.equal((await fetch(`${base}/manifest.json`)).status, 404);
+  assert.equal((await fetch(`${base}/stream/series/tt13016388.json`)).status, 404);
+
+  // Appel API pour la Saison 2 : la page Netflix est relue et le Teaser Saison 2 passe n°1
+  const s2Resp = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=2`, { headers: apiKey })).json();
   assert.equal(refreshHits, 1);
-  assert.match(s2Streams[0].title, /Saison 2 \(Teaser\)/);
-  assert.match(s2Streams[0].url, /\/trailer\/81024821\/0\.mp4$/);
-  // 2e ouverture immédiate (Saison 1) : pas de nouvelle requête Netflix, et « Saison 1 (Dans cette saison) » passe n°1 (avec son index 2 conservé)
-  const s1Streams = (await iface.get('stream', 'series', 'tt13016388:1:1')).streams;
+  assert.match(s2Resp.trailers[0].title, /Saison 2 \(Teaser\)/);
+  assert.match(s2Resp.trailers[0].url, /\/trailer\/81024821\/0\.mp4$/);
+  // 2e appel immédiat (Saison 1) : pas de nouvelle requête Netflix, et « Saison 1 (Dans cette saison) » passe n°1 (avec son index 2 conservé)
+  const s1Resp = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=1`, { headers: apiKey })).json();
   assert.equal(refreshHits, 1);
-  assert.match(s1Streams[0].title, /Saison 1 \(Dans cette saison\)/);
-  assert.match(s1Streams[0].url, /\/trailer\/81024821\/2\.mp4$/);
+  assert.match(s1Resp.trailers[0].title, /Saison 1 \(Dans cette saison\)/);
+  assert.match(s1Resp.trailers[0].url, /\/trailer\/81024821\/2\.mp4$/);
 
   // /api/trailers?season=2&strict_season=1 : ne renvoie que les vraies BA/teasers de la saison 2
   const apiS2 = await (await fetch(`${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1`, { headers: apiKey })).json();
@@ -564,5 +555,5 @@ store.replaceEpisodes('nflx:81944880', withReleased(p.episodes, p.releaseDate));
   cfgR.netflixRefreshEnabled = false;
 
   app.close(); upstream.close();
-  console.log('OK — parseur (structure réelle), fusion, SQL et handlers Stremio');
+  console.log('OK — parseur (structure réelle), fusion, SQL et serveur API REST');
 })().catch((e) => { console.error(e); process.exit(1); });

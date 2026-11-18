@@ -269,14 +269,18 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v2.9.0 ----
+    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v3.0.0 (sans manifest Stremio) ----
+    const manifest404 = await fetch(`${base}/manifest.json`);
+    assert.strictEqual(manifest404.status, 404, '/manifest.json ne doit plus exister en mode pur serveur API');
+
     const htmlRes = await fetch(`${base}/admin`);
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v2.9.0'), 'Le badge de version v2.9.0 doit être injecté dans /admin');
+    assert.ok(html.includes('v3.0.0'), 'Le badge de version v3.0.0 doit être injecté dans /admin');
     assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
     assert.ok(html.includes('white-space: pre-wrap'), 'Les blocs code-box doivent préserver les retours à la ligne');
+    assert.ok(!html.includes('/manifest.json') && !html.includes('stremio://'), 'Aucune trace de manifest.json ou stremio:// ne doit rester dans /admin');
 
     // Vérifie que tout le JavaScript embarqué dans admin.html se compile sans aucune erreur de syntaxe
     const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
@@ -289,7 +293,7 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '2.9.0');
+    assert.strictEqual(summary.version, '3.0.0');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
@@ -317,14 +321,14 @@ async function testHlsAndHttp() {
     assert.strictEqual(testFedJson.trailers.length, 1);
     assert.ok(testFedJson.debug && testFedJson.debug.counts);
 
-    // ---- 6. Système d'API v2.9.0 : clés scopées, quotas par clé, pause/rotation, batch, search, title, submit, OpenAPI ----
+    // ---- 6. Système d'API v3.0.0 : clés scopées, quotas par clé, pause/rotation, batch, search, title, submit, OpenAPI ----
     // 6a. Spécification OpenAPI 3.0.3 publique + CORS
     const oaRes = await fetch(`${base}/api/v1/openapi.json`);
     assert.strictEqual(oaRes.status, 200);
     assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
     const oaJson = await oaRes.json();
     assert.strictEqual(oaJson.openapi, '3.0.3');
-    assert.strictEqual(oaJson.info.version, '2.9.0');
+    assert.strictEqual(oaJson.info.version, '3.0.0');
     assert.ok(oaJson.paths['/api/trailers/batch']);
 
     // 6b. Création d'une clé scopée lecture seule avec quota personnalisé (120 req/min)

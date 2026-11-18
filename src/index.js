@@ -5,16 +5,17 @@ const app = require('./app');
 const link = require('./link');
 const { syncCatalog, syncRecent } = require('./sync');
 
-// Un job d'arrière-plan qui échoue ne doit pas faire tomber l'addon (Node ≥ 15 quitte sur une promesse rejetée non gérée).
+// Un job d'arrière-plan qui échoue ne doit pas faire tomber le serveur (Node ≥ 15 quitte sur une promesse rejetée non gérée).
 process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e); log.error('process', `Promesse rejetée : ${e && e.message || e}`); });
 
 // Associe en arrière-plan les titres non liés à leur ID Netflix (même sans clé TMDB).
 const kickLink = () => { if (store.stats().unlinked > 0 && !link.status().running) link.start({}); };
 
 const server = app.listen(config.port, () => {
-  log.info('startup', `Serveur démarré (port ${config.port}, base ${config.dbPath})`);
-  console.log(`Addon prêt : http://localhost:${config.port}/manifest.json`);
-  console.log(`URL publique des bandes-annonces : ${config.publicUrl}/trailer/…`);
+  log.info('startup', `Serveur API démarré (port ${config.port}, base ${config.dbPath})`);
+  console.log(`Dashboard Admin : http://localhost:${config.port}/admin`);
+  console.log(`API v1          : ${config.publicUrl}/api/v1/status`);
+  console.log(`Relais MP4      : ${config.publicUrl}/trailer/…`);
   setTimeout(kickLink, 5000);                        // reprise éventuelle d'un liage interrompu
   if (config.tmdbKey) {
     const full = () => syncCatalog().then((n) => console.log(`[sync] +${n} titres`)).catch((e) => console.warn('[sync]', e.message));

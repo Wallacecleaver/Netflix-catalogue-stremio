@@ -46,13 +46,11 @@ const DEFS = [
   { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties TMDB (jours)', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 365 },
   { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties TMDB', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 50 },
   { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés Netflix / JustWatch (ex. FR,US,GB,CA)', group: 'Synchronisation & Moissonnage', type: 'text', normalize: countryList },
-  { key: 'YOUTUBE_AS_SOURCE', prop: 'youtubeAsSource', label: 'Proposer YouTube en plus des flux MP4 (1 = oui, 0 = repli uniquement)', group: 'Synchronisation & Moissonnage', type: 'select', options: ['0', '1'] },
   { key: 'YOUTUBE_SEARCH', prop: 'youtubeSearchEnabled', label: 'Chercher sur YouTube quand TMDB n\'a pas de vidéo (1 = oui, 0 = non)', group: 'Synchronisation & Moissonnage', type: 'select', options: ['1', '0'], bool: true },
 
   { key: 'API_KEY', prop: 'apiKey', label: 'Clé API héritée (optionnelle, préférer les clés nommées dans Fédération)', group: 'API & Fédération', type: 'password', secret: true, minLength: 16 },
   { key: 'UPSTREAM_URL', prop: 'upstreamUrl', label: 'Instance Stockage DB amont (URL)', group: 'API & Fédération', type: 'text', normalize: stripSlash },
   { key: 'UPSTREAM_API_KEY', prop: 'upstreamApiKey', label: 'Clé API de l\'instance amont', group: 'API & Fédération', type: 'password', secret: true },
-  { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache des fiches Stremio autonomes (s)', group: 'API & Fédération', type: 'number', min: 0, max: 86400 },
 
   { key: 'ADMIN_TOKEN', prop: 'adminToken', label: 'Mot de passe du dashboard', group: 'Sécurité', type: 'password', secret: true, minLength: 16 },
 ];
