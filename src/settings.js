@@ -18,27 +18,42 @@ const countryList = (v) => {
 const DEFS = [
   { key: 'PORT', prop: 'port', label: 'Port HTTP', group: 'Serveur', type: 'number', min: 1, max: 65535, restart: true },
   { key: 'DB_PATH', prop: 'dbPath', label: 'Base SQLite', group: 'Serveur', type: 'text', restart: true },
-  { key: 'PUBLIC_URL', prop: 'publicUrl', label: 'URL publique', group: 'Serveur', type: 'text', normalize: stripSlash },
-  { key: 'TMDB_API_KEY', prop: 'tmdbKey', label: 'Clé TMDB', group: 'TMDB & Netflix', type: 'password', secret: true },
-  { key: 'REGION', prop: 'region', label: 'Région TMDB', group: 'TMDB & Netflix', type: 'text', normalize: upper },
-  { key: 'TMDB_LANG', prop: 'lang', label: 'Langue TMDB', group: 'TMDB & Netflix', type: 'text' },
-  { key: 'NETFLIX_COUNTRY', prop: 'netflixCountry', label: 'Pays Netflix', group: 'TMDB & Netflix', type: 'text', normalize: lower },
-  { key: 'BRAVE_API_KEY', prop: 'braveApiKey', label: 'Clé Brave Search (recherche des IDs Netflix)', group: 'Recherche web', type: 'password', secret: true },
-  { key: 'BRAVE_COUNTRY', prop: 'braveCountry', label: 'Pays Brave Search', group: 'Recherche web', type: 'text', normalize: upper },
-  { key: 'BRAVE_LANG', prop: 'braveLang', label: 'Langue Brave Search', group: 'Recherche web', type: 'text', normalize: lower },
-  { key: 'SYNC_EVERY_HOURS', prop: 'syncEveryHours', label: 'Cycle de synchro (heures)', group: 'Synchronisation', type: 'number', min: 1, max: 720, restart: true },
-  { key: 'NETFLIX_REFRESH_HOURS', prop: 'netflixRefreshHours', label: 'Relecture d\'une page Netflix ouverte (heures, nouveaux teasers/saisons)', group: 'Synchronisation', type: 'number', min: 1, max: 720 },
-  { key: 'SYNC_PAGES', prop: 'syncPages', label: 'Pages catalogue complet', group: 'Synchronisation', type: 'number', min: 1, max: 500 },
-  { key: 'CATALOG_PROVIDERS', prop: 'catalogProviders', label: 'Plateformes du catalogue (8=Netflix, 337=Apple TV+, 2=Apple TV, 119=Prime, all=tout TMDB)', group: 'Synchronisation', type: 'text' },
-  { key: 'YOUTUBE_AS_SOURCE', prop: 'youtubeAsSource', label: 'Proposer aussi YouTube à côté de Netflix/Apple (1 = oui, qualité 1080p, 0 = seulement en repli)', group: 'Synchronisation', type: 'select', options: ['0', '1'] },
-  { key: 'YOUTUBE_SEARCH', prop: 'youtubeSearchEnabled', label: 'Chercher la bande-annonce sur YouTube quand TMDB n\'en a pas (1 = oui, 0 = non)', group: 'Synchronisation', type: 'select', options: ['1', '0'] },
-  { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties (jours)', group: 'Synchronisation', type: 'number', min: 1, max: 365 },
-  { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties', group: 'Synchronisation', type: 'number', min: 1, max: 50 },
-  { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés (ex. FR,US,GB,CA)', group: 'Synchronisation', type: 'text', normalize: countryList },
-  { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache des fiches (s)', group: 'Stremio', type: 'number', min: 0, max: 86400 },
-  { key: 'API_KEY', prop: 'apiKey', label: 'Clé API (sortie, vide = API fermée)', group: 'API & fédération', type: 'password', secret: true, minLength: 16 },
-  { key: 'UPSTREAM_URL', prop: 'upstreamUrl', label: 'Instance amont (URL)', group: 'API & fédération', type: 'text', normalize: stripSlash },
-  { key: 'UPSTREAM_API_KEY', prop: 'upstreamApiKey', label: 'Clé API amont', group: 'API & fédération', type: 'password', secret: true },
+  { key: 'PUBLIC_URL', prop: 'publicUrl', label: 'URL publique (utilisée dans les liens de relais /trailer et /apple)', group: 'Serveur', type: 'text', normalize: stripSlash },
+
+  { key: 'TMDB_API_KEY', prop: 'tmdbKey', label: 'Clé TMDB', group: 'Sources & Catalogues', type: 'password', secret: true },
+  { key: 'REGION', prop: 'region', label: 'Région TMDB / JustWatch (ex. FR)', group: 'Sources & Catalogues', type: 'text', normalize: upper },
+  { key: 'TMDB_LANG', prop: 'lang', label: 'Langue préférée (ex. fr-FR)', group: 'Sources & Catalogues', type: 'text' },
+  { key: 'NETFLIX_COUNTRY', prop: 'netflixCountry', label: 'Pays des pages Netflix (ex. fr)', group: 'Sources & Catalogues', type: 'text', normalize: lower },
+  { key: 'RESOLVE_ENABLED', prop: 'resolveEnabled', label: 'Résolution automatique à la demande (IMDb → TMDB → Netflix)', group: 'Sources & Catalogues', type: 'select', options: ['1', '0'], bool: true },
+  { key: 'NETFLIX_REFRESH', prop: 'netflixRefreshEnabled', label: 'Relecture automatique des pages Netflix périmées (nouvelles saisons/teasers)', group: 'Sources & Catalogues', type: 'select', options: ['1', '0'], bool: true },
+  { key: 'NETFLIX_REFRESH_HOURS', prop: 'netflixRefreshHours', label: 'Âge avant relecture d\'une page Netflix (heures)', group: 'Sources & Catalogues', type: 'number', min: 1, max: 720 },
+  { key: 'BRAVE_API_KEY', prop: 'braveApiKey', label: 'Clé Brave Search (secours recherche web Netflix)', group: 'Sources & Catalogues', type: 'password', secret: true },
+  { key: 'BRAVE_COUNTRY', prop: 'braveCountry', label: 'Pays Brave Search', group: 'Sources & Catalogues', type: 'text', normalize: upper },
+  { key: 'BRAVE_LANG', prop: 'braveLang', label: 'Langue Brave Search', group: 'Sources & Catalogues', type: 'text', normalize: lower },
+
+  { key: 'APPLETV_ENABLED', prop: 'appletvEnabled', label: 'Activer Apple TV+ (recherche et extraction HLS)', group: 'Apple TV & Conversion HLS', type: 'select', options: ['1', '0'], bool: true },
+  { key: 'APPLETV_COUNTRY', prop: 'appletvCountry', label: 'Pays Apple TV (ex. fr)', group: 'Apple TV & Conversion HLS', type: 'text', normalize: lower },
+  { key: 'APPLETV_LOCALE', prop: 'appletvLocale', label: 'Locale Apple TV (ex. fr-FR)', group: 'Apple TV & Conversion HLS', type: 'text' },
+  { key: 'APPLETV_MAX_TRAILERS', prop: 'appletvMaxTrailers', label: 'Nombre max de bandes-annonces Apple TV par fiche', group: 'Apple TV & Conversion HLS', type: 'number', min: 1, max: 10 },
+  { key: 'HLS_MAX_HEIGHT', prop: 'hlsMaxHeight', label: 'Définition max HLS converti (px, ex. 720 ou 1080)', group: 'Apple TV & Conversion HLS', type: 'number', min: 360, max: 2160 },
+  { key: 'HLS_MAX_MB', prop: 'hlsMaxMB', label: 'Poids max estimé par vidéo HLS (Mo)', group: 'Apple TV & Conversion HLS', type: 'number', min: 5, max: 500 },
+  { key: 'HLS_CACHE_DAYS', prop: 'hlsCacheDays', label: 'Durée de conservation du cache MP4 (jours)', group: 'Apple TV & Conversion HLS', type: 'number', min: 1, max: 90 },
+  { key: 'HLS_MAX_DISK_MB', prop: 'hlsMaxDiskMB', label: 'Plafond disque du cache HLS (Mo)', group: 'Apple TV & Conversion HLS', type: 'number', min: 100, max: 102400 },
+
+  { key: 'SYNC_EVERY_HOURS', prop: 'syncEveryHours', label: 'Cycle de synchro TMDB (heures)', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 720, restart: true },
+  { key: 'SYNC_PAGES', prop: 'syncPages', label: 'Pages catalogue TMDB complet', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 500 },
+  { key: 'CATALOG_PROVIDERS', prop: 'catalogProviders', label: 'Plateformes TMDB (8=Netflix, 337=Apple TV+, 2=Apple TV, 119=Prime, all=tout)', group: 'Synchronisation & Moissonnage', type: 'text' },
+  { key: 'RECENT_DAYS', prop: 'recentDays', label: 'Fenêtre dernières sorties TMDB (jours)', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 365 },
+  { key: 'RECENT_PAGES', prop: 'recentPages', label: 'Pages dernières sorties TMDB', group: 'Synchronisation & Moissonnage', type: 'number', min: 1, max: 50 },
+  { key: 'HARVEST_COUNTRIES', prop: 'harvestCountries', label: 'Pays moissonnés Netflix / JustWatch (ex. FR,US,GB,CA)', group: 'Synchronisation & Moissonnage', type: 'text', normalize: countryList },
+  { key: 'YOUTUBE_AS_SOURCE', prop: 'youtubeAsSource', label: 'Proposer YouTube en plus des flux MP4 (1 = oui, 0 = repli uniquement)', group: 'Synchronisation & Moissonnage', type: 'select', options: ['0', '1'] },
+  { key: 'YOUTUBE_SEARCH', prop: 'youtubeSearchEnabled', label: 'Chercher sur YouTube quand TMDB n\'a pas de vidéo (1 = oui, 0 = non)', group: 'Synchronisation & Moissonnage', type: 'select', options: ['1', '0'], bool: true },
+
+  { key: 'API_KEY', prop: 'apiKey', label: 'Clé API héritée (optionnelle, préférer les clés nommées dans Fédération)', group: 'API & Fédération', type: 'password', secret: true, minLength: 16 },
+  { key: 'UPSTREAM_URL', prop: 'upstreamUrl', label: 'Instance Stockage DB amont (URL)', group: 'API & Fédération', type: 'text', normalize: stripSlash },
+  { key: 'UPSTREAM_API_KEY', prop: 'upstreamApiKey', label: 'Clé API de l\'instance amont', group: 'API & Fédération', type: 'password', secret: true },
+  { key: 'META_CACHE_SECONDS', prop: 'metaCacheSeconds', label: 'Cache des fiches Stremio autonomes (s)', group: 'API & Fédération', type: 'number', min: 0, max: 86400 },
+
   { key: 'ADMIN_TOKEN', prop: 'adminToken', label: 'Mot de passe du dashboard', group: 'Sécurité', type: 'password', secret: true, minLength: 16 },
 ];
 
@@ -53,9 +68,9 @@ function coerce(def, raw, { strict = false } = {}) {
     return n;
   }
   if (def.type === 'select') {
-    const v = String(raw).trim().toLowerCase();
-    if (!def.options.includes(v)) throw new Error(`${def.key} : valeurs possibles : ${def.options.join(', ')}`);
-    return v;
+    const norm = raw === true ? '1' : raw === false ? '0' : String(raw).trim().toLowerCase();
+    if (!def.options.includes(norm)) throw new Error(`${def.key} : valeurs possibles : ${def.options.join(', ')}`);
+    return def.bool ? norm === '1' : norm;
   }
   let v = trim(raw);
   // La longueur minimale n'est imposée qu'à l'enregistrement (strict) : une valeur
@@ -87,11 +102,12 @@ function view() {
   for (const def of DEFS) {
     const current = config[def.prop];
     const hasValue = current !== undefined && current !== null && String(current) !== '';
+    const displayValue = def.bool ? (current ? '1' : '0') : (hasValue ? String(current) : '');
     const item = {
       key: def.key, label: def.label, type: def.type, secret: !!def.secret,
       source: sourceOf(def, saved), needsRestart: !!def.restart,
       options: def.options, min: def.min, max: def.max,
-      value: def.secret ? '' : (hasValue ? String(current) : ''),
+      value: def.secret ? '' : displayValue,
       hasValue,
       hint: def.secret && hasValue ? `••••••••${String(current).slice(-2)}` : '',
     };
@@ -109,7 +125,10 @@ function save(values = {}) {
     const def = byKey.get(key);
     if (!def) throw new Error(`Paramètre inconnu : ${key}`);
     if (raw === null || raw === '') deletes.push(key);
-    else writes[key] = String(coerce(def, raw, { strict: true }));
+    else {
+      const coerced = coerce(def, raw, { strict: true });
+      writes[key] = def.bool ? (coerced ? '1' : '0') : String(coerced);
+    }
   }
   for (const key of deletes) {
     if (key === 'ADMIN_TOKEN' && !process.env.ADMIN_TOKEN) {

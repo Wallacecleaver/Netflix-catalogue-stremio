@@ -10,7 +10,7 @@ const settings = require('./settings');
 const log = require('./log');
 const federation = require('./federation');
 const { ingestNetflix, refreshTrailers, ensureFreshTrailers } = require('./enrich');
-const { ingestPrime } = require('./primevideo');
+const { ingestPrime, parsePrimeId } = require('./primevideo');
 const link = require('./link');
 const harvest = require('./harvest');
 const vf = require('./vf');
@@ -62,7 +62,7 @@ function auth(req, res, next) {
   if (!tokenOk(req.get('x-admin-token'))) {
     if (!a || a.reset <= now) attempts.set(key, { n: 1, reset: now + 60000 });
     else a.n++;
-    if (attempts.size > 500) attempts.clear();
+    while (attempts.size > 500) attempts.delete(attempts.keys().next().value);
     log.warn('auth', 'Tentative d\'accès refusée', { ip: key });
     return res.status(401).json({ error: 'Mot de passe incorrect' });
   }
@@ -124,14 +124,36 @@ app.post('/admin/api/keys/delete', auth, (req, res) => {
   log.warn('admin', `Clé API révoquée : ${label}`, { id });
   res.json({ ok: true, id });
 });
+app.post('/admin/api/keys/legacy/clear', auth, (_req, res) => {
+  settings.save({ API_KEY: '' });
+  log.warn('admin', 'Clé API héritée effacée des surcharges');
+  res.json({ ok: true, legacy: !!config.apiKey });
+});
+app.post('/admin/api/hls/clear', auth, wrap(async (_req, res) => {
+  const r = await hls.clearCache();
+  log.info('admin', `Cache HLS purgé (${r.removed} fichier(s))`, r);
+  res.json({ ok: true, ...r, hls: await hls.cacheStats() });
+}));
 
 app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.type('html').send(ADMIN_HTML); });
-app.get('/admin/api/summary', auth, (_req, res) => {
+app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
   res.set('cache-control', 'no-store');
+  const hlsStats = await hls.cacheStats();
+  const hasKey = apiHasKey();
+  const keyCount = store.countApiKeys();
   res.json({
-    version: manifest.version, uptime: process.uptime(), node: process.version, stats: store.stats(), settings: settings.view(),
-    addon: { resolve: !!(config.resolveEnabled && config.tmdbKey), publicUrl: config.publicUrl, appletv: !!config.appletvEnabled, upstream: !!config.upstreamUrl, apiOpen: apiIsOpen() },
-    // État des sources : ce qui, dans ce projet, casse en premier (clé TMDB, moteur de recherche, Apple TV, ffmpeg).
+    version: manifest.version, uptime: process.uptime(), node: process.version,
+    stats: store.stats(), settings: settings.view(), hls: hlsStats,
+    addon: {
+      resolve: !!(config.resolveEnabled && config.tmdbKey),
+      publicUrl: config.publicUrl,
+      appletv: !!config.appletvEnabled,
+      upstream: !!config.upstreamUrl,
+      apiOpen: apiIsOpen(),
+      apiHasKey: hasKey,
+      apiKeyCount: keyCount,
+    },
+    // État des sources : ce qui, dans ce projet, casse en premier (clé TMDB, moteur de recherche, Apple TV, ffmpeg, fédération).
     sources: {
       tmdb: !!config.tmdbKey,
       brave: !!config.braveApiKey,
@@ -141,9 +163,11 @@ app.get('/admin/api/summary', auth, (_req, res) => {
       resolve: !!(config.resolveEnabled && config.tmdbKey),
       upstream: config.upstreamUrl || '',
       apiOpen: apiIsOpen(),
+      apiHasKey: hasKey,
+      apiKeyCount: keyCount,
     },
   });
-});
+}));
 app.post('/admin/api/settings', auth, (req, res) => {
   try {
     const result = settings.save(req.body && req.body.values ? req.body.values : {});
@@ -154,17 +178,18 @@ app.post('/admin/api/settings', auth, (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
-app.post('/admin/add', auth, async (req, res) => {
+app.post('/admin/add', auth, wrap(async (req, res) => {
+  const input = String((req.body && (req.body.url || req.body.id)) || '').trim();
   try {
-    const input = req.body.url || req.body.id;
-    const r = /primevideo\.com|amazon\.[a-z.]+\/.*detail/i.test(String(input)) ? await ingestPrime(input) : await ingestNetflix(input);
+    const isPrime = /primevideo\.com|amazon\.[a-z.]+\/.*detail/i.test(input) || (!/^\d+$/.test(input) && !!parsePrimeId(input));
+    const r = isPrime ? await ingestPrime(input) : await ingestNetflix(input);
     log.info('admin', `Titre ajouté : ${r.name}`, { id: r.id });
     res.json(r);
   } catch (e) {
-    log.error('admin', `Ajout échoué (${req.body.url || req.body.id}) : ${e.message}`);
+    log.error('admin', `Ajout échoué (${input}) : ${e.message}`);
     res.status(400).json({ error: e.message });
   }
-});
+}));
 app.post('/admin/sync', auth, async (_req, res) => {
   try {
     log.info('admin', 'Synchronisation manuelle lancée');
@@ -328,13 +353,24 @@ app.post('/admin/api/search/apple', auth, async (req, res) => {
 app.get('/admin/api/titles', auth, (req, res) => {
   res.set('cache-control', 'no-store');
   const { total, rows } = store.listTitles({
-    search: String(req.query.search || '').trim(), filter: String(req.query.filter || ''),
-    limit: Math.min(Number(req.query.limit) || 50, 200), offset: Number(req.query.offset) || 0,
+    search: String(req.query.search || '').trim(),
+    filter: String(req.query.filter || ''),
+    type: String(req.query.type || ''),
+    limit: Math.min(Number(req.query.limit) || 50, 200),
+    offset: Number(req.query.offset) || 0,
   });
   res.json({
     total,
     rows: rows.map((r) => ({
-      id: r.id, name: r.name, type: r.type, year: r.year, imdb: r.imdb_id || null, added: r.added_at || null,
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      year: r.year,
+      imdb: r.imdb_id || null,
+      netflixId: r.netflix_id || null,
+      tmdbId: r.tmdb_id || null,
+      poster: r.poster || null,
+      added: r.added_at || null,
       netflix: r.trailers.filter((t) => t && t.source !== 'upstream').length,
       upstream: r.trailers.filter((t) => t && t.source === 'upstream').length,
       apple: r.appletv.length,
@@ -343,6 +379,50 @@ app.get('/admin/api/titles', auth, (req, res) => {
     })),
   });
 });
+
+// Détail complet d'une fiche + liste ordonnée des bandes-annonces relayées (saison détectée, nature, URL de lecture).
+app.get('/admin/api/titles/:id', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const id = String(req.params.id || '').trim();
+  const row = id && store.getTitle(id);
+  if (!row) return res.status(404).json({ error: 'Titre introuvable' });
+  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
+  const unservableApple = (Array.isArray(row.appletv) ? row.appletv : [])
+    .filter((t) => t && t.url && !hls.canServe(t.url))
+    .map((t) => ({ title: t.title || 'Bande-annonce Apple TV', source: 'appletv', reason: 'ffmpeg requis pour convertir le flux HLS' }));
+  res.json({
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    year: row.year || null,
+    releaseDate: row.release_date || null,
+    imdb: row.imdb_id || null,
+    tmdbId: row.tmdb_id || null,
+    tmdbType: row.tmdb_type || null,
+    netflixId: row.netflix_id || null,
+    poster: row.poster || null,
+    synopsis: row.synopsis || null,
+    genres: row.genres || [],
+    youtubeKey: row.vf_trailer || row.trailer_yt || null,
+    youtubeVf: !!row.vf_trailer,
+    episodesCount: row.type === 'series' ? store.getEpisodes(row.id).length : 0,
+    addedAt: row.added_at || null,
+    updatedAt: row.updated_at || null,
+    trailersCheckedAt: row.trailers_checked || null,
+    appletvCheckedAt: row.appletv_checked || null,
+    trailers,
+    unservableApple,
+    manual: ((row.extra && rManual(row)) || []),
+  });
+});
+const rManual = (row) => (Array.isArray(row?.extra?.manualTrailers) ? row.extra.manualTrailers : []).map((m, index) => ({
+  index,
+  title: String(m?.title || 'Bande-annonce').slice(0, 120),
+  url: String(m?.url || '').slice(0, 300),
+  relayUrl: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${index}.mp4`,
+  servable: !!(m?.url && hls.canServe(m.url)),
+}));
+
 // Gestion d'un titre : supprimer, forcer une nouvelle recherche, retirer un lien manuel.
 app.post('/admin/titles/delete', auth, (req, res) => {
   const id = String((req.body && req.body.id) || '').trim();
@@ -389,8 +469,10 @@ app.get('/admin/api/logs', auth, (req, res) => {
   res.set('cache-control', 'no-store');
   res.json(log.list({
     level: String(req.query.level || ''),
+    source: String(req.query.source || ''),
     search: String(req.query.search || ''),
     limit: Number(req.query.limit) || 200,
+    offset: Number(req.query.offset) || 0,
   }));
 });
 app.post('/admin/api/logs/clear', auth, (_req, res) => {
@@ -403,7 +485,87 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, version: manifest.version, uptime: Math.round(process.uptime()), titles: store.stats().total });
 });
 
-// ---- API de fédération : exposer les bandes-annonces à une autre instance ----
+// ---- Logique partagée de l'API de fédération (/api/trailers + testeur interactif du dashboard) ----
+async function executeTrailersQuery(q, { logFederation = true, forceDebug = false } = {}) {
+  const imdb = String(q.imdb || '').trim();
+  const tmdb = String(q.tmdb || '').trim();
+  const netflix = String(q.netflix || '').trim();
+  const type = String(q.type || '').trim();
+  const season = Number(q.season) || null;
+  const strictSeason = String(q.strict_season || '') === '1';
+  const includeExtras = String(q.include_extras || '') === '1';
+  if (!imdb && !tmdb && !netflix) {
+    return { status: 400, body: { error: 'paramètre imdb, tmdb ou netflix requis' } };
+  }
+  let row = federation.lookup({ imdb, tmdb, type, netflix });
+  // Si la fiche Netflix existe déjà (moissonnée sans vidéo, ou lue il y a > NETFLIX_REFRESH_HOURS),
+  // on relit sa page Netflix pour capter tout nouveau teaser / nouvelle saison.
+  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
+  // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
+  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
+  if (row) {
+    row = await federation.ensureUpstreamTrailers(row);
+    row = await appletv.ensure(row, { timeoutMs: 4000 });
+  }
+  const pending = !!imdb && resolve.isPending(imdb);
+  if (!row) return { status: 200, body: { found: false, pending, trailers: [] } };
+
+  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels,
+  // triées pour la saison demandée (vraies bandes-annonces/teasers avant les bonus longs).
+  const allTrailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
+  let trailers = allTrailers;
+  if (strictSeason && season > 0) {
+    trailers = trailers.filter((t) => t.season === season && (includeExtras || t.kind !== 'extra'));
+  }
+
+  if (logFederation) {
+    const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
+    if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(','), ...(season ? { season } : {}) });
+    else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending, ...(season ? { season } : {}) });
+  }
+
+  const debug = (forceDebug || String(q.debug || '') === '1') ? {
+    query: { imdb, tmdb, netflix, type, season, strictSeason, includeExtras },
+    fiche: {
+      id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id,
+      netflix_id: row.netflix_id, trailers_checked: row.trailers_checked || null, appletv_checked: row.appletv_checked || null,
+    },
+    counts: {
+      netflix: (row.trailers || []).filter((t) => t && t.source !== 'upstream').length,
+      upstream: (row.trailers || []).filter((t) => t && t.source === 'upstream').length,
+      appletv: (row.appletv || []).length,
+      manual: (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers.length : 0,
+      beforeStrictFilter: allTrailers.length,
+    },
+    resolveActive: !!(config.resolveEnabled && config.tmdbKey),
+    ffmpegAvailable: hls.ffmpegAvailable(),
+    apiOpen: apiIsOpen(),
+    apiHasKey: apiHasKey(),
+  } : undefined;
+
+  return {
+    status: 200,
+    body: {
+      found: trailers.length > 0,
+      pending: pending && !trailers.length,
+      title: {
+        id: row.id, name: row.name, type: row.type, year: row.year,
+        netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
+      },
+      trailers,
+      ...(debug ? { debug } : {}),
+    },
+  };
+}
+
+// Testeur interactif depuis l'onglet « Fédération » du dashboard (sans consommer de clé API externe).
+app.get('/admin/api/test-federation', auth, wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const out = await executeTrailersQuery(req.query, { logFederation: false, forceDebug: true });
+  res.status(out.status).json(out.body);
+}));
+
+// ---- API de fédération : exposer les bandes-annonces à une autre instance (ex. vf-trailer-wallace) ----
 app.get('/api/status', apiLimiter, apiAuth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json({ ok: true, version: manifest.version, stats: store.stats() });
@@ -411,59 +573,8 @@ app.get('/api/status', apiLimiter, apiAuth, (_req, res) => {
 
 app.get('/api/trailers', apiLimiter, apiAuth, wrap(async (req, res) => {
   res.set('cache-control', 'no-store');
-  const imdb = String(req.query.imdb || '').trim();
-  const tmdb = String(req.query.tmdb || '').trim();
-  const netflix = String(req.query.netflix || '').trim();
-  const type = String(req.query.type || '').trim();
-  const season = Number(req.query.season) || null;
-  const strictSeason = String(req.query.strict_season || '') === '1';
-  const includeExtras = String(req.query.include_extras || '') === '1';
-  if (!imdb && !tmdb && !netflix) {
-    return res.status(400).json({ error: 'paramètre imdb, tmdb ou netflix requis' });
-  }
-  let row = federation.lookup({ imdb, tmdb, type, netflix });
-  // Si la fiche Netflix existe déjà (moissonnée sans vidéo, ou lue il y a > NETFLIX_REFRESH_HOURS),
-  // on relit sa page Netflix pour capter tout nouveau teaser / nouvelle saison.
-  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
-  // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
-  // Attente bornée : l'instance cliente abandonne souvent à 6-8 s, on lui laisse de la marge réseau.
-  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
-  const pending = !!imdb && resolve.isPending(imdb);
-  if (!row) return res.json({ found: false, pending, trailers: [] });
-  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels,
-  // triées pour la saison demandée (vraies bandes-annonces/teasers avant les bonus longs).
-  let trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
-  if (strictSeason && season > 0) {
-    trailers = trailers.filter((t) => t.season === season && (includeExtras || t.kind !== 'extra'));
-  }
-  // Trace dans le Journal : c'est le seul moyen de savoir si une instance cliente (vf-trailer) nous
-  // appelle vraiment, et ce qu'on lui a répondu. Volume faible (le client met en cache 6 h).
-  const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
-  if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(','), ...(season ? { season } : {}) });
-  else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending, ...(season ? { season } : {}) });
-
-  // `?debug=1` : explique pourquoi une instance cliente ne reçoit rien (même sans bande-annonce).
-  const debug = String(req.query.debug || '') === '1' ? {
-    query: { imdb, tmdb, netflix, type, season, strictSeason },
-    fiche: row ? { id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id, netflix_id: row.netflix_id, trailers_checked: row.trailers_checked || null } : null,
-    counts: row ? {
-      netflix: (row.trailers || []).length,
-      appletv: (row.appletv || []).length,
-      manual: (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers.length : 0,
-    } : null,
-    resolveActive: !!(config.resolveEnabled && config.tmdbKey),
-    apiOpen: apiIsOpen(),
-  } : undefined;
-  res.json({
-    found: trailers.length > 0,
-    pending: pending && !trailers.length,
-    title: {
-      id: row.id, name: row.name, type: row.type, year: row.year,
-      netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
-    },
-    trailers,
-    ...(debug ? { debug } : {}),
-  });
+  const out = await executeTrailersQuery(req.query, { logFederation: true });
+  res.status(out.status).json(out.body);
 }));
 
 // Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).
@@ -475,15 +586,20 @@ const UPSTREAM_HEADERS_TIMEOUT = 15000;
 const PASS_HEADERS = ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
 
 /** fetch dont le délai ne couvre que l'attente des en-têtes (le corps d'une vidéo se lit pendant des minutes). Coupé si le client part. */
-async function fetchHead(url, headers, res) {
+async function fetchHead(url, headers, res, method = 'GET') {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), UPSTREAM_HEADERS_TIMEOUT);
   res.once('close', () => ctl.abort());
   // safeFetch : URL validée (pas d'adresse interne) et redirections revalidées une par une.
-  try { return await safeFetch(url, { headers, signal: ctl.signal }); } finally { clearTimeout(timer); }
+  try { return await safeFetch(url, { method: method === 'HEAD' ? 'HEAD' : 'GET', headers, signal: ctl.signal }); }
+  finally { clearTimeout(timer); }
 }
 
 function pipeUpstream(req, res, up) {
+  if (!up.ok && up.status !== 206) {
+    if (up.body) up.body.cancel().catch(() => {});
+    return res.status(up.status === 404 ? 404 : 502).type('text/plain').send('bande-annonce indisponible');
+  }
   res.status(up.status);
   for (const h of PASS_HEADERS) if (up.headers.get(h)) res.set(h, up.headers.get(h));
   // Ne JAMAIS relayer le content-type amont : une réponse HTML serait interprétée par le
@@ -500,7 +616,7 @@ function pipeUpstream(req, res, up) {
 async function relayVideo(req, res, url, { range = true } = {}) {
   const headers = { 'user-agent': UA };
   if (range && req.headers.range) headers.range = req.headers.range;
-  pipeUpstream(req, res, await fetchHead(url, headers, res));
+  pipeUpstream(req, res, await fetchHead(url, headers, res, req.method));
 }
 
 /** Sert un flux HLS sous forme de MP4 (converti et mis en cache à la première lecture). */
@@ -535,10 +651,10 @@ async function trailerHandler(req, res) {
     if (!url) throw new Error('lien vidéo indisponible');
     if (hls.isHls(url)) return await serveHls(req, res, url);
     const hdr = () => ({ 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) });
-    let up = await fetchHead(url, hdr(), res);
+    let up = await fetchHead(url, hdr(), res, req.method);
     if (up.status === 403 || up.status === 410) {            // lien périmé côté Netflix : on le renouvelle une fois
       const fresh = (await refreshTrailers(nid))[idx]?.url;
-      if (fresh) { await up.body?.cancel().catch(() => {}); url = fresh; up = await fetchHead(url, hdr(), res); }
+      if (fresh) { await up.body?.cancel().catch(() => {}); url = fresh; up = await fetchHead(url, hdr(), res, req.method); }
     }
     pipeUpstream(req, res, up);
   } catch (e) {
@@ -596,7 +712,7 @@ app.post('/admin/add/trailer', auth, (req, res) => {
   }
 });
 
-app.get('/media/:id/:idx.mp4', mediaLimiter, async (req, res) => {
+async function manualTrailerHandler(req, res) {
   const row = store.getTitle(String(req.params.id));
   const list = row && row.extra && Array.isArray(row.extra.manualTrailers) ? row.extra.manualTrailers : [];
   const t = list[Number(req.params.idx)];
@@ -608,7 +724,9 @@ app.get('/media/:id/:idx.mp4', mediaLimiter, async (req, res) => {
     log.error('trailer', `lien manuel ${row.id}/${req.params.idx} : ${e.message}`);
     if (!res.headersSent) res.status(502).send('bande-annonce indisponible');
   }
-});
+}
+app.get('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
+app.head('/media/:id/:idx.mp4', mediaLimiter, manualTrailerHandler);
 
 // Stremio relit le manifest régulièrement : un cache court évite de le régénérer à chaque ouverture.
 app.use((req, res, next) => {
@@ -619,6 +737,8 @@ app.use((req, res, next) => {
 // Une route d'API inconnue répond en JSON (et non avec la page d'erreur HTML d'Express).
 app.use(['/admin/api', '/api'], (_req, res) => res.status(404).json({ error: 'Route inconnue' }));
 
+// Limitation de débit sur les routes publiques Stremio (/stream et /meta déclenchent de la résolution réseau).
+app.use(['/stream', '/meta'], apiLimiter);
 app.use(getRouter(builder.getInterface()));
 
 // Dernier filet : JSON invalide, corps trop gros, erreur inattendue → réponse JSON propre, jamais de requête pendue.

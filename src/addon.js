@@ -13,12 +13,14 @@ const TYPES = ['movie', 'series'];
 /** URL du relais qui sert la bande-annonce Apple TV en MP4 (HLS converti et mis en cache côté serveur). */
 const appleRelay = (row, index) => `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${index}.mp4`;
 
+const { version: PKG_VERSION } = require('../package.json');
+
 // Plus de catalogue : l'addon ne fait que fournir des bandes-annonces.
 //  - stream : sur n'importe quelle fiche Stremio (ID IMDb `tt…`, y compris épisodes) ET sur les anciennes fiches `nflx:`
 //  - meta   : uniquement les anciennes fiches `nflx:` (déjà présentes dans des bibliothèques Stremio)
 const manifest = {
   id: 'community.wallacecleaver.stockage-db',
-  version: '2.7.2',
+  version: PKG_VERSION,
   name: 'Stockage DB',
   description: 'Bandes-annonces sur tes fiches Stremio : Netflix et Apple TV, cherchées automatiquement à l\'ouverture d\'une fiche. Aucun catalogue, aucun film ni épisode.',
   resources: [
@@ -142,13 +144,12 @@ builder.defineStreamHandler(async ({ type, id }) => {
       behaviorHints: { notWebReady: false, bingeGroup: `appletv-trailer-${row.id}` },
     });
   }
-  if (apple.length) hls.prefetch(apple[0].url);   // convertit le flux HLS pendant que l'utilisateur choisit
   // Liens ajoutés à la main (n'importe quelle plateforme) : relayés par /media/<id>/<n>.mp4,
   // qui convertit le HLS en MP4 au besoin. C'est la porte d'entrée pour tout ce qui n'a pas
   // de source dédiée (Arte, Dailymotion, un MP4 de distributeur…).
   const manual = (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers : [];
   manual.forEach((t, i) => {
-    if (!t || !t.url) return;
+    if (!t || !t.url || !hls.canServe(t.url)) return;
     streams.push({
       name: 'Lien', title: `▶ ${t.title || 'Bande-annonce'}${suffix}`,
       url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,

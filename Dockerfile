@@ -12,8 +12,7 @@ RUN npm ci --omit=dev --ignore-scripts \
  && node -e "const D=require('better-sqlite3');const db=new D(':memory:');db.prepare('select 1').get();db.close();console.log('better-sqlite3 OK')"
 COPY src ./src
 COPY scripts ./scripts
-COPY test ./test
-ENV NODE_ENV=production DB_PATH=/app/data/stockage.db PORT=7000
+ENV NODE_ENV=production DB_PATH=/app/data/stockage.db HLS_CACHE_DIR=/app/data/hls PORT=7000
 # Le conteneur tourne sans privilèges : l'utilisateur node possède le volume de données.
 RUN mkdir -p /app/data /app/data/hls && chown -R node:node /app/data
 VOLUME /app/data

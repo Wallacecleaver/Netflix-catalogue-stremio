@@ -141,7 +141,7 @@ async function attach({ appleId, type, name, year }) {
 }
 
 /** Si la fiche n'a pas encore été vérifiée (ou TTL dépassé), cherche les trailers Apple TV. Ne bloque jamais la fiche en cas d'erreur. */
-async function ensure(row) {
+async function ensure(row, { timeoutMs = 0 } = {}) {
   if (!row || !config.appletvEnabled || !row.name) return row;
   const stored = Array.isArray(row.appletv) && row.appletv.length > 0;
   const fresh = stored && row.appletv.every((t) => t && t.ver === VER);
@@ -159,7 +159,12 @@ async function ensure(row) {
       return store.getTitle(row.id);
     })().finally(() => inflight.delete(row.id)));
   }
-  return (await inflight.get(row.id)) || row;
+  const pending = inflight.get(row.id);
+  if (timeoutMs > 0) {
+    const raced = await Promise.race([pending, new Promise((r) => setTimeout(() => r(undefined), timeoutMs))]);
+    return raced === undefined ? (store.getTitle(row.id) || row) : (raced || row);
+  }
+  return (await pending) || row;
 }
 
 // ---- Job de fond (dashboard) : cherche les bandes-annonces Apple TV des titres jamais vérifiés ----

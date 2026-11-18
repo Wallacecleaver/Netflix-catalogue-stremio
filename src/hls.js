@@ -5,7 +5,7 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const config = require('./config');
 const log = require('./log');
-const { safeFetch, createSemaphore } = require('./security');
+const { assertSafeUrl, safeFetch, createSemaphore } = require('./security');
 
 // Les bandes-annonces Apple TV sont des flux HLS (.m3u8) : ni Stremio Web ni le navigateur ne les lisent
 // nativement, et le lecteur intégré reste à 0:00 quand on lui donne une playlist à la place d'un MP4.
@@ -15,13 +15,22 @@ const { safeFetch, createSemaphore } = require('./security');
 // sinon on ne garde que l'image (et on le dit dans le journal).
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-const HEADERS = {
+const BASE_HEADERS = {
   'user-agent': UA,
   accept: '*/*',
   'accept-language': 'fr-FR,fr;q=0.9,en;q=0.5',
-  origin: 'https://tv.apple.com',
-  referer: 'https://tv.apple.com/',
 };
+const isAppleHost = (u) => {
+  try { return /(^|\.)(apple\.com|mzstatic\.com|akamaized\.net)$/i.test(new URL(u).hostname); }
+  catch { return false; }
+};
+const headersFor = (u) => (isAppleHost(u)
+  ? { ...BASE_HEADERS, origin: 'https://tv.apple.com', referer: 'https://tv.apple.com/' }
+  : BASE_HEADERS);
+const ffmpegHeadersFor = (u) => (isAppleHost(u)
+  ? 'Origin: https://tv.apple.com\r\nReferer: https://tv.apple.com/\r\n'
+  : '');
+
 const SEGMENT_CONCURRENCY = 4;
 const inflight = new Map();
 // Deux conversions ffmpeg simultanées au maximum : une salve de requêtes publiques
@@ -32,7 +41,7 @@ const isHls = (url) => /\.m3u8(\?|#|$)/i.test(String(url || ''));
 const hostOf = (u) => { try { return new URL(u).host; } catch { return '?'; } };
 
 async function get(url, as = 'text') {
-  const res = await safeFetch(url, { headers: HEADERS, signal: AbortSignal.timeout(config.hlsTimeoutMs) });
+  const res = await safeFetch(url, { headers: headersFor(url), signal: AbortSignal.timeout(config.hlsTimeoutMs) });
   if (!res.ok) throw new Error(`HTTP ${res.status} sur ${hostOf(url)}`);
   return as === 'buffer' ? Buffer.from(await res.arrayBuffer()) : res.text();
 }
@@ -53,7 +62,9 @@ function parseVariants(masterUrl, text) {
     const line = lines[i].trim();
     if (!line.startsWith('#EXT-X-STREAM-INF:')) continue;
     const attrs = parseAttrs(line.slice('#EXT-X-STREAM-INF:'.length));
-    const uri = (lines[i + 1] || '').trim();
+    let j = i + 1;
+    while (j < lines.length && (!lines[j].trim() || (lines[j].trim().startsWith('#') && !lines[j].trim().startsWith('#EXT-X-STREAM-INF:')))) j++;
+    const uri = (lines[j] || '').trim();
     if (!uri || uri.startsWith('#')) continue;
     const codecs = String(attrs.CODECS || '');
     const [, h] = String(attrs.RESOLUTION || '').split('x').map(Number);
@@ -84,8 +95,8 @@ function audioTracks(masterUrl, text, group) {
         language: a.LANGUAGE || null,
         default: a.DEFAULT === 'YES',
         description: /describes-video/i.test(a.CHARACTERISTICS || ''),   // piste qui raconte l'image
-        aac: /mp4a-40/i.test(uri),                                        // AAC (mp4a-40-*) : lu partout
-        stereo: String(a.CHANNELS || '2') === '2',
+        aac: /mp4a[.-]40/i.test(`${uri} ${a.CODECS || ''}`),              // AAC (mp4a-40-* / mp4a.40.2) : lu partout
+        stereo: String(a.CHANNELS || '2').split('/')[0] === '2',
       };
     });
 }
@@ -143,25 +154,38 @@ function pickPair(variants, masterUrl, master, { maxHeight, maxMB, duration, lan
 
 /** ffmpeg (facultatif) : recolle vidéo + piste audio Apple en un seul MP4. Sans lui, pas de son. */
 let ffmpegBin;
+let ffmpegCheckedBin = null;
 function ffmpeg() {
-  if (ffmpegBin !== undefined) return ffmpegBin;
-  const bin = process.env.FFMPEG_PATH || 'ffmpeg';
+  const wanted = config.ffmpegPath || process.env.FFMPEG_PATH || 'ffmpeg';
+  if (ffmpegBin !== undefined && ffmpegCheckedBin === wanted) return ffmpegBin;
+  ffmpegCheckedBin = wanted;
   try {
-    const probe = spawnSync(bin, ['-hide_banner', '-version'], { stdio: 'ignore', windowsHide: true });
-    ffmpegBin = probe.status === 0 ? bin : null;
+    const probe = spawnSync(wanted, ['-hide_banner', '-version'], { stdio: 'ignore', windowsHide: true });
+    ffmpegBin = probe.status === 0 ? wanted : null;
   } catch { ffmpegBin = null; }
   if (!ffmpegBin) log.warn('hls', 'ffmpeg introuvable : les bandes-annonces Apple seront muettes (installe ffmpeg — winget install Gyan.FFmpeg, apt install ffmpeg — ou renseigne FFMPEG_PATH dans .env)');
   return ffmpegBin;
 }
 
-const HEADER_BLOCK = 'Origin: https://tv.apple.com\r\nReferer: https://tv.apple.com/\r\n';
+function inputArgs(url) {
+  const hdr = ffmpegHeadersFor(url);
+  return [
+    '-protocol_whitelist', 'http,https,tcp,tls,crypto',
+    '-user_agent', UA,
+    ...(hdr ? ['-headers', hdr] : []),
+    '-i', url,
+  ];
+}
 
 function remux(bin, videoUrl, audioUrl, out) {
   return new Promise((resolve, reject) => {
     const args = ['-hide_banner', '-loglevel', 'error', '-y',
-      '-user_agent', UA, '-headers', HEADER_BLOCK, '-i', videoUrl,
-      '-user_agent', UA, '-headers', HEADER_BLOCK, '-i', audioUrl,
-      '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', out];
+      ...inputArgs(videoUrl),
+      ...(audioUrl ? inputArgs(audioUrl) : []),
+      ...(audioUrl ? ['-map', '0:v:0', '-map', '1:a:0'] : ['-map', '0:v:0', '-map', '0:a?']),
+      '-c', 'copy',
+      ...(audioUrl ? [] : ['-bsf:a', 'aac_adtstoasc']),
+      '-movflags', '+faststart', '-f', 'mp4', out];
     const p = spawn(bin, args, { windowsHide: true });
     let err = '';
     const killer = setTimeout(() => { err += ' timeout'; p.kill('SIGKILL'); }, config.hlsTimeoutMs * 4);   // flux bloqué : on ne gèle pas toutes les lectures
@@ -171,8 +195,8 @@ function remux(bin, videoUrl, audioUrl, out) {
   });
 }
 
-async function writeMedia(mediaUrl, file) {
-  const text = await get(mediaUrl);
+async function writeMedia(mediaUrl, file, preloadedText = null) {
+  const text = preloadedText ?? (await get(mediaUrl));
   if (/^#EXT-X-KEY:(?!METHOD=NONE)/im.test(text)) throw new Error('flux HLS chiffré (DRM) : non lisible hors application Apple');
   const base = mediaUrl;
   const lines = text.split(/\r?\n/).map((l) => l.trim());
@@ -203,6 +227,7 @@ async function writeMedia(mediaUrl, file) {
 async function build(url, file, metaFile) {
   const master = await get(url);
   let mediaUrl = url;
+  let mediaText = null;
   let chosen = null;
   let audio = null;
   let duration = durationOf(master);
@@ -214,25 +239,42 @@ async function build(url, file, metaFile) {
       maxHeight: config.hlsMaxHeight, maxMB: config.hlsMaxMB, duration, lang: config.lang,
     }));
     mediaUrl = chosen.url;
+  } else {
+    mediaText = master;
   }
+  // Validation anti-SSRF systématique avant tout appel à ffmpeg (qui effectue ses propres requêtes HTTP).
+  await assertSafeUrl(mediaUrl);
+  if (audio?.url) await assertSafeUrl(audio.url);
+  if (!mediaText) mediaText = await get(mediaUrl);
+  if (/^#EXT-X-KEY:(?!METHOD=NONE)/im.test(mediaText)) {
+    throw new Error('flux HLS chiffré (DRM) : non lisible hors application Apple');
+  }
+  const hasInitMap = /^#EXT-X-MAP:/im.test(mediaText);
   const tmp = `${file}.part`;
   let tracks = 1;
   let res = null;
   const bin = ffmpeg();
-  if (bin && audio) {
+  // Deux cas nécessitent un remux ffmpeg :
+  //  1) variante vidéo + piste audio séparée (Apple TV) ;
+  //  2) playlist HLS à segments MPEG-TS (sans #EXT-X-MAP fMP4) : concaténer du .ts brut ne ferait pas un MP4 valide.
+  if (bin && (audio || !hasInitMap)) {
     try {
-      await remux(bin, mediaUrl, audio.url, tmp);
+      await remux(bin, mediaUrl, audio ? audio.url : null, tmp);
       const size = (await fsp.stat(tmp)).size;
       if (!size) throw new Error('fichier vide');
       await fsp.rename(tmp, file);
-      tracks = 2;
-      res = { bytes: size, segments: null, duration };
+      tracks = audio ? 2 : 1;
+      res = { bytes: size, segments: null, duration: duration || durationOf(mediaText) };
     } catch (e) {
       await fsp.rm(tmp, { force: true });
-      log.warn('hls', `muxage audio impossible (${e.message}) : bande-annonce sans son`);
+      if (audio) log.warn('hls', `muxage audio impossible (${e.message}) : bande-annonce sans son`);
+      else throw e;
     }
   }
-  if (!res) res = await writeMedia(mediaUrl, file);   // secours : image seule, sans ffmpeg
+  if (!res) {
+    if (!hasInitMap) throw new Error('flux HLS MPEG-TS nécessite ffmpeg pour être converti en MP4');
+    res = await writeMedia(mediaUrl, file, mediaText);   // fMP4 (#EXT-X-MAP) : recollage direct des fragments
+  }
   const meta = {
     url, mediaUrl, audioUrl: audio?.url || null, audioName: audio?.name || null,
     builtAt: Date.now(), bytes: res.bytes, segments: res.segments,
@@ -326,4 +368,44 @@ function prefetch(url) {
  */
 const canServe = (url) => !isHls(url) || !!ffmpeg();
 
-module.exports = { isHls, canServe, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore, durationOf, keyOf, ffmpegAvailable: () => !!ffmpeg() };
+/** Statistiques du cache disque HLS pour le dashboard (fichiers convertis, volume utilisé, plafond). */
+async function cacheStats() {
+  const dir = path.resolve(config.hlsCacheDir);
+  let names = [];
+  try { names = await fsp.readdir(dir); } catch {
+    return { files: 0, bytes: 0, maxMB: config.hlsMaxDiskMB || 2048, cacheDays: config.hlsCacheDays || 14, inflight: inflight.size, dir };
+  }
+  let files = 0;
+  let bytes = 0;
+  await Promise.all(names.filter((n) => n.endsWith('.mp4')).map(async (n) => {
+    try {
+      const st = await fsp.stat(path.join(dir, n));
+      files++;
+      bytes += st.size;
+    } catch { /* ignore */ }
+  }));
+  return { files, bytes, maxMB: config.hlsMaxDiskMB || 2048, cacheDays: config.hlsCacheDays || 14, inflight: inflight.size, dir };
+}
+
+/** Purge les MP4/métadonnées HLS mis en cache sur disque. */
+async function clearCache() {
+  const dir = path.resolve(config.hlsCacheDir);
+  let names = [];
+  try { names = await fsp.readdir(dir); } catch { return { removed: 0, bytes: 0 }; }
+  let removed = 0;
+  let bytes = 0;
+  await Promise.all(names.filter((n) => /\.(mp4|json|part)$/.test(n)).map(async (n) => {
+    const p = path.join(dir, n);
+    try {
+      const st = await fsp.stat(p);
+      await fsp.unlink(p);
+      if (n.endsWith('.mp4')) { removed++; bytes += st.size; }
+    } catch { /* ignore */ }
+  }));
+  return { removed, bytes };
+}
+
+module.exports = {
+  isHls, canServe, ensure, stat, prefetch, parseVariants, pickPair, pickAudio, audioScore,
+  durationOf, keyOf, cacheStats, clearCache, isAppleHost, ffmpegAvailable: () => !!ffmpeg(),
+};

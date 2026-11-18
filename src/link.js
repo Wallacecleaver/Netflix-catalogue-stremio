@@ -117,12 +117,13 @@ async function linkOne(row, { refresh = false } = {}) {
       creators: first(row.extra?.creators, n?.creators) || [],
       netflixGenres: first(row.extra?.netflixGenres, n?.netflixGenres) || [],
       tags: first(row.extra?.tags, n?.tags) || [],
-      seasonLabels: first(row.extra?.seasonLabels, n?.seasonLabels) || [],
+      seasonLabels: first(row.extra?.seasonLabels, n?.seasonLabels) || {},
       netflixLinkedAt: Date.now(),
     },
     enriched: row.enriched ? 1 : 0,
   };
 
+  const twinEps = (patch.type === 'series' && twin && twin.id !== row.id) ? store.getEpisodes(twin.id) : [];
   store.upsertTitle(patch);
   store.deleteNetflixDuplicates(nid, row.id);
 
@@ -131,9 +132,8 @@ async function linkOne(row, { refresh = false } = {}) {
     if (n?.episodes?.length) {
       const merged = withReleased(mergeEpisodes(n.episodes, existing), patch.release_date || patch.year || n.releaseDate);
       store.replaceEpisodes(row.id, merged);
-    } else if (twin && twin.id !== row.id && !existing.length) {
-      const twinEps = store.getEpisodes(twin.id);
-      if (twinEps.length) store.replaceEpisodes(row.id, twinEps);
+    } else if (!existing.length && twinEps.length) {
+      store.replaceEpisodes(row.id, twinEps);
     }
   }
 

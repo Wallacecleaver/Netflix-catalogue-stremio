@@ -28,7 +28,7 @@ async function fetchPrimePage(id, locale = config.primeLocale || 'fr') {
   };
   let status = 0;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers, redirect: 'follow' });
+    const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(15000) });
     status = res.status;
     if (res.ok) return res.text();
     if (status < 500 && status !== 429) break;
@@ -192,6 +192,7 @@ async function ingestPrime(input, opts = {}) {
     } catch (e) { console.warn('[tmdb]', e.message); }
   }
   const type = p.type || 'movie';
+  const existing = store.getTitle(id);
   store.upsertTitle({
     id, type, name: p.name, tmdb_id: t?.tmdbId, tmdb_type: t?.tmdbType, imdb_id: t?.imdb_id,
     year: p.year || t?.year, release_date: p.releaseDate || t?.release_date, certification: p.certification || t?.certification,
@@ -200,15 +201,16 @@ async function ingestPrime(input, opts = {}) {
     // Le flux Prime Video est chiffré (enveloppe JWE) : on garde la clé YouTube de TMDB pour avoir
     // au moins le bouton « Bande-annonce » de la fiche Stremio.
     trailer_yt: t?.trailer_yt || null,
-    extra: { primeId: p.primeId || pid, primeTrailer: p.primeTrailer, directors: p.directors, producers: p.producers, studios: p.studios,
+    extra: { ...(existing?.extra || {}), primeId: p.primeId || pid, primeTrailer: p.primeTrailer, directors: p.directors, producers: p.producers, studios: p.studios,
       moods: p.moods, related: p.related, posterShape: t?.poster ? 'poster' : 'landscape', fetchedAt: Date.now() },
     enriched: 1,
   });
+  if (t) store.deleteDuplicates(t.tmdbType, t.tmdbId, id);
   if (type === 'series' && p.episodes.length) {
     const { withReleased } = require('./enrich');
     store.replaceEpisodes(id, withReleased(p.episodes, p.releaseDate || p.year));
   }
-  return { id, name: p.name, type, season: p.seasonNumber, episodes: p.episodes.length, genres: p.genres, warnings: p.warnings };
+  return { id, name: p.name, type, season: p.seasonNumber, episodes: p.episodes.length, genres: p.genres, trailers: 0, trailerYoutube: !!(t?.trailer_yt), warnings: p.warnings };
 }
 
 module.exports = { parsePrimeId, fetchPrimePage, parsePrimeHtml, ingestPrime, frDateToIso };

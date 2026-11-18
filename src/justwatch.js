@@ -34,6 +34,7 @@ async function searchNetflix(query, { country = config.region, language = String
       variables: { country, language, first, searchQuery: String(query) },
       query: QUERY,
     }),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`JustWatch ${res.status}`);
   const data = await res.json();
@@ -126,6 +127,7 @@ async function gql(query, variables) {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json', 'user-agent': UA },
     body: JSON.stringify({ operationName: 'GetNetflixCatalog', variables, query }),
+    signal: AbortSignal.timeout(12000),
   });
   if (res.status === 429) { const e = new Error('JustWatch 429'); e.rateLimited = true; throw e; }
   if (!res.ok) throw new Error(`JustWatch ${res.status}`);

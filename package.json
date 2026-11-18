@@ -1,7 +1,7 @@
 {
   "name": "stockage-db",
-  "version": "2.7.2",
-  "description": "Stockage DB — addon Stremio : stockage et relais de bandes-annonces (VF, Netflix, Apple TV), sans catalogue",
+  "version": "2.8.0",
+  "description": "Stockage DB — stockage multi-sources, relais MP4/HLS et API de fédération de bandes-annonces (Netflix, Apple TV, liens directs)",
   "private": true,
   "main": "src/index.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "harvest": "node scripts/harvest-all.js",
     "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",
-    "test": "node scripts/smoke.js",
+    "test": "node scripts/smoke.js && node test/search-brave-itunes.test.js && node test/youtube.test.js && node test/audit-and-dashboard.test.js",
     "test:search": "node test/search-brave-itunes.test.js",
     "test:youtube": "node test/youtube.test.js",
     "seed": "node scripts/seed.js",

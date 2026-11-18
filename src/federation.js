@@ -15,11 +15,11 @@ function usableUrl(raw) {
   try { return assertSafeUrlSync(raw).href; } catch { return null; }
 }
 
+const sha256 = (v) => crypto.createHash('sha256').update(String(v || '')).digest();
+
 function keyOk(given) {
-  if (!config.apiKey) return false;
-  const a = Buffer.from(String(given || ''));
-  const b = Buffer.from(String(config.apiKey));
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!config.apiKey || !given) return false;
+  return crypto.timingSafeEqual(sha256(given), sha256(config.apiKey));
 }
 
 const ROMAN_TO_INT = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
@@ -120,6 +120,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
       url,
       runtime: t.runtime || null,
       source: t.source === 'upstream' ? 'upstream' : 'netflix',
+      index: i,
     };
     if (t.source === 'upstream' && url) item.directUrl = url;
     out.push(item);
@@ -133,6 +134,7 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
         url: `${config.publicUrl}/apple/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: t.runtime || null,
         source: 'appletv',
+        index: i,
       });
     });
   }
@@ -140,12 +142,13 @@ function trailerUrls(row, { includeApple = false, includeManual = false, season 
   if (includeManual) {
     const manual = (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers : [];
     manual.forEach((t, i) => {
-      if (!t || !t.url) return;
+      if (!t || !t.url || !usableUrl(t.url) || !hls.canServe(t.url)) return;
       out.push({
         title: t.title || 'Bande-annonce',
         url: `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${i}.mp4`,
         runtime: null,
         source: 'manual',
+        index: i,
       });
     });
   }
@@ -204,6 +207,7 @@ async function ensureUpstreamTrailers(row) {
   const last = attempts.get(row.id);
   if (last && Date.now() - last < UPSTREAM_TTL) return row;
   attempts.set(row.id, Date.now());
+  while (attempts.size > 5000) attempts.delete(attempts.keys().next().value);
   try {
     const trailers = await fetchFromUpstream({ imdbId: row.imdb_id, tmdbId: row.tmdb_id, type: row.type });
     if (!trailers.length) return row;

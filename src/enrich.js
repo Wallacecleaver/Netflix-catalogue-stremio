@@ -2,6 +2,7 @@ const config = require('./config');
 const store = require('./db');
 const log = require('./log');
 const tmdb = require('./tmdb');
+const { detectSeason } = require('./federation');
 
 const netflix = require('./netflix');
 const { parseNetflixId, parseNetflixHtml } = netflix;
@@ -59,6 +60,7 @@ async function ingestNetflix(input, opts = {}) {
 
   const type = n.type || (t ? (t.tmdbType === 'tv' ? 'series' : 'movie') : 'movie');
   const id = `nflx:${nid}`;
+  const existing = store.getTitle(id);
   const year = n.year || t?.year || null;
   const releaseDate = n.releaseDate || t?.release_date || null;
   const now = Date.now();
@@ -77,6 +79,7 @@ async function ingestNetflix(input, opts = {}) {
     logo: n.logo || t?.logo,
     trailers: n.trailers, trailers_checked: now, runtime: t?.runtime,
     extra: {
+      ...(existing?.extra || {}),
       directors: n.directors, creators: n.creators, netflixGenres: n.netflixGenres, tags: n.tags,
       seasonLabels: n.seasonLabels, posterShape: hasTmdbPoster ? 'poster' : 'landscape', fetchedAt: now,
     },
@@ -89,7 +92,8 @@ async function ingestNetflix(input, opts = {}) {
   }
   return {
     id, name: n.name, type, year, genres: n.genres, episodes: store.getEpisodes(id).length,
-    seasons: [...new Set(n.episodes.map((e) => e.season))].length, trailersNetflix: n.trailers.length,
+    seasons: [...new Set(n.episodes.map((e) => e.season))].length,
+    trailersNetflix: n.trailers.length, trailers: n.trailers.length,
     warnings: n.warnings,
   };
 }
@@ -139,13 +143,6 @@ function refreshTrailers(nid) {
 
 const MISSING_SEASON_TTL_MS = 15 * 60 * 1000;
 
-function detectSeasonNumber(title) {
-  const s = String(title || '');
-  const m = /\b(?:saison|season|partie|part|volume|vol\.?|tome|chapitre|livre)\s*(\d{1,2})\b/i.exec(s)
-    || /\bS(\d{1,2})(?:\b|E\d)/i.exec(s);
-  return m ? Number(m[1]) : null;
-}
-
 /**
  * Une fiche liée à Netflix doit-elle relire sa page ?
  * - page jamais lue (ex. moissonnage JustWatch) : oui, immédiatement ;
@@ -161,7 +158,7 @@ function isNetflixStale(row, { season = null } = {}) {
   const checkedAt = Number(row.trailers_checked || row.extra?.fetchedAt || row.extra?.netflixLinkedAt || 0);
   if (!list.length) return !checkedAt || (now - checkedAt > ttlMs);
   const reqSeason = Number.isInteger(Number(season)) && Number(season) >= 2 ? Number(season) : null;
-  if (reqSeason && !list.some((t) => detectSeasonNumber(t.title) === reqSeason)) {
+  if (reqSeason && !list.some((t) => detectSeason(t.title) === reqSeason)) {
     if (!checkedAt || now - checkedAt > Math.min(ttlMs, MISSING_SEASON_TTL_MS)) return true;
   }
   if (checkedAt && now - checkedAt > ttlMs) return true;

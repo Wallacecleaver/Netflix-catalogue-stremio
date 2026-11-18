@@ -11,6 +11,7 @@ services:
     env_file: .env
     environment:
       DB_PATH: /app/data/stockage.db
+      HLS_CACHE_DIR: /app/data/hls
       # Un seul reverse proxy (Caddy/Nginx) devant le conteneur.
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     ports:

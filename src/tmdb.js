@@ -8,7 +8,7 @@ async function call(path, params = {}) {
   if (config.tmdbKey.startsWith('eyJ')) headers.authorization = `Bearer ${config.tmdbKey}`;
   else url.searchParams.set('api_key', config.tmdbKey);
   for (const [k, v] of Object.entries(params)) if (v != null) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(12000) });
   if (!res.ok) throw new Error(`TMDB ${res.status} ${path}`);
   return res.json();
 }
@@ -146,7 +146,7 @@ async function findByImdb(imdbId, type) {
 
 async function basics(tmdbType, id) {
   const d = await call(`/${tmdbType}/${id}`, {
-    language: config.lang, append_to_response: 'videos,external_ids', include_video_language: 'fr',
+    language: config.lang, append_to_response: 'videos,external_ids', include_video_language: 'fr,en,null',
   });
   const date = d.first_air_date || d.release_date || null;
   return {

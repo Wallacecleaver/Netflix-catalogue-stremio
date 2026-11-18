@@ -1,6 +1,7 @@
 // Associe les fiches sans ID Netflix (JustWatch → page Netflix) et stocke ID + nom + TMDB/IMDb.
 // Usage : npm run netflix-ids                 (tout le catalogue)
 //         npm run netflix-ids -- --limit 50   (test rapide)
+require('../src/settings');
 const link = require('../src/link');
 
 (async () => {

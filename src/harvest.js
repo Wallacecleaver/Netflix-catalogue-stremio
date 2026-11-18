@@ -153,6 +153,7 @@ function status() {
   return {
     running: state.running, mode: state.mode, stopped: state.stopped,
     seen: state.seen, added: state.added, linked: state.linked, known: state.known, pages: state.pages,
+    sliceDone: state.sliceDone, sliceTotal: state.sliceTotal,
     percent: state.sliceTotal ? Math.round((state.sliceDone / state.sliceTotal) * 100) : 0,
     current: state.current, startedAt: state.startedAt, finishedAt: state.finishedAt,
     exported: state.exported, errors: state.errors.slice(-8),

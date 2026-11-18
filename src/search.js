@@ -161,8 +161,6 @@ async function netflix(query) {
   throw new Error(parts.length ? parts.join(' | ') : 'aucune source de recherche disponible');
 }
 
-module.exports = { netflix, parse, apple, appleWeb: apple, appleCandidates, netflixCandidates, parseApple, justwatchNetflix };
-
 // ---- Apple TV : API iTunes Search ----
 // L'API non documentée de tv.apple.com peut ne rien renvoyer (paramètres périmés) : iTunes Search, publique et stable,
 // retrouve la même fiche et son URL contient le type et l'ID umc.cmc.* — exactement ce qu'attend appletv.fetchTrailers.
@@ -252,4 +250,4 @@ async function apple(query) {
   return appleCandidates(items).slice(0, 8);
 }
 
-module.exports = { netflix, parse, apple, appleWeb: apple, appleCandidates, netflixCandidates, parseApple };
+module.exports = { netflix, parse, apple, appleWeb: apple, appleCandidates, netflixCandidates, parseApple, justwatchNetflix };

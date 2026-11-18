@@ -1,6 +1,7 @@
 // Lit la page Netflix des titres déjà liés à un ID mais sans bande-annonce stockée.
 //   npm run netflix-trailers              → tout le gisement
 //   npm run netflix-trailers -- --limit 50
+require('../src/settings');
 const job = require('../src/netflix-trailers');
 
 const argv = process.argv.slice(2);

@@ -36,12 +36,15 @@ server.on('error', (e) => {
   process.exit(1);
 });
 
-// Arrêt propre (docker stop / redémarrage) : on finit les requêtes en cours, puis on ferme SQLite (checkpoint WAL).
+// Arrêt propre (docker stop / redémarrage) : on signale l'arrêt aux jobs de fond, puis on ferme SQLite (checkpoint WAL).
 let stopping = false;
 function shutdown(sig) {
   if (stopping) return;
   stopping = true;
   console.log(`[${sig}] arrêt…`);
+  for (const mod of ['./link', './harvest', './vf', './appletv', './netflix-trailers']) {
+    try { require(mod).stop?.(); } catch { /* ignore */ }
+  }
   const force = setTimeout(() => process.exit(0), 8000);
   force.unref();
   server.close(() => { try { store.db.close(); } catch { /* déjà fermée */ } process.exit(0); });

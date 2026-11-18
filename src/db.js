@@ -17,6 +17,7 @@ if (path.basename(resolvedDbPath) === 'stockage.db' && !fs.existsSync(resolvedDb
 const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS titles (
@@ -121,8 +122,8 @@ function upsertTitle(t) {
     if (k === 'genres') row.genres_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'cast') row.cast_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
     else if (k === 'extra') row.extra_json = v ? JSON.stringify(v) : null;
-    else if (k === 'appletv') row.appletv_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
-    else if (k === 'trailers') row.trailers_json = Array.isArray(v) && v.length ? JSON.stringify(v) : null;
+    else if (k === 'appletv') row.appletv_json = Array.isArray(v) ? JSON.stringify(v) : null;
+    else if (k === 'trailers') row.trailers_json = Array.isArray(v) ? JSON.stringify(v) : null;
     else if (FIELDS.includes(k)) row[k] = v === undefined ? null : v;
   }
   upsertSql.run(row);
@@ -189,12 +190,51 @@ function listVfPending({ limit = 0, retryDays = 14 } = {}) {
 const listLinked = () => db.prepare(`SELECT netflix_id, name, type, year, tmdb_type, tmdb_id, imdb_id
   FROM titles WHERE netflix_id IS NOT NULL ORDER BY name`).all();
 
+/** Fusionne les données utiles d'un doublon sur la fiche conservée avant suppression. */
+function mergeDuplicatesIntoKeep(dups, keepId) {
+  if (!dups.length) return;
+  const keep = getTitle(keepId);
+  if (!keep) return;
+  let extra = { ...(keep.extra || {}) };
+  const manualByUrl = new Map((Array.isArray(extra.manualTrailers) ? extra.manualTrailers : []).filter((m) => m?.url).map((m) => [m.url, m]));
+  const patch = { id: keep.id, type: keep.type, name: keep.name };
+  let touched = false;
+  for (const raw of dups) {
+    const d = parse(raw);
+    if (!d) continue;
+    for (const k of ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'vf_trailer', 'trailer_yt', 'poster', 'background', 'logo', 'synopsis', 'release_date', 'year']) {
+      if (!keep[k] && !patch[k] && d[k]) { patch[k] = d[k]; touched = true; }
+    }
+    if (!keep.appletv.length && !patch.appletv && d.appletv.length) {
+      patch.appletv = d.appletv;
+      if (d.appletv_checked) patch.appletv_checked = d.appletv_checked;
+      touched = true;
+    }
+    if (!keep.trailers.length && !patch.trailers && d.trailers.length) {
+      patch.trailers = d.trailers;
+      if (d.trailers_checked) patch.trailers_checked = d.trailers_checked;
+      touched = true;
+    }
+    for (const m of (d.extra && Array.isArray(d.extra.manualTrailers) ? d.extra.manualTrailers : [])) {
+      if (m && m.url && !manualByUrl.has(m.url)) { manualByUrl.set(m.url, m); touched = true; }
+    }
+  }
+  if (manualByUrl.size) {
+    extra = { ...extra, manualTrailers: [...manualByUrl.values()].slice(-5) };
+    patch.extra = extra;
+  }
+  if (touched) upsertTitle(patch);
+}
+
 /** Supprime les doublons d'un même ID Netflix (garde la fiche dont l'ID Stremio est déjà connu des utilisateurs). */
-function deleteNetflixDuplicates(netflixId, keepId) {
+const deleteNetflixDuplicates = db.transaction((netflixId, keepId) => {
   invalidateStats();
+  const dups = db.prepare('SELECT * FROM titles WHERE id != ? AND (netflix_id = ? OR id = ?)')
+    .all(keepId, String(netflixId), `nflx:${netflixId}`);
+  mergeDuplicatesIntoKeep(dups, keepId);
   return db.prepare('DELETE FROM titles WHERE id != ? AND (netflix_id = ? OR id = ?)')
     .run(keepId, String(netflixId), `nflx:${netflixId}`).changes;
-}
+});
 
 const insEp = db.prepare(`INSERT INTO episodes (title_id, season, episode, name, synopsis, image, runtime, released)
   VALUES (@title_id, @season, @episode, @name, @synopsis, @image, @runtime, @released)`);
@@ -208,20 +248,25 @@ const replaceEpisodes = db.transaction((titleId, eps) => {
 });
 
 // Un titre ajouté depuis Netflix remplace la ligne "découverte TMDB" équivalente (évite les doublons)
-function deleteDuplicates(tmdbType, tmdbId, keepId) {
+const deleteDuplicates = db.transaction((tmdbType, tmdbId, keepId) => {
   invalidateStats();
-  db.prepare('DELETE FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').run(tmdbType, tmdbId, keepId);
-}
+  const dups = db.prepare('SELECT * FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').all(tmdbType, tmdbId, keepId);
+  mergeDuplicatesIntoKeep(dups, keepId);
+  return db.prepare('DELETE FROM titles WHERE tmdb_type = ? AND tmdb_id = ? AND id != ?').run(tmdbType, tmdbId, keepId).changes;
+});
 
 // Conditions SQL « ce titre a une bande-annonce de telle source ».
 const TR = {
-  netflix: "(trailers_json IS NOT NULL AND trailers_json NOT IN ('', '[]'))",
+  netflix: "(trailers_json IS NOT NULL AND trailers_json NOT IN ('', '[]') AND (netflix_id IS NOT NULL OR trailers_json NOT LIKE '%\"source\":\"upstream\"%'))",
+  upstream: "(trailers_json IS NOT NULL AND trailers_json LIKE '%\"source\":\"upstream\"%')",
   apple: "(appletv_json IS NOT NULL AND appletv_json NOT IN ('', '[]'))",
+  manual: "(extra_json IS NOT NULL AND extra_json LIKE '%\"manualTrailers\":[{%')",
+  youtube: "((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))",
 };
-TR.any = `(${TR.netflix} OR ${TR.apple})`;
+TR.any = `(${TR.netflix} OR ${TR.upstream} OR ${TR.apple} OR ${TR.manual})`;
 
 // Titres dont les bandes-annonces Apple TV n'ont pas encore été cherchées (ou sans résultat depuis plus de `retryDays` jours).
-const appletvPendingWhere = '(appletv_checked IS NULL OR (appletv_json IS NULL AND appletv_checked < @before))';
+const appletvPendingWhere = "(appletv_checked IS NULL OR ((appletv_json IS NULL OR appletv_json IN ('', '[]')) AND appletv_checked < @before))";
 function listAppletvPending({ limit = 0, retryDays = 7 } = {}) {
   const p = { before: Date.now() - retryDays * 86400000 };
   if (limit > 0) p.limit = limit;
@@ -229,12 +274,23 @@ function listAppletvPending({ limit = 0, retryDays = 7 } = {}) {
     ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT @limit' : ''}`).all(p).map(parse);
 }
 
-/** Liste paginée pour l'onglet « Titres » : filtre par source de bande-annonce (none = aucune) et recherche par nom. */
-function listTitles({ search = '', filter = '', limit = 50, offset = 0 } = {}) {
+/** Liste paginée pour l'onglet « Titres » : filtre par source et recherche par nom, ID IMDb, ID Netflix ou ID fiche. */
+function listTitles({ search = '', filter = '', type = '', limit = 50, offset = 0 } = {}) {
   const where = ['1 = 1'];
   const p = {};
-  if (search) { where.push('name LIKE @search'); p.search = `%${search}%`; }
-  if (filter === 'none') where.push(`NOT ${TR.any}`);
+  if (search) {
+    const escaped = String(search).replace(/[\\%_]/g, (m) => `\\${m}`);
+    where.push("(name LIKE @search ESCAPE '\\' OR imdb_id LIKE @search ESCAPE '\\' OR netflix_id LIKE @search ESCAPE '\\' OR id LIKE @search ESCAPE '\\')");
+    p.search = `%${escaped}%`;
+  }
+  if (type === 'movie' || type === 'series') {
+    where.push('type = @type');
+    p.type = type;
+  }
+  if (filter === 'none') where.push(`NOT (${TR.any} OR ${TR.youtube})`);
+  else if (filter === 'no-relay') where.push(`NOT ${TR.any}`);
+  else if (filter === 'imdb') where.push('imdb_id IS NOT NULL');
+  else if (filter === 'no-imdb') where.push('imdb_id IS NULL');
   else if (TR[filter]) where.push(TR[filter]);
   const w = where.join(' AND ');
   const total = db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${w}`).get(p).c;
@@ -270,21 +326,19 @@ function computeStats() {
     lookupsFound: db.prepare('SELECT COUNT(*) c FROM lookups WHERE found = 1').get().c,
     withTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.any}`).get().c,
     withNetflixTrailer: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.netflix}`).get().c,
+    withUpstream: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.upstream}`).get().c,
     withAppletv: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.apple}`).get().c,
-    // Bandes-annonces YouTube (TMDB) réellement utilisées : celles des titres sans flux Netflix/Apple,
-    // puisque c'est la seule source qui reste affichée dans ce cas.
+    withManual: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${TR.manual}`).get().c,
+    // Bandes-annonces YouTube (TMDB) réellement utilisées en repli : celles des titres sans flux relayable.
     withYoutube: db.prepare(`SELECT COUNT(*) c FROM titles
-      WHERE ((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))
-        AND NOT ${TR.netflix} AND NOT ${TR.apple}`).get().c,
-    // Couverture réelle toutes sources confondues : Netflix/Apple d'un côté, YouTube de l'autre
-    // (ces deux ensembles sont disjoints : withYoutube exclut les titres déjà couverts).
+      WHERE ${TR.youtube} AND NOT ${TR.any}`).get().c,
+    // Couverture réelle toutes sources confondues : flux relayables (Netflix/Apple/Manuel/Amont) ou YouTube.
     withVideo: db.prepare(`SELECT COUNT(*) c FROM titles
-      WHERE (${TR.any})
-        OR (((vf_trailer IS NOT NULL AND vf_trailer <> '') OR (trailer_yt IS NOT NULL AND trailer_yt <> ''))
-          AND NOT ${TR.netflix} AND NOT ${TR.apple})`).get().c,
+      WHERE ${TR.any} OR ${TR.youtube}`).get().c,
     appletvChecked: db.prepare('SELECT COUNT(*) c FROM titles WHERE appletv_checked IS NOT NULL').get().c,
     appletvPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${appletvPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
     netflixTrailerPending: db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${netflixTrailerPendingWhere}`).get({ before: Date.now() - 7 * 86400000 }).c,
+    apiKeys: db.prepare('SELECT COUNT(*) c FROM api_keys').get().c,
     dbBytes,
   };
 }
@@ -333,11 +387,16 @@ function addLog({ level = 'info', source = null, message, meta = null }) {
     .run(Date.now(), level, source || null, String(message ?? ''), meta ? JSON.stringify(meta) : null);
   db.prepare('DELETE FROM logs WHERE id <= (SELECT COALESCE(MAX(id), 0) - ? FROM logs)').run(LOG_KEEP);
 }
-function listLogs({ level = '', search = '', limit = 200, offset = 0 } = {}) {
+function listLogs({ level = '', source = '', search = '', limit = 200, offset = 0 } = {}) {
   const where = [];
   const p = { limit: Math.min(Number(limit) || 200, 500), offset: Math.max(Number(offset) || 0, 0) };
   if (level) { where.push('level = @level'); p.level = level; }
-  if (search) { where.push('(message LIKE @like OR source LIKE @like)'); p.like = `%${search}%`; }
+  if (source) { where.push('source = @source'); p.source = source; }
+  if (search) {
+    const escaped = String(search).replace(/[\\%_]/g, (m) => `\\${m}`);
+    where.push("(message LIKE @like ESCAPE '\\' OR source LIKE @like ESCAPE '\\')");
+    p.like = `%${escaped}%`;
+  }
   const cond = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const total = db.prepare(`SELECT COUNT(*) c FROM logs ${cond}`).get(p).c;
   const logs = db.prepare(`SELECT * FROM logs ${cond} ORDER BY id DESC LIMIT @limit OFFSET @offset`).all(p)

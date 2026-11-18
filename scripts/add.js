@@ -1,8 +1,9 @@
 const fs = require('fs');
 require('../src/settings');                     // applique les surcharges enregistrées depuis /admin
 const { ingestNetflix } = require('../src/enrich');
-const { ingestPrime } = require('../src/primevideo');
-const ingest = (a, o) => (/primevideo\.com/i.test(a) ? ingestPrime(a, o) : ingestNetflix(a, o));
+const { ingestPrime, parsePrimeId } = require('../src/primevideo');
+const isPrime = (a) => /primevideo\.com|amazon\.[a-z.]+\/.*detail/i.test(a) || (!/^\d+$/.test(String(a).trim()) && !!parsePrimeId(a));
+const ingest = (a, o) => (isPrime(a) ? ingestPrime(a, o) : ingestNetflix(a, o));
 // Usage : npm run add -- <url|id> [<url|id> ...]      (Netflix, ou URL primevideo.com/.../detail/<id>)
 //         npm run add -- <id> --file page.html   (page enregistrée depuis ton navigateur)
 (async () => {

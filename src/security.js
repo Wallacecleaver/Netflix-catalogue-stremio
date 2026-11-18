@@ -22,15 +22,55 @@ function inCidrV4(ip, base, bits) {
   return (v4ToInt(ip) & mask) === (v4ToInt(base) & mask);
 }
 
+/** Décompose une adresse IPv6 valide en 8 mots de 16 bits (gère ::ffff:127.0.0.1 et ::ffff:7f00:1). */
+function parseIpv6Words(ip) {
+  let norm = String(ip || '').toLowerCase().split('%')[0];
+  const v4Tail = norm.match(/^(.*:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (v4Tail && net.isIPv4(v4Tail[2])) {
+    const n = v4ToInt(v4Tail[2]);
+    norm = `${v4Tail[1]}${((n >>> 16) & 0xffff).toString(16)}:${(n & 0xffff).toString(16)}`;
+  }
+  const halves = norm.split('::');
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(':').filter(Boolean) : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':').filter(Boolean) : [];
+  const missing = halves.length === 2 ? 8 - (left.length + right.length) : 0;
+  if (missing < 0 || (halves.length === 1 && left.length !== 8)) return null;
+  const words = [...left, ...Array(missing).fill('0'), ...right].map((w) => parseInt(w, 16));
+  return words.length === 8 && words.every((w) => Number.isInteger(w) && w >= 0 && w <= 0xffff) ? words : null;
+}
+
+const wordsToV4 = (hi, lo) => `${(hi >>> 8) & 0xff}.${hi & 0xff}.${(lo >>> 8) & 0xff}.${lo & 0xff}`;
+
 function isPrivateIp(ip) {
   if (net.isIPv4(ip)) return BLOCKED_V4.some(([base, bits]) => inCidrV4(ip, base, bits));
   if (net.isIPv6(ip)) {
-    const low = ip.toLowerCase();
-    if (low === '::' || low === '::1') return true;
-    if (low.startsWith('fc') || low.startsWith('fd')) return true;      // fc00::/7 (ULA)
-    if (/^fe[89ab]/.test(low)) return true;                             // fe80::/10 (link-local)
-    const mapped = low.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateIp(mapped[1]);
+    const w = parseIpv6Words(ip);
+    if (!w) return true;
+    const allZeroPrefix = w[0] === 0 && w[1] === 0 && w[2] === 0 && w[3] === 0 && w[4] === 0;
+    // :: (non spécifiée), ::1 (loopback) et ::/96 (IPv4-compatible dépréciée)
+    if (allZeroPrefix && w[5] === 0) {
+      if (w[6] === 0 && (w[7] === 0 || w[7] === 1)) return true;
+      return isPrivateIp(wordsToV4(w[6], w[7]));
+    }
+    // ::ffff:0:0/96 (IPv4-mapped, y compris la forme hex normalisée par new URL : ::ffff:7f00:1)
+    if (allZeroPrefix && w[5] === 0xffff) return isPrivateIp(wordsToV4(w[6], w[7]));
+    // ::ffff:0:0:0/96 (IPv4-translated SIIT)
+    if (w[0] === 0 && w[1] === 0 && w[2] === 0 && w[3] === 0 && w[4] === 0xffff && w[5] === 0) {
+      return isPrivateIp(wordsToV4(w[6], w[7]));
+    }
+    // 64:ff9b::/96 et 64:ff9b:1::/48 (NAT64)
+    if (w[0] === 0x0064 && w[1] === 0xff9b && (w[2] === 0 || w[2] === 1)) return true;
+    // 100::/64 (discard-only RFC 6666)
+    if (w[0] === 0x0100 && w[1] === 0 && w[2] === 0 && w[3] === 0) return true;
+    // 2001::/23 (IETF protocol assignments, Teredo 2001::/32, benchmarking 2001:2::/48) et 2001:db8::/32 (doc)
+    if (w[0] === 0x2001 && (w[1] < 0x0200 || w[1] === 0x0db8)) return true;
+    // 2002::/16 (6to4 : l'adresse IPv4 est dans w[1..2])
+    if (w[0] === 0x2002) return isPrivateIp(wordsToV4(w[1], w[2]));
+    // fc00::/7 (ULA), fe80::/10 (link-local), fec0::/10 (site-local), ff00::/8 (multicast)
+    if ((w[0] & 0xfe00) === 0xfc00) return true;
+    if ((w[0] & 0xffc0) === 0xfe80 || (w[0] & 0xffc0) === 0xfec0) return true;
+    if ((w[0] & 0xff00) === 0xff00) return true;
     return false;
   }
   return false;
@@ -38,30 +78,39 @@ function isPrivateIp(ip) {
 
 const INTERNAL_NAMES = /^(localhost|.*\.localhost|.*\.local|.*\.internal|.*\.home\.arpa)$/i;
 
-// Option de d├®pannage/auto-h├®bergement (d├®conseill├®e) : autorise les adresses internes
-// (ex. une instance amont sur le r├®seau Docker). Jamais activ├®e par d├®faut.
+// Option de dépannage/auto-hébergement (déconseillée) : autorise les adresses internes
+// (ex. une instance amont sur le réseau Docker). Jamais activée par défaut.
 const allowPrivate = () => process.env.ALLOW_PRIVATE_URLS === '1';
 
-/** Contr├┤les synchrones : sch├®ma, identifiants dans l'URL, IP litt├®rale interne. */
+function evictOldest(map, maxEntries) {
+  while (map.size > maxEntries) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
+
+/** Contrôles synchrones : schéma, identifiants dans l'URL, IP littérale interne. */
 function assertSafeUrlSync(raw) {
   let url;
   try { url = new URL(String(raw)); } catch { throw new Error('URL invalide'); }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('sch├®ma URL refus├®');
-  if (url.username || url.password) throw new Error('URL contenant des identifiants refus├®e');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('schéma URL refusé');
+  if (url.username || url.password) throw new Error('URL contenant des identifiants refusée');
   if (allowPrivate()) return url;
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (!host) throw new Error('h├┤te manquant dans lÔÇÖURL');
-  if (net.isIP(host) && isPrivateIp(host)) throw new Error('adresse interne refus├®e');
-  if (INTERNAL_NAMES.test(host)) throw new Error('h├┤te interne refus├®');
+  if (!host) throw new Error('hôte manquant dans l’URL');
+  if (net.isIP(host) && isPrivateIp(host)) throw new Error('adresse interne refusée');
+  if (INTERNAL_NAMES.test(host)) throw new Error('hôte interne refusé');
   return url;
 }
 
-// Cache des r├®solutions DNS (├®vite un lookup par segment HLS).
+// Cache des résolutions DNS (évite un lookup par segment HLS).
 const dnsCache = new Map();
 const DNS_OK_TTL = 5 * 60 * 1000;
 const DNS_BAD_TTL = 60 * 1000;
+const DNS_CACHE_MAX = 2000;
 
-/** Contr├┤les synchrones + r├®solution DNS : refuse toute URL qui pointe vers le r├®seau interne. */
+/** Contrôles synchrones + résolution DNS : refuse toute URL qui pointe vers le réseau interne. */
 async function assertSafeUrl(raw) {
   const url = assertSafeUrlSync(raw);
   if (allowPrivate()) return url;
@@ -71,7 +120,7 @@ async function assertSafeUrl(raw) {
   const now = Date.now();
   const hit = dnsCache.get(host);
   if (hit && hit.exp > now) {
-    if (hit.bad) throw new Error('h├┤te interne refus├®');
+    if (hit.bad) throw new Error('hôte interne refusé');
     return url;
   }
 
@@ -80,15 +129,17 @@ async function assertSafeUrl(raw) {
     addrs = await dns.promises.lookup(host, { all: true, verbatim: true });
   } catch {
     dnsCache.set(host, { exp: now + DNS_BAD_TTL, bad: true });
-    throw new Error('h├┤te introuvable');
+    evictOldest(dnsCache, DNS_CACHE_MAX);
+    throw new Error('hôte introuvable');
   }
   const bad = !addrs.length || addrs.some((a) => isPrivateIp(a.address));
   dnsCache.set(host, { exp: now + (bad ? DNS_BAD_TTL : DNS_OK_TTL), bad });
-  if (bad) throw new Error('h├┤te interne refus├®');
+  evictOldest(dnsCache, DNS_CACHE_MAX);
+  if (bad) throw new Error('hôte interne refusé');
   return url;
 }
 
-/** fetch() avec validation d'URL et redirections revalid├®es ├á chaque saut. */
+/** fetch() avec validation d'URL et redirections revalidées à chaque saut. */
 async function safeFetch(raw, options = {}, maxRedirects = 3) {
   let current = String(raw);
   for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -105,25 +156,27 @@ async function safeFetch(raw, options = {}, maxRedirects = 3) {
   throw new Error('trop de redirections');
 }
 
-// ---- En-t├¬tes de s├®curit├® ----
+// ---- En-têtes de sécurité ----
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  // Les bandes-annonces sont charg├®es par un lecteur externe (Stremio) : pas de CORP bloquant.
+  // Les bandes-annonces sont chargées par un lecteur externe (Stremio) : pas de CORP bloquant.
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  // Les flux vid├®o n'ont pas besoin de CSP et doivent rester lisibles par les lecteurs.
-  if (!/^\/(trailer|apple)\//.test(req.path)) {
+  // Les flux vidéo n'ont pas besoin de CSP et doivent rester lisibles par les lecteurs.
+  if (!/^\/(trailer|apple|media)\//.test(req.path)) {
     res.setHeader('Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; " +
-      "object-src 'none'; form-action 'self'");
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com data:; " +
+      "img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self'; " +
+      "frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'");
   }
   next();
 }
 
-// ---- Limitation de d├®bit en m├®moire (aucune d├®pendance) ----
+// ---- Limitation de débit en mémoire (aucune dépendance) ----
 function rateLimit({ windowMs = 60_000, max = 60, name = 'rl' } = {}) {
   const hits = new Map();
   const timer = setInterval(() => {
@@ -138,10 +191,10 @@ function rateLimit({ windowMs = 60_000, max = 60, name = 'rl' } = {}) {
     let hit = hits.get(key);
     if (!hit || hit.reset <= now) { hit = { n: 0, reset: now + windowMs }; hits.set(key, hit); }
     hit.n++;
-    if (hits.size > 10_000) hits.clear();
+    evictOldest(hits, 10_000);
     if (hit.n > max) {
       res.setHeader('Retry-After', String(Math.max(1, Math.ceil((hit.reset - now) / 1000))));
-      return res.status(429).json({ error: `Trop de requ├¬tes (${name}), r├®essaie dans un instant` });
+      return res.status(429).json({ error: `Trop de requêtes (${name}), réessaie dans un instant` });
     }
     next();
   };
