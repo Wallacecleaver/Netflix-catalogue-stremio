@@ -83,8 +83,15 @@ CREATE TABLE IF NOT EXISTS api_keys (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   label TEXT NOT NULL,
   key_hash TEXT NOT NULL UNIQUE,
+  prefix TEXT,
   last4 TEXT NOT NULL,
-  scopes TEXT NOT NULL DEFAULT 'trailers:read',
+  scopes TEXT NOT NULL DEFAULT 'trailers:read,catalog:read',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  rate_limit INTEGER NOT NULL DEFAULT 300,
+  expires_at INTEGER,
+  calls_total INTEGER NOT NULL DEFAULT 0,
+  hits_total INTEGER NOT NULL DEFAULT 0,
+  last_ip TEXT,
   created_at INTEGER NOT NULL,
   last_used_at INTEGER
 );
@@ -92,6 +99,17 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 for (const col of ['extra_json TEXT', 'trailers_json TEXT', 'vf_trailer TEXT', 'vf_checked INTEGER', 'appletv_json TEXT', 'appletv_checked INTEGER', 'trailers_checked INTEGER', 'link_checked INTEGER']) {
   try { db.exec(`ALTER TABLE titles ADD COLUMN ${col}`); } catch { /* déjà présente */ }
+}
+for (const col of [
+  'prefix TEXT',
+  'enabled INTEGER NOT NULL DEFAULT 1',
+  'rate_limit INTEGER NOT NULL DEFAULT 300',
+  'expires_at INTEGER',
+  'calls_total INTEGER NOT NULL DEFAULT 0',
+  'hits_total INTEGER NOT NULL DEFAULT 0',
+  'last_ip TEXT',
+]) {
+  try { db.exec(`ALTER TABLE api_keys ADD COLUMN ${col}`); } catch { /* déjà présente */ }
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(type, name COLLATE NOCASE)');
@@ -274,8 +292,14 @@ function listAppletvPending({ limit = 0, retryDays = 7 } = {}) {
     ORDER BY COALESCE(release_date, '') DESC, added_at DESC${limit > 0 ? ' LIMIT @limit' : ''}`).all(p).map(parse);
 }
 
-/** Liste paginée pour l'onglet « Titres » : filtre par source et recherche par nom, ID IMDb, ID Netflix ou ID fiche. */
-function listTitles({ search = '', filter = '', type = '', limit = 50, offset = 0 } = {}) {
+/** Liste paginée pour l'onglet « Titres » : filtre par source, tri et recherche par nom, ID IMDb, ID Netflix ou ID fiche. */
+const TITLE_SORTS = {
+  added: 'added_at DESC, name COLLATE NOCASE ASC',
+  release: "COALESCE(release_date, '') DESC, COALESCE(year, 0) DESC, name COLLATE NOCASE ASC",
+  year: 'COALESCE(year, 0) DESC, added_at DESC',
+  name: 'name COLLATE NOCASE ASC, COALESCE(year, 0) DESC',
+};
+function listTitles({ search = '', filter = '', type = '', sort = 'added', limit = 50, offset = 0 } = {}) {
   const where = ['1 = 1'];
   const p = {};
   if (search) {
@@ -293,8 +317,9 @@ function listTitles({ search = '', filter = '', type = '', limit = 50, offset = 
   else if (filter === 'no-imdb') where.push('imdb_id IS NULL');
   else if (TR[filter]) where.push(TR[filter]);
   const w = where.join(' AND ');
+  const orderBy = TITLE_SORTS[sort] || TITLE_SORTS.added;
   const total = db.prepare(`SELECT COUNT(*) c FROM titles WHERE ${w}`).get(p).c;
-  const rows = db.prepare(`SELECT * FROM titles WHERE ${w} ORDER BY added_at DESC, name LIMIT @limit OFFSET @offset`)
+  const rows = db.prepare(`SELECT * FROM titles WHERE ${w} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
     .all({ ...p, limit, offset }).map(parse);
   return { total, rows };
 }
@@ -369,16 +394,62 @@ const setSettings = db.transaction((entries) => {
 });
 const deleteSetting = (key) => db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes;
 
-// ---- Clés API de fédération : seule l'empreinte SHA-256 est stockée (la clé n'est montrée qu'à la création) ----
-const listApiKeys = () => db.prepare('SELECT id, label, last4, scopes, created_at, last_used_at FROM api_keys ORDER BY id').all();
+// ---- Clés API de fédération : seule l'empreinte SHA-256 est stockée (la clé n'est montrée qu'à la création/rotation) ----
+const API_KEY_COLS = 'id, label, prefix, last4, scopes, enabled, rate_limit, expires_at, calls_total, hits_total, last_ip, created_at, last_used_at';
+const listApiKeys = () => db.prepare(`SELECT ${API_KEY_COLS} FROM api_keys ORDER BY id DESC`).all();
+const getApiKeyById = (id) => db.prepare(`SELECT ${API_KEY_COLS} FROM api_keys WHERE id = ?`).get(Number(id));
 const countApiKeys = () => db.prepare('SELECT COUNT(*) c FROM api_keys').get().c;
-const createApiKey = ({ label, hash, last4, scopes = 'trailers:read' }) => Number(db.prepare(
-  'INSERT INTO api_keys (label, key_hash, last4, scopes, created_at) VALUES (?, ?, ?, ?, ?)').run(label, hash, last4, scopes, Date.now()).lastInsertRowid);
-const deleteApiKey = (id) => db.prepare('DELETE FROM api_keys WHERE id = ?').run(Number(id)).changes;
-const findApiKey = (hash) => db.prepare('SELECT id, label, scopes FROM api_keys WHERE key_hash = ?').get(String(hash));
-// « Dernière utilisation » : une écriture par minute et par clé au plus (l'API peut être très sollicitée).
-const touchApiKey = (id) => db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)')
-  .run(Date.now(), Number(id), Date.now() - 60000);
+const countActiveApiKeys = () => db.prepare('SELECT COUNT(*) c FROM api_keys WHERE enabled = 1 AND (expires_at IS NULL OR expires_at > ?)').get(Date.now()).c;
+const createApiKey = ({
+  label, hash, prefix = null, last4, scopes = 'trailers:read,catalog:read',
+  enabled = 1, rateLimit = 300, expiresAt = null,
+}) => {
+  invalidateStats();
+  return Number(db.prepare(`INSERT INTO api_keys
+    (label, key_hash, prefix, last4, scopes, enabled, rate_limit, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    label, hash, prefix || null, last4, scopes, enabled ? 1 : 0,
+    Math.max(0, Number.isFinite(Number(rateLimit)) ? Number(rateLimit) : 300),
+    expiresAt ? Number(expiresAt) : null,
+    Date.now(),
+  ).lastInsertRowid);
+};
+function updateApiKey(id, patch = {}) {
+  invalidateStats();
+  const cur = getApiKeyById(id);
+  if (!cur) return null;
+  const label = patch.label !== undefined ? (String(patch.label).replace(/\s+/g, ' ').trim().slice(0, 60) || cur.label) : cur.label;
+  const scopes = patch.scopes !== undefined ? String(patch.scopes) : cur.scopes;
+  const enabled = patch.enabled !== undefined ? (patch.enabled ? 1 : 0) : cur.enabled;
+  const rateLimit = patch.rateLimit !== undefined ? Math.max(0, Number(patch.rateLimit) || 0) : cur.rate_limit;
+  const expiresAt = patch.expiresAt !== undefined ? (patch.expiresAt ? Number(patch.expiresAt) : null) : cur.expires_at;
+  db.prepare('UPDATE api_keys SET label = ?, scopes = ?, enabled = ?, rate_limit = ?, expires_at = ? WHERE id = ?')
+    .run(label, scopes, enabled, rateLimit, expiresAt, Number(id));
+  return getApiKeyById(id);
+}
+function rotateApiKey(id, { hash, prefix = null, last4 }) {
+  invalidateStats();
+  const res = db.prepare('UPDATE api_keys SET key_hash = ?, prefix = ?, last4 = ?, last_used_at = NULL WHERE id = ?')
+    .run(String(hash), prefix || null, String(last4), Number(id));
+  return res.changes > 0 ? getApiKeyById(id) : null;
+}
+const deleteApiKey = (id) => { invalidateStats(); return db.prepare('DELETE FROM api_keys WHERE id = ?').run(Number(id)).changes; };
+const findApiKey = (hash) => db.prepare(`SELECT ${API_KEY_COLS} FROM api_keys WHERE key_hash = ?`).get(String(hash));
+const recordApiKeyUseStmt = db.prepare(`
+  UPDATE api_keys SET
+    calls_total = COALESCE(calls_total, 0) + 1,
+    hits_total = COALESCE(hits_total, 0) + @hit,
+    last_used_at = @now,
+    last_ip = COALESCE(@ip, last_ip)
+  WHERE id = @id
+`);
+const recordApiKeyUse = (id, { hit = false, ip = null } = {}) => recordApiKeyUseStmt.run({
+  id: Number(id),
+  hit: hit ? 1 : 0,
+  now: Date.now(),
+  ip: ip ? String(ip).slice(0, 64) : null,
+});
+const touchApiKey = (id) => recordApiKeyUse(id);
 
 // ---- Journal d'événements (erreurs liage/synchro/relais, actions admin…) ----
 const LOG_KEEP = 2000;
@@ -408,4 +479,5 @@ const clearLogs = () => db.prepare('DELETE FROM logs').run().changes;
 module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImdbId, findByNetflixId, findByName, getLookup, setLookup, listUnlinked, listLinked, listVfPending,
   listNetflixTrailerPending, deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
   allSettings, setSettings, deleteSetting, deleteTitle, resetChecks,
-  listApiKeys, countApiKeys, createApiKey, deleteApiKey, findApiKey, touchApiKey, addLog, listLogs, clearLogs };
+  listApiKeys, getApiKeyById, countApiKeys, countActiveApiKeys, createApiKey, updateApiKey, rotateApiKey, deleteApiKey, findApiKey, recordApiKeyUse, touchApiKey,
+  addLog, listLogs, clearLogs };

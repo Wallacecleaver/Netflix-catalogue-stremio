@@ -1,6 +1,6 @@
 {
   "name": "stockage-db",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Stockage DB — stockage multi-sources, relais MP4/HLS et API de fédération de bandes-annonces (Netflix, Apple TV, liens directs)",
   "private": true,
   "main": "src/index.js",

@@ -10,32 +10,35 @@
 <style>
   :root, [data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0b0e14;
-    --bg-elev: #111620;
-    --card: #141a26;
-    --card-alt: #192131;
-    --hover: #1f293d;
-    --line: #232d42;
-    --line-strong: #2f3d59;
-    --fg: #eaf0f8;
-    --fg-soft: #b6c2d6;
-    --muted: #7f8ea8;
+    --bg: #090c12;
+    --bg-elev: #0e131d;
+    --card: #121826;
+    --card-alt: #171f30;
+    --hover: #1d273c;
+    --line: #212c42;
+    --line-strong: #2e3d5c;
+    --fg: #ecf2fa;
+    --fg-soft: #b8c4d9;
+    --muted: #7d8da8;
     --accent: #14b8a6;
     --accent-strong: #0d9488;
     --accent-soft: rgba(20, 184, 166, 0.14);
+    --accent-glow: rgba(20, 184, 166, 0.07);
     --ok: #22c55e;
     --ok-soft: rgba(34, 197, 94, 0.14);
     --warn: #f59e0b;
     --warn-soft: rgba(245, 158, 11, 0.14);
     --danger: #ef4444;
     --danger-soft: rgba(239, 68, 68, 0.14);
+    --info: #38bdf8;
+    --info-soft: rgba(56, 189, 248, 0.14);
     --src-netflix: #e50914;
     --src-apple: #38bdf8;
     --src-manual: #f59e0b;
     --src-upstream: #10b981;
     --src-youtube: #64748b;
-    --shadow: 0 16px 40px rgba(0, 0, 0, 0.38);
-    --radius: 12px;
+    --shadow: 0 18px 44px rgba(0, 0, 0, 0.44);
+    --radius: 13px;
     --radius-sm: 8px;
     --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -44,35 +47,45 @@
 
   [data-theme="light"] {
     color-scheme: light;
-    --bg: #f3f6fb;
+    --bg: #f2f6fc;
     --bg-elev: #ffffff;
     --card: #ffffff;
-    --card-alt: #f7f9fc;
-    --hover: #edf2f9;
-    --line: #dde5f0;
-    --line-strong: #c6d3e6;
+    --card-alt: #f6f9fe;
+    --hover: #ebf1fa;
+    --line: #dce4f0;
+    --line-strong: #c3d1e6;
     --fg: #0f172a;
     --fg-soft: #334155;
     --muted: #64748b;
     --accent: #0d9488;
     --accent-strong: #0f766e;
     --accent-soft: rgba(13, 148, 136, 0.11);
+    --accent-glow: rgba(13, 148, 136, 0.04);
     --ok: #16a34a;
     --ok-soft: rgba(22, 163, 74, 0.11);
     --warn: #d97706;
     --warn-soft: rgba(217, 119, 6, 0.12);
     --danger: #dc2626;
     --danger-soft: rgba(220, 38, 38, 0.10);
+    --info: #0284c7;
+    --info-soft: rgba(2, 132, 199, 0.11);
     --src-netflix: #dc2626;
     --src-apple: #0284c7;
     --src-manual: #d97706;
     --src-upstream: #059669;
     --src-youtube: #64748b;
-    --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    --shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font-sans); -webkit-font-smoothing: antialiased; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: radial-gradient(900px 420px at 65% -120px, var(--accent-glow), transparent 70%), var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
   a { color: inherit; }
   button, input, select, textarea { font: inherit; color: inherit; }
 
@@ -82,7 +95,7 @@
   .hide { display: none !important; }
 
   /* ---- Inputs & Buttons ---- */
-  input[type="text"], input[type="password"], input[type="number"], input[type="search"], input[type="url"], select {
+  input[type="text"], input[type="password"], input[type="number"], input[type="search"], input[type="url"], select, textarea {
     width: 100%;
     padding: 9px 12px;
     background: var(--bg);
@@ -92,11 +105,12 @@
     outline: none;
     transition: border-color .15s, box-shadow .15s;
   }
-  input:focus, select:focus {
+  textarea { resize: vertical; min-height: 82px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+  input:focus, select:focus, textarea:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  input::placeholder { color: var(--muted); opacity: .75; }
+  input::placeholder, textarea::placeholder { color: var(--muted); opacity: .75; }
 
   button, .btn {
     display: inline-flex;
@@ -125,7 +139,7 @@
   .btn-danger:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
   .btn-ghost { background: transparent; border-color: transparent; color: var(--fg-soft); }
   .btn-ghost:hover:not(:disabled) { background: var(--hover); border-color: var(--line); color: var(--fg); }
-  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+  .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 7px; }
   .btn-xs { padding: 3px 8px; font-size: 11.5px; border-radius: 6px; font-weight: 500; }
 
   /* ---- Badges & Pills ---- */
@@ -135,7 +149,7 @@
     padding: 1px 7px;
     border-radius: 999px;
     background: var(--accent-soft);
-    border: 1px solid rgba(20, 184, 166, 0.32);
+    border: 1px solid rgba(20, 184, 166, 0.34);
     color: var(--accent);
     font-family: var(--font-mono);
     font-size: 11px;
@@ -155,18 +169,33 @@
     color: var(--fg-soft);
     white-space: nowrap;
   }
-  .badge-ok { background: var(--ok-soft); border-color: rgba(34,197,94,.32); color: var(--ok); }
-  .badge-warn { background: var(--warn-soft); border-color: rgba(245,158,11,.34); color: var(--warn); }
-  .badge-err { background: var(--danger-soft); border-color: rgba(239,68,68,.34); color: var(--danger); }
-  .badge-accent { background: var(--accent-soft); border-color: rgba(20,184,166,.34); color: var(--accent); }
+  .badge-ok { background: var(--ok-soft); border-color: rgba(34,197,94,.34); color: var(--ok); }
+  .badge-warn { background: var(--warn-soft); border-color: rgba(245,158,11,.36); color: var(--warn); }
+  .badge-err { background: var(--danger-soft); border-color: rgba(239,68,68,.36); color: var(--danger); }
+  .badge-accent { background: var(--accent-soft); border-color: rgba(20,184,166,.36); color: var(--accent); }
+  .badge-info { background: var(--info-soft); border-color: rgba(56,189,248,.36); color: var(--info); }
   .badge-netflix { background: rgba(229,9,20,.14); border-color: rgba(229,9,20,.38); color: #ff5a63; }
   [data-theme="light"] .badge-netflix { color: #c81018; }
   .badge-apple { background: rgba(56,189,248,.14); border-color: rgba(56,189,248,.36); color: var(--src-apple); }
   .badge-manual { background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.36); color: var(--src-manual); }
   .badge-upstream { background: rgba(16,185,129,.14); border-color: rgba(16,185,129,.36); color: var(--src-upstream); }
 
+  .method-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .method-get { background: var(--info-soft); color: var(--info); border: 1px solid rgba(56,189,248,.32); }
+  .method-post { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(20,184,166,.34); }
+
   .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-  .dot-ok { background: var(--ok); }
+  .dot-ok { background: var(--ok); box-shadow: 0 0 8px rgba(34,197,94,.45); }
   .dot-warn { background: var(--warn); }
   .dot-err { background: var(--danger); }
   .dot-off { background: var(--muted); opacity: .55; }
@@ -181,7 +210,7 @@
   }
   .gate-card {
     width: 100%;
-    max-width: 420px;
+    max-width: 430px;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 16px;
@@ -193,8 +222,8 @@
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: var(--accent-soft);
-    border: 1px solid rgba(20, 184, 166, 0.35);
+    background: linear-gradient(135deg, var(--accent-soft), rgba(56,189,248,0.12));
+    border: 1px solid rgba(20, 184, 166, 0.38);
     color: var(--accent);
     display: grid;
     place-items: center;
@@ -207,7 +236,7 @@
   .pw-toggle { position: absolute; right: 6px; padding: 4px 8px; font-size: 11.5px; border: none; background: transparent; color: var(--muted); }
 
   /* ---- App Shell (Sidebar + Main) ---- */
-  .shell { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
+  .shell { display: grid; grid-template-columns: 274px minmax(0, 1fr); min-height: 100vh; }
   .sidebar {
     background: var(--bg-elev);
     border-right: 1px solid var(--line);
@@ -220,7 +249,7 @@
     overflow-y: auto;
   }
   .sidebar-brand { padding: 4px 8px 16px; border-bottom: 1px solid var(--line); }
-  .sidebar-tagline { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .sidebar-tagline { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.42; }
   .nav-group-label {
     padding: 16px 10px 6px;
     font-size: 10.5px;
@@ -233,6 +262,7 @@
   .nav-btn {
     width: 100%;
     justify-content: space-between;
+    gap: 8px;
     padding: 9px 11px;
     border: 1px solid transparent;
     border-radius: 9px;
@@ -245,21 +275,24 @@
   .nav-btn:hover { background: var(--hover); color: var(--fg); border-color: transparent; }
   .nav-btn.active {
     background: var(--accent-soft);
-    border-color: rgba(20, 184, 166, 0.28);
+    border-color: rgba(20, 184, 166, 0.30);
     color: var(--accent);
     font-weight: 600;
   }
-  .nav-btn-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .nav-btn-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .nav-btn-left > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-icon { width: 17px; height: 17px; flex-shrink: 0; opacity: .88; }
   .nav-count {
     font-family: var(--font-mono);
     font-size: 11px;
-    padding: 1px 6px;
+    padding: 1px 7px;
     border-radius: 999px;
     background: var(--card-alt);
     border: 1px solid var(--line);
     color: var(--muted);
+    flex-shrink: 0;
   }
+  .nav-count.ok { background: var(--ok-soft); border-color: rgba(34,197,94,.34); color: var(--ok); }
   .nav-count.err { background: var(--danger-soft); border-color: rgba(239,68,68,.35); color: var(--danger); }
 
   .sidebar-footer {
@@ -285,17 +318,89 @@
     z-index: 30;
   }
 
-  .main { padding: 26px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; }
+  /* ---- Sticky Top Command Bar ---- */
+  .main-col { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 32px;
+    background: color-mix(in srgb, var(--bg-elev) 86%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .quick-wrap { position: relative; flex: 1; max-width: 460px; }
+  .quick-input {
+    padding-left: 34px !important;
+    padding-right: 58px !important;
+    height: 36px;
+    font-size: 13px;
+    background: var(--card) !important;
+  }
+  .quick-icon {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .kbd-hint {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    background: var(--card-alt);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .quick-pop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-radius: 11px;
+    box-shadow: var(--shadow);
+    max-height: 360px;
+    overflow-y: auto;
+    z-index: 70;
+    padding: 6px;
+  }
+  .quick-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .quick-item:hover { background: var(--hover); }
+
+  .main { padding: 24px 32px 48px; max-width: 1360px; width: 100%; margin: 0 auto; }
   .page-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
   .page-title { margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
-  .page-desc { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; max-width: 760px; }
+  .page-desc { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; max-width: 780px; }
   .head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
   /* ---- Cards & Grids ---- */
@@ -305,6 +410,10 @@
     border-radius: var(--radius);
     padding: 18px 20px;
     margin-bottom: 16px;
+  }
+  .card-accent {
+    border-color: rgba(20, 184, 166, 0.30);
+    background: linear-gradient(180deg, rgba(20, 184, 166, 0.05), transparent 68%), var(--card);
   }
   .card-head {
     display: flex;
@@ -351,9 +460,21 @@
     flex-direction: column;
     justify-content: space-between;
     gap: 6px;
+    position: relative;
+    overflow: hidden;
   }
-  .kpi-label { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .kpi-val { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: .65;
+  }
+  .kpi-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .kpi-val { font-family: var(--font-display); font-size: 27px; font-weight: 700; line-height: 1.12; font-variant-numeric: tabular-nums; }
   .kpi-foot { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
   /* ---- Coverage Bar ---- */
@@ -369,12 +490,12 @@
     margin: 14px 0 12px;
   }
   .seg-bar > span { height: 100%; transition: width .3s ease; }
-  .seg-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12.5px; }
+  .seg-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12.5px; }
   .seg-item {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 8px;
+    padding: 4px 9px;
     border-radius: 7px;
     background: var(--card-alt);
     border: 1px solid var(--line);
@@ -395,6 +516,7 @@
   .job-name { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .job-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .job-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .batch-sel { width: auto !important; padding: 5px 8px !important; font-size: 12px !important; }
   .progress {
     height: 6px;
     background: var(--bg);
@@ -403,7 +525,7 @@
     margin-top: 9px;
     border: 1px solid var(--line);
   }
-  .progress > div { height: 100%; background: var(--accent); width: 0%; transition: width .25s ease; }
+  .progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), #38bdf8); width: 0%; transition: width .25s ease; }
   .job-errors {
     margin-top: 7px;
     padding: 7px 10px;
@@ -486,7 +608,7 @@
   .cfg-label { font-weight: 500; font-size: 13px; }
   .cfg-key { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
-  /* ---- Code / Snippets ---- */
+  /* ---- Code / Snippets & API Studio ---- */
   .code-box {
     background: var(--bg);
     border: 1px solid var(--line);
@@ -496,7 +618,10 @@
     font-size: 12px;
     overflow-x: auto;
     color: var(--fg-soft);
-    line-height: 1.55;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
   }
   .secret-banner {
     padding: 13px 15px;
@@ -505,12 +630,53 @@
     border: 1px solid rgba(20, 184, 166, 0.42);
     margin: 12px 0;
   }
+  .subtabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 9px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .subtab {
+    padding: 5px 11px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .subtab:hover { color: var(--fg); background: var(--card-alt); }
+  .subtab.active { background: var(--accent-soft); color: var(--accent); }
+
+  .route-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--card-alt);
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .key-card {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card-alt);
+    margin-bottom: 8px;
+  }
+  .key-card.paused { opacity: .68; border-style: dashed; }
 
   /* ---- Modal (Trailer Inspector & Inline Video Player) ---- */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 8, 15, 0.76);
+    background: rgba(5, 8, 15, 0.78);
     backdrop-filter: blur(4px);
     z-index: 80;
     display: flex;
@@ -520,7 +686,7 @@
   }
   .modal {
     width: 100%;
-    max-width: 820px;
+    max-width: 840px;
     max-height: 90vh;
     overflow-y: auto;
     background: var(--card);
@@ -536,7 +702,7 @@
     overflow: hidden;
     border: 1px solid var(--line);
   }
-  .player-box video { width: 100%; max-height: 400px; display: block; background: #000; }
+  .player-box video { width: 100%; max-height: 410px; display: block; background: #000; }
   .player-caption {
     padding: 8px 12px;
     background: var(--card-alt);
@@ -579,19 +745,20 @@
   .toast.ok { border-color: rgba(34,197,94,.45); color: var(--ok); }
   .toast.err { border-color: rgba(239,68,68,.45); color: var(--danger); }
 
-  @media (max-width: 1060px) {
+  @media (max-width: 1080px) {
     .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cols-2 { grid-template-columns: 1fr; }
   }
   @media (max-width: 900px) {
     .shell { display: block; }
     .mobile-bar { display: flex; }
+    .topbar { padding: 10px 16px; }
     .sidebar {
       position: fixed;
       left: 0;
       top: 0;
       bottom: 0;
-      width: 270px;
+      width: 274px;
       z-index: 60;
       transform: translateX(-102%);
       transition: transform .2s ease;
@@ -628,23 +795,21 @@
     <form id="loginForm">
       <label style="display:block;font-size:12px;font-weight:600;margin-bottom:6px;color:var(--fg-soft)" for="tok">Mot de passe administrateur (<span class="mono">ADMIN_TOKEN</span>)</label>
       <div class="pw-wrap">
-        <input id="tok" type="password" placeholder="Saisis ton ADMIN_TOKEN" autocomplete="current-password" required>
-        <button type="button" class="pw-toggle" id="gatePwToggle">Afficher</button>
+        <input id="tok" type="password" autocomplete="current-password" placeholder="Saisis ton ADMIN_TOKEN…" required>
+        <button type="button" class="pw-toggle" id="pwToggleBtn">Afficher</button>
       </div>
-      <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <span id="loginMsg" style="font-size:12.5px;color:var(--danger)"></span>
-        <button type="submit" class="btn-primary">Se connecter</button>
-      </div>
+      <div id="loginMsg" style="min-height:18px;margin-top:8px;font-size:12.5px;color:var(--danger)"></div>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;padding:10px">Se connecter</button>
     </form>
   </div>
 </div>
 
-<!-- ==================== APPLICATION SHELL ==================== -->
+<!-- ==================== MAIN APPLICATION ==================== -->
 <div id="app" class="hide">
   <div class="mobile-bar">
-    <div class="brand-row">
-      <button type="button" class="btn-sm" id="menuBtn" aria-label="Ouvrir le menu">☰</button>
-      <span class="brand-title" style="font-size:15px">Stockage DB</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button type="button" class="btn-sm" id="menuBtn">☰ Menu</button>
+      <span class="brand-title">Stockage DB</span>
       <span class="version-pill" data-version-badge>v__APP_VERSION__</span>
     </div>
     <button type="button" class="btn-sm" id="mobileRefreshBtn">↻</button>
@@ -676,7 +841,7 @@
         <button type="button" class="nav-btn" data-tab="titles">
           <span class="nav-btn-left">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 9 5 3-5 3V9Z"/></svg>
-            <span>Catalogue &amp; Lecteur</span>
+            <span>Catalogue</span>
           </span>
           <span class="nav-count" id="navTitlesCount">0</span>
         </button>
@@ -693,7 +858,7 @@
         <button type="button" class="nav-btn" data-tab="api">
           <span class="nav-btn-left">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <span>Fédération &amp; API</span>
+            <span>API &amp; Fédération</span>
           </span>
           <span class="nav-count" id="navApiBadge">—</span>
         </button>
@@ -714,7 +879,7 @@
 
       <div class="sidebar-footer">
         <div class="runtime-meta">
-          <span id="sideUptime">Uptime —</span>
+          <span id="sideUptime">Actif —</span>
           <span id="sideDbSize" class="mono">— Mo</span>
         </div>
         <div style="display:flex;gap:6px">
@@ -724,527 +889,694 @@
       </div>
     </aside>
 
-    <main class="main">
-
-      <!-- ==================== TAB 1: OVERVIEW ==================== -->
-      <section id="tab-overview">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Vue d'ensemble</h1>
-            <p class="page-desc">État du stockage multi-sources, du relais MP4/HLS et des pipelines d'enrichissement automatique.</p>
-          </div>
-          <div class="head-actions">
-            <button type="button" class="btn-sm" id="refreshBtn">↻ Actualiser</button>
-            <button type="button" class="btn-sm btn-primary" data-jump-tab="api">Configurer vf-trailer →</button>
-          </div>
+    <div class="main-col">
+      <!-- Barre supérieure : recherche instantanée dans toute la base (Ctrl+K) + statut API -->
+      <header class="topbar">
+        <div class="quick-wrap" id="quickWrap">
+          <svg class="quick-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="quickSearchInput" class="quick-input" type="search" placeholder="Accès rapide à une fiche : titre, tt13016388, ID Netflix…">
+          <span class="kbd-hint">Ctrl K</span>
+          <div id="quickPop" class="quick-pop hide"></div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="badge" id="topApiPill"><span class="dot dot-ok"></span>API prête</span>
+          <button type="button" class="btn-sm" id="topRefreshBtn" title="Actualiser les données">↻ Actualiser</button>
+        </div>
+      </header>
 
-        <div id="healthStrip" class="health-strip"></div>
+      <main class="main">
 
-        <div class="card">
-          <div class="cov-top">
+        <!-- ==================== TAB 1: OVERVIEW ==================== -->
+        <section id="tab-overview">
+          <div class="page-head">
             <div>
-              <div class="kpi-label">Couverture bandes-annonces du catalogue</div>
-              <div style="display:flex;align-items:baseline;gap:12px;margin-top:4px;flex-wrap:wrap">
-                <span class="cov-pct" id="covPct">0 %</span>
-                <span class="muted" id="covSub">Chargement…</span>
-              </div>
+              <h1 class="page-title">Vue d'ensemble</h1>
+              <p class="page-desc">Supervision du stockage multi-sources, du relais MP4/HLS, de l'API de fédération et des jobs d'enrichissement.</p>
             </div>
-            <button type="button" class="btn-sm" data-jump-titles="">Explorer le catalogue →</button>
-          </div>
-          <div class="seg-bar" id="covBar"></div>
-          <div class="seg-legend" id="covLegend"></div>
-        </div>
-
-        <div class="kpi-grid" id="kpis"></div>
-
-        <div class="cols-2">
-          <!-- Collecte -->
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">1. Collecter des fiches</h2>
-                <p class="card-sub">Importer les catalogues Netflix (JustWatch) et TMDB en base locale.</p>
-              </div>
-            </div>
-
-            <div class="job-row">
-              <div class="job-top">
-                <div>
-                  <div class="job-name">Moissonnage Netflix (JustWatch) <span id="harvestState" class="badge">Au repos</span></div>
-                  <div class="job-desc" id="harvestText">Récupère tous les IDs Netflix par pays et année de sortie.</div>
-                </div>
-                <div class="job-actions">
-                  <button type="button" class="btn-sm btn-primary" id="harvestRecentBtn">Dernières sorties</button>
-                  <button type="button" class="btn-sm" id="harvestAllBtn">Tout le catalogue</button>
-                  <button type="button" class="btn-sm btn-danger hide" id="harvestStopBtn">Stop</button>
-                </div>
-              </div>
-              <div class="progress"><div id="harvestBar"></div></div>
-              <div id="harvestErrors" class="job-errors hide"></div>
-            </div>
-
-            <div class="job-row">
-              <div class="job-top">
-                <div>
-                  <div class="job-name">Synchronisation TMDB <span id="syncState" class="badge">Manuelle + auto</span></div>
-                  <div class="job-desc">Importe les films et séries populaires / récents des plateformes configurées (<span class="mono">CATALOG_PROVIDERS</span>).</div>
-                </div>
-                <div class="job-actions">
-                  <button type="button" class="btn-sm" id="syncBtn">Lancer la synchro</button>
-                  <a class="btn btn-sm" href="#" id="exportBtn">Exporter IDs (.json)</a>
-                </div>
-              </div>
-              <div id="syncMsg" class="muted" style="font-size:12px;margin-top:6px"></div>
+            <div class="head-actions">
+              <button type="button" class="btn-sm" data-jump-tab="titles">Explorer le catalogue</button>
+              <button type="button" class="btn-sm btn-primary" data-jump-tab="api">Studio API &amp; Clés →</button>
             </div>
           </div>
 
-          <!-- Enrichissement -->
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
+          <div id="healthStrip" class="health-strip"></div>
+
+          <div class="card card-accent">
+            <div class="cov-top">
               <div>
-                <h2 class="card-title">2. Extraire &amp; lier les bandes-annonces</h2>
-                <p class="card-sub">Lit les pages sources pour stocker les flux MP4/HLS et les identifiants IMDb/TMDB.</p>
+                <div class="kpi-label">Couverture bandes-annonces du catalogue</div>
+                <div style="display:flex;align-items:baseline;gap:12px;margin-top:4px;flex-wrap:wrap">
+                  <span class="cov-pct" id="covPct">0 %</span>
+                  <span class="muted" id="covSub">Chargement…</span>
+                </div>
+              </div>
+              <button type="button" class="btn-sm" data-jump-titles="any">Voir les fiches avec MP4 →</button>
+            </div>
+            <div class="seg-bar" id="covBar"></div>
+            <div class="seg-legend" id="covLegend"></div>
+          </div>
+
+          <div class="kpi-grid" id="kpis"></div>
+
+          <div class="cols-2">
+            <!-- Collecte -->
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">1. Collecter des fiches</h2>
+                  <p class="card-sub">Importer les catalogues Netflix (JustWatch) et TMDB en base locale.</p>
+                </div>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Moissonnage Netflix (JustWatch) <span id="harvestState" class="badge">Au repos</span></div>
+                    <div class="job-desc" id="harvestText">Récupère tous les IDs Netflix par pays et année de sortie.</div>
+                  </div>
+                  <div class="job-actions">
+                    <button type="button" class="btn-sm btn-primary" id="harvestRecentBtn">Dernières sorties</button>
+                    <button type="button" class="btn-sm" id="harvestAllBtn">Tout le catalogue</button>
+                    <button type="button" class="btn-sm btn-danger hide" id="harvestStopBtn">Stop</button>
+                  </div>
+                </div>
+                <div class="progress"><div id="harvestBar"></div></div>
+                <div id="harvestErrors" class="job-errors hide"></div>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Synchronisation TMDB <span id="syncState" class="badge">Manuelle + auto</span></div>
+                    <div class="job-desc">Importe les films et séries populaires / récents des plateformes configurées (<span class="mono">CATALOG_PROVIDERS</span>).</div>
+                  </div>
+                  <div class="job-actions">
+                    <button type="button" class="btn-sm" id="syncBtn">Lancer la synchro</button>
+                    <a class="btn btn-sm" href="#" id="exportBtn">Exporter IDs (.json)</a>
+                  </div>
+                </div>
+                <div id="syncMsg" class="muted" style="font-size:12px;margin-top:6px"></div>
               </div>
             </div>
 
-            <div class="job-row">
-              <div class="job-top">
+            <!-- Enrichissement -->
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
                 <div>
-                  <div class="job-name">Pages Netflix → Flux MP4 <span id="ntState" class="badge">Au repos</span></div>
-                  <div class="job-desc" id="ntText">Lit les pages des titres ayant un ID Netflix pour extraire bandes-annonces et teasers de saisons.</div>
+                  <h2 class="card-title">2. Extraire &amp; lier les bandes-annonces</h2>
+                  <p class="card-sub">Lit les pages sources pour stocker les flux MP4/HLS et les identifiants IMDb/TMDB.</p>
                 </div>
-                <div class="job-actions">
-                  <select id="ntLimit" style="width:auto;padding:5px 9px;font-size:12px">
-                    <option value="0">Tout le gisement</option>
-                    <option value="100">Lot de 100</option>
-                    <option value="500">Lot de 500</option>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Pages Netflix → Flux MP4 <span id="ntState" class="badge">Au repos</span></div>
+                    <div class="job-desc" id="ntText">Lit les pages des titres ayant un ID Netflix pour extraire bandes-annonces et teasers de saisons.</div>
+                  </div>
+                  <div class="job-actions">
+                    <select id="ntLimit" class="batch-sel">
+                      <option value="0">Tout</option>
+                      <option value="100">Lot 100</option>
+                      <option value="500">Lot 500</option>
+                    </select>
+                    <button type="button" class="btn-sm btn-primary" id="ntStartBtn">Lancer</button>
+                    <button type="button" class="btn-sm btn-danger hide" id="ntStopBtn">Stop</button>
+                  </div>
+                </div>
+                <div class="progress"><div id="ntBar"></div></div>
+                <div id="ntErrors" class="job-errors hide"></div>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Apple TV+ → Flux HLS/MP4 <span id="apState" class="badge">Au repos</span></div>
+                    <div class="job-desc" id="apText">Cherche les bandes-annonces sur tv.apple.com (remuxées en MP4 avec piste audio VF via ffmpeg).</div>
+                  </div>
+                  <div class="job-actions">
+                    <select id="apLimit" class="batch-sel">
+                      <option value="0">Tout</option>
+                      <option value="100">Lot 100</option>
+                      <option value="500">Lot 500</option>
+                    </select>
+                    <button type="button" class="btn-sm" id="apStartBtn">Lancer</button>
+                    <button type="button" class="btn-sm btn-danger hide" id="apStopBtn">Stop</button>
+                  </div>
+                </div>
+                <div class="progress"><div id="apBar"></div></div>
+                <div id="apErrors" class="job-errors hide"></div>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Association IDs Netflix <span id="linkState" class="badge">Au repos</span></div>
+                    <div class="job-desc" id="linkText">Associe les fiches issues de TMDB à leur ID Netflix via JustWatch.</div>
+                  </div>
+                  <div class="job-actions">
+                    <select id="linkLimit" class="batch-sel">
+                      <option value="0">Tout</option>
+                      <option value="100">Lot 100</option>
+                      <option value="500">Lot 500</option>
+                    </select>
+                    <button type="button" class="btn-sm" id="linkStartBtn">Associer</button>
+                    <button type="button" class="btn-sm btn-danger hide" id="linkStopBtn">Stop</button>
+                  </div>
+                </div>
+                <div class="progress"><div id="linkBar"></div></div>
+                <div id="linkErrors" class="job-errors hide"></div>
+              </div>
+
+              <div class="job-row">
+                <div class="job-top">
+                  <div>
+                    <div class="job-name">Identifiants IMDb / TMDB &amp; VF <span id="vfState" class="badge">Au repos</span></div>
+                    <div class="job-desc" id="vfText">Complète l'ID IMDb (requis par l'API de fédération), les affiches et le repli YouTube VF.</div>
+                  </div>
+                  <div class="job-actions">
+                    <select id="vfLimit" class="batch-sel">
+                      <option value="0">Tout</option>
+                      <option value="200">Lot 200</option>
+                      <option value="1000">Lot 1000</option>
+                    </select>
+                    <button type="button" class="btn-sm" id="vfStartBtn">Compléter</button>
+                    <button type="button" class="btn-sm btn-danger hide" id="vfStopBtn">Stop</button>
+                  </div>
+                </div>
+                <div class="progress"><div id="vfBar"></div></div>
+                <div id="vfErrors" class="job-errors hide"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cols-2" style="margin-top:16px">
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <h2 class="card-title">Derniers appels API (<span class="mono">/api/*</span>)</h2>
+                <button type="button" class="btn-xs" data-jump-tab="api">Ouvrir Studio API →</button>
+              </div>
+              <div id="recentFedBox" class="muted" style="font-size:12.5px">Aucun appel récent enregistré.</div>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <h2 class="card-title">Dernières alertes &amp; erreurs</h2>
+                <button type="button" class="btn-xs" data-jump-logs="error">Ouvrir le journal →</button>
+              </div>
+              <div id="recentAlertsBox" class="muted" style="font-size:12.5px">Aucune erreur récente.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB 2: CATALOGUE & LECTEUR ==================== -->
+        <section id="tab-titles" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Catalogue &amp; Lecteur de bandes-annonces</h1>
+              <p class="page-desc">Filtre par source, trie les fiches, visionne les flux MP4 par saison ou envoie une fiche directement dans le testeur API.</p>
+            </div>
+            <div class="head-actions">
+              <span class="badge" id="titlesCount">0 fiche</span>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <input id="titlesSearch" type="search" placeholder="Rechercher un titre, tt13016388, 81024821, nflx:…" style="flex:1;min-width:230px">
+            <select id="titlesType" style="width:auto;min-width:135px">
+              <option value="">Tous les types</option>
+              <option value="movie">Films</option>
+              <option value="series">Séries</option>
+            </select>
+            <select id="titlesSort" style="width:auto;min-width:165px">
+              <option value="added">Tri : Ajout récent</option>
+              <option value="release">Tri : Date de sortie</option>
+              <option value="year">Tri : Année</option>
+              <option value="name">Tri : Nom (A → Z)</option>
+            </select>
+            <button type="button" class="btn-sm" id="titlesReloadBtn">↻ Actualiser</button>
+          </div>
+
+          <div class="chip-bar" id="titlesChips">
+            <button type="button" class="chip active" data-filter="">Tous</button>
+            <button type="button" class="chip" data-filter="any">Avec relais MP4</button>
+            <button type="button" class="chip" data-filter="netflix">Netflix</button>
+            <button type="button" class="chip" data-filter="apple">Apple TV+</button>
+            <button type="button" class="chip" data-filter="manual">Lien direct</button>
+            <button type="button" class="chip" data-filter="upstream">Instance amont</button>
+            <button type="button" class="chip" data-filter="youtube">YouTube</button>
+            <button type="button" class="chip" data-filter="none">Sans vidéo</button>
+            <button type="button" class="chip" data-filter="no-imdb">Sans ID IMDb</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Titre</th>
+                  <th>Identifiants</th>
+                  <th>Bandes-annonces disponibles</th>
+                  <th>Ajouté</th>
+                  <th style="text-align:right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="titlesBody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
+            <span class="muted" style="font-size:12.5px" id="titlesPageInfo"></span>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn-sm" id="titlesPrev">← Précédent</button>
+              <button type="button" class="btn-sm" id="titlesNext">Suivant →</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB 3: AJOUTER & CHERCHER ==================== -->
+        <section id="tab-add" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Ajouter &amp; Chercher un titre</h1>
+              <p class="page-desc">Cherche un film ou une série sur Netflix et Apple TV+, importe une URL précise ou attache un flux vidéo MP4 / HLS direct.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Recherche multi-sources (Netflix + Apple TV+)</h2>
+                <p class="card-sub">Interroge simultanément JustWatch (catalogue Netflix) et Apple TV / iTunes Search.</p>
+              </div>
+            </div>
+            <form id="searchForm" style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="searchInput" type="search" placeholder="Ex. Le Problème à 3 corps, Severance, Silo, Dune…" style="flex:1;min-width:240px" required>
+              <button type="submit" class="btn-primary">Rechercher</button>
+            </form>
+            <div id="searchStatus" class="muted" style="font-size:12.5px;margin-top:8px"></div>
+            <div id="searchResults" class="cols-2 hide" style="margin-top:14px;margin-bottom:0">
+              <div>
+                <div class="kpi-label" style="margin-bottom:8px">Résultats Netflix</div>
+                <div id="resNetflix"></div>
+              </div>
+              <div>
+                <div class="kpi-label" style="margin-bottom:8px">Résultats Apple TV+</div>
+                <div id="resApple"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cols-2">
+            <div class="card" style="margin-bottom:0">
+              <h2 class="card-title">Importer une fiche Netflix ou Prime Video</h2>
+              <p class="card-sub" style="margin-bottom:12px">Accepte une URL <span class="mono">netflix.com/title/…</span>, un ID Netflix numérique, une URL <span class="mono">primevideo.com/…/detail/…</span> ou un ID Prime Video.</p>
+              <form id="addForm" style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="addInput" type="text" placeholder="https://www.netflix.com/fr/title/81024821 ou 81024821" style="flex:1;min-width:210px" required>
+                <button type="submit" class="btn-primary">Importer</button>
+              </form>
+              <div id="addMsg" style="font-size:12.5px;margin-top:10px"></div>
+            </div>
+
+            <div class="card" style="margin-bottom:0">
+              <h2 class="card-title">Attacher un lien vidéo direct (MP4 ou HLS <span class="mono">.m3u8</span>)</h2>
+              <p class="card-sub" style="margin-bottom:12px">Rattache n'importe quelle bande-annonce publique (Arte, distributeur, CDN…) à une fiche déjà présente en base. Relais automatique via <span class="mono">/media/…</span>.</p>
+              <form id="manualForm" style="display:grid;gap:8px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <input id="manualKey" type="text" placeholder="Cible : tt13016388, 81024821 ou nflx:…" required>
+                  <input id="manualTitle" type="text" placeholder="Libellé (ex. Bande-annonce VF Saison 2)">
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input id="manualUrl" type="url" placeholder="https://…/bande-annonce.mp4 ou .m3u8" style="flex:1;min-width:210px" required>
+                  <button type="submit">Attacher le flux</button>
+                </div>
+              </form>
+              <div id="manualMsg" style="font-size:12.5px;margin-top:10px"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB 4: STUDIO API & FÉDÉRATION ==================== -->
+        <section id="tab-api" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">API &amp; Fédération (<span class="mono">vf-trailer-wallace</span>)</h1>
+              <p class="page-desc">Gère les clés d'accès avec quotas et permissions, surveille la latence en direct et teste toutes les routes REST (<span class="mono">/api/v1/*</span>).</p>
+            </div>
+            <div class="head-actions">
+              <span id="apiStateBadge" class="badge">Chargement…</span>
+              <a href="/api/openapi.json" target="_blank" rel="noopener" class="btn btn-sm">Spécification OpenAPI ↗</a>
+            </div>
+          </div>
+
+          <!-- 4 KPIs temps réel dédiés à l'API -->
+          <div class="kpi-grid" id="apiKpis"></div>
+
+          <div class="cols-2">
+            <!-- Connexion rapide vf-trailer-wallace -->
+            <div class="card card-accent" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Connexion rapide à <span class="mono">vf-trailer-wallace</span></h2>
+                  <p class="card-sub">Colle ces valeurs dans ton addon VF (onglet <b>Paramètres</b> ou fichier <span class="mono">.env</span>) :</p>
+                </div>
+                <button type="button" class="btn-sm btn-primary" id="quickVfKeyBtn">⚡ Créer une clé vf-trailer</button>
+              </div>
+
+              <div style="display:grid;gap:12px">
+                <div>
+                  <div class="kpi-label" style="margin-bottom:4px">URL publique du serveur Stockage DB</div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input id="fedBaseUrl" type="text" class="mono" readonly>
+                    <button type="button" class="btn-sm" id="copyFedUrlBtn">Copier l'URL</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <span class="kpi-label">Bloc de configuration prêt à coller (<span class="mono">.env</span>)</span>
+                    <button type="button" class="btn-xs" id="copyEnvSnippetBtn">Copier le bloc .env</button>
+                  </div>
+                  <pre class="code-box" id="vfEnvSnippet"></pre>
+                </div>
+
+                <div class="muted" style="font-size:12px;line-height:1.5">
+                  Les clés nommées disposent de leur propre quota dédié (ex. <b>600 req/min</b>) pour que <span class="mono">vf-trailer-wallace</span> ne soit jamais ralenti même avec beaucoup d'utilisateurs Stremio simultanés.
+                </div>
+              </div>
+            </div>
+
+            <!-- Gestion avancée des clés API -->
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Clés d'accès API (<span class="mono">sdb_…</span>)</h2>
+                  <p class="card-sub" id="keysCountLabel">Chargement…</p>
+                </div>
+              </div>
+
+              <form id="keyCreateForm" style="display:grid;gap:8px;margin-bottom:12px;padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px">
+                  <input id="keyLabel" type="text" placeholder="Nom (ex. vf-trailer-prod)" maxlength="60" required>
+                  <select id="keyRateLimit" title="Quota maximal par minute">
+                    <option value="300">Quota : 300 / min</option>
+                    <option value="600" selected>Quota : 600 / min</option>
+                    <option value="1200">Quota : 1 200 / min</option>
+                    <option value="60">Quota : 60 / min</option>
+                    <option value="0">Quota : Illimité</option>
                   </select>
-                  <button type="button" class="btn-sm btn-primary" id="ntStartBtn">Lancer</button>
-                  <button type="button" class="btn-sm btn-danger hide" id="ntStopBtn">Stop</button>
+                  <select id="keyExpires" title="Durée de validité">
+                    <option value="0">Sans expiration</option>
+                    <option value="30">Expire dans 30 j</option>
+                    <option value="90">Expire dans 90 j</option>
+                    <option value="365">Expire dans 1 an</option>
+                  </select>
                 </div>
-              </div>
-              <div class="progress"><div id="ntBar"></div></div>
-              <div id="ntErrors" class="job-errors hide"></div>
-            </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+                  <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--fg-soft)">
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scTrailersRead" checked disabled> <span class="mono">trailers:read</span></label>
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scCatalogRead" checked> <span class="mono">catalog:read</span></label>
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="scTrailersWrite"> <span class="mono">trailers:write</span></label>
+                  </div>
+                  <button type="submit" class="btn-sm btn-primary" id="keyCreateBtn">+ Générer la clé</button>
+                </div>
+              </form>
 
-            <div class="job-row">
-              <div class="job-top">
-                <div>
-                  <div class="job-name">Apple TV+ → Flux HLS/MP4 <span id="apState" class="badge">Au repos</span></div>
-                  <div class="job-desc" id="apText">Cherche les bandes-annonces sur tv.apple.com (remuxées en MP4 avec piste audio VF via ffmpeg).</div>
+              <div id="keyCreatedBox" class="secret-banner hide">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                  <b style="font-size:12.5px;color:var(--accent)" id="keyCreatedTitle">Clé générée (affichée une seule fois — copie-la maintenant) :</b>
+                  <button type="button" class="btn-xs btn-primary" id="copyNewKeyBtn">Copier la clé</button>
                 </div>
-                <div class="job-actions">
-                  <button type="button" class="btn-sm" id="apStartBtn">Lancer</button>
-                  <button type="button" class="btn-sm btn-danger hide" id="apStopBtn">Stop</button>
-                </div>
+                <div id="keyCreatedVal" class="mono" style="word-break:break-all;font-weight:600;color:var(--fg)"></div>
               </div>
-              <div class="progress"><div id="apBar"></div></div>
-              <div id="apErrors" class="job-errors hide"></div>
-            </div>
 
-            <div class="job-row">
-              <div class="job-top">
-                <div>
-                  <div class="job-name">Association IDs Netflix <span id="linkState" class="badge">Au repos</span></div>
-                  <div class="job-desc" id="linkText">Associe les fiches issues de TMDB à leur ID Netflix via JustWatch.</div>
-                </div>
-                <div class="job-actions">
-                  <button type="button" class="btn-sm" id="linkStartBtn">Associer</button>
-                  <button type="button" class="btn-sm btn-danger hide" id="linkStopBtn">Stop</button>
-                </div>
+              <div id="legacyKeyBox" class="hide" style="margin-bottom:10px;padding:9px 12px;border-radius:8px;background:var(--card-alt);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">
+                <span id="legacyKeyText"></span>
+                <button type="button" class="btn-xs hide" id="clearLegacyKeyBtn">Retirer la surcharge DB</button>
               </div>
-              <div class="progress"><div id="linkBar"></div></div>
-              <div id="linkErrors" class="job-errors hide"></div>
-            </div>
 
-            <div class="job-row">
-              <div class="job-top">
-                <div>
-                  <div class="job-name">Identifiants IMDb / TMDB &amp; VF <span id="vfState" class="badge">Au repos</span></div>
-                  <div class="job-desc" id="vfText">Complète l'ID IMDb (requis par l'API de fédération), les affiches et le repli YouTube VF.</div>
-                </div>
-                <div class="job-actions">
-                  <button type="button" class="btn-sm" id="vfStartBtn">Compléter</button>
-                  <button type="button" class="btn-sm btn-danger hide" id="vfStopBtn">Stop</button>
-                </div>
-              </div>
-              <div class="progress"><div id="vfBar"></div></div>
-              <div id="vfErrors" class="job-errors hide"></div>
+              <div id="keysList"></div>
             </div>
           </div>
-        </div>
 
-        <div class="cols-2" style="margin-top:16px">
-          <div class="card" style="margin-bottom:0">
+          <!-- Console / Playground API multi-endpoints -->
+          <div class="card" style="margin-top:16px">
             <div class="card-head">
-              <h2 class="card-title">Derniers appels Fédération (<span class="mono">/api/trailers</span>)</h2>
-              <button type="button" class="btn-xs" data-jump-logs="federation">Tout voir →</button>
-            </div>
-            <div id="recentFedBox" class="muted" style="font-size:12.5px">Aucun appel récent enregistré.</div>
-          </div>
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <h2 class="card-title">Dernières alertes &amp; erreurs</h2>
-              <button type="button" class="btn-xs" data-jump-logs="error">Ouvrir le journal →</button>
-            </div>
-            <div id="recentAlertsBox" class="muted" style="font-size:12.5px">Aucune erreur récente.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 2: CATALOGUE & LECTEUR ==================== -->
-      <section id="tab-titles" class="hide">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Catalogue &amp; Lecteur de bandes-annonces</h1>
-            <p class="page-desc">Recherche par titre, ID IMDb (<span class="mono">tt…</span>), ID Netflix ou ID interne. Clique sur <b>▶ Détails</b> pour vérifier les saisons détectées et visionner les MP4.</p>
-          </div>
-          <div class="head-actions">
-            <span class="badge" id="titlesCount">0 fiche</span>
-          </div>
-        </div>
-
-        <div class="toolbar">
-          <input id="titlesSearch" type="search" placeholder="Rechercher un titre, tt13016388, 81024821, nflx:…" style="flex:1;min-width:240px">
-          <select id="titlesType" style="width:auto;min-width:140px">
-            <option value="">Tous les types</option>
-            <option value="movie">Films</option>
-            <option value="series">Séries</option>
-          </select>
-          <button type="button" class="btn-sm" id="titlesReloadBtn">↻ Actualiser</button>
-        </div>
-
-        <div class="chip-bar" id="titlesChips">
-          <button type="button" class="chip active" data-filter="">Tous</button>
-          <button type="button" class="chip" data-filter="any">Avec relais MP4</button>
-          <button type="button" class="chip" data-filter="netflix">Netflix</button>
-          <button type="button" class="chip" data-filter="apple">Apple TV+</button>
-          <button type="button" class="chip" data-filter="manual">Lien direct</button>
-          <button type="button" class="chip" data-filter="upstream">Instance amont</button>
-          <button type="button" class="chip" data-filter="youtube">YouTube</button>
-          <button type="button" class="chip" data-filter="none">Sans vidéo</button>
-          <button type="button" class="chip" data-filter="no-imdb">Sans ID IMDb</button>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Titre</th>
-                <th>Identifiants</th>
-                <th>Bandes-annonces disponibles</th>
-                <th>Ajouté</th>
-                <th style="text-align:right">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="titlesBody"></tbody>
-          </table>
-        </div>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
-          <span class="muted" style="font-size:12.5px" id="titlesPageInfo"></span>
-          <div style="display:flex;gap:6px">
-            <button type="button" class="btn-sm" id="titlesPrev">← Précédent</button>
-            <button type="button" class="btn-sm" id="titlesNext">Suivant →</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 3: AJOUTER & CHERCHER ==================== -->
-      <section id="tab-add" class="hide">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Ajouter &amp; Chercher un titre</h1>
-            <p class="page-desc">Cherche un film ou une série sur Netflix et Apple TV+, importe une URL précise ou attache un flux vidéo MP4 / HLS direct.</p>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Recherche multi-sources (Netflix + Apple TV+)</h2>
-              <p class="card-sub">Interroge simultanément JustWatch (catalogue Netflix) et Apple TV / iTunes Search.</p>
-            </div>
-          </div>
-          <form id="searchForm" style="display:flex;gap:8px;flex-wrap:wrap">
-            <input id="searchInput" type="search" placeholder="Ex. Le Problème à 3 corps, Severance, Silo, Dune…" style="flex:1;min-width:240px" required>
-            <button type="submit" class="btn-primary">Rechercher</button>
-          </form>
-          <div id="searchStatus" class="muted" style="font-size:12.5px;margin-top:8px"></div>
-          <div id="searchResults" class="cols-2 hide" style="margin-top:14px;margin-bottom:0">
-            <div>
-              <div class="kpi-label" style="margin-bottom:8px">Résultats Netflix</div>
-              <div id="resNetflix"></div>
-            </div>
-            <div>
-              <div class="kpi-label" style="margin-bottom:8px">Résultats Apple TV+</div>
-              <div id="resApple"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="cols-2">
-          <div class="card" style="margin-bottom:0">
-            <h2 class="card-title">Importer une fiche Netflix ou Prime Video</h2>
-            <p class="card-sub" style="margin-bottom:12px">Accepte une URL <span class="mono">netflix.com/title/…</span>, un ID Netflix numérique, une URL <span class="mono">primevideo.com/…/detail/…</span> ou un ID Prime Video.</p>
-            <form id="addForm" style="display:flex;gap:8px;flex-wrap:wrap">
-              <input id="addInput" type="text" placeholder="https://www.netflix.com/fr/title/81024821 ou 81024821" style="flex:1;min-width:210px" required>
-              <button type="submit" class="btn-primary">Importer</button>
-            </form>
-            <div id="addMsg" style="font-size:12.5px;margin-top:10px"></div>
-          </div>
-
-          <div class="card" style="margin-bottom:0">
-            <h2 class="card-title">Attacher un lien vidéo direct (MP4 ou HLS <span class="mono">.m3u8</span>)</h2>
-            <p class="card-sub" style="margin-bottom:12px">Rattache n'importe quelle bande-annonce publique (Arte, distributeur, CDN…) à une fiche déjà présente en base. Relais automatique via <span class="mono">/media/…</span>.</p>
-            <form id="manualForm" style="display:grid;gap:8px">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <input id="manualKey" type="text" placeholder="Cible : tt13016388, 81024821 ou nflx:…" required>
-                <input id="manualTitle" type="text" placeholder="Libellé (ex. Bande-annonce VF Saison 2)">
+              <div>
+                <h2 class="card-title">Console interactive de test API</h2>
+                <p class="card-sub">Teste les routes en conditions réelles, mesure le temps de réponse et lis directement les MP4 renvoyés.</p>
               </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input id="manualUrl" type="url" placeholder="https://…/bande-annonce.mp4 ou .m3u8" style="flex:1;min-width:210px" required>
-                <button type="submit">Attacher le flux</button>
+              <div class="subtabs" id="pgTabs">
+                <button type="button" class="subtab active" data-pg="trailers">GET /api/trailers</button>
+                <button type="button" class="subtab" data-pg="search">GET /api/search</button>
+                <button type="button" class="subtab" data-pg="batch">POST /api/trailers/batch</button>
+                <button type="button" class="subtab" data-pg="status">GET /api/status</button>
+              </div>
+            </div>
+
+            <!-- Mode 1: /api/trailers -->
+            <form id="pgTrailersForm">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end">
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID IMDb</label>
+                  <input id="ftImdb" type="text" class="mono" placeholder="tt13016388">
+                </div>
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID TMDB (opt.)</label>
+                  <input id="ftTmdb" type="text" class="mono" placeholder="108545">
+                </div>
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">ID Netflix (opt.)</label>
+                  <input id="ftNetflix" type="text" class="mono" placeholder="81024821">
+                </div>
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Type</label>
+                  <select id="ftType">
+                    <option value="series">Série (series)</option>
+                    <option value="movie">Film (movie)</option>
+                    <option value="">Auto</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Saison</label>
+                  <input id="ftSeason" type="number" min="1" max="50" placeholder="Ex. 2">
+                </div>
+                <div>
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Source (opt.)</label>
+                  <select id="ftSource">
+                    <option value="">Toutes sources</option>
+                    <option value="netflix">Netflix seul</option>
+                    <option value="appletv">Apple TV+ seul</option>
+                    <option value="manual">Liens directs</option>
+                    <option value="upstream">Amont</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px">
+                <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftStrict" checked> <span class="mono">strict_season=1</span> (mode vf-trailer)</label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftExtras"> <span class="mono">include_extras=1</span></label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftFast"> <span class="mono">fast=1</span> (cache SQLite seul, 0 ms réseau)</label>
+                </div>
+                <button type="submit" class="btn-primary">Exécuter la requête</button>
               </div>
             </form>
-            <div id="manualMsg" style="font-size:12.5px;margin-top:10px"></div>
-          </div>
-        </div>
-      </section>
 
-      <!-- ==================== TAB 4: FÉDÉRATION & API ==================== -->
-      <section id="tab-api" class="hide">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Fédération &amp; API (<span class="mono">vf-trailer-wallace</span>)</h1>
-            <p class="page-desc">Connecte ton addon VF ou une autre instance à cette base pour servir les bandes-annonces MP4 triées par saison.</p>
-          </div>
-          <div class="head-actions">
-            <span id="apiStateBadge" class="badge">Chargement…</span>
-          </div>
-        </div>
-
-        <div class="cols-2">
-          <!-- Connexion vf-trailer-wallace -->
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Connecter à <span class="mono">vf-trailer-wallace</span></h2>
-                <p class="card-sub">Dans le dashboard de ton addon VF → onglet <b>Paramètres</b> → section <b>API Stockage BD</b> :</p>
-              </div>
-            </div>
-            <div style="display:grid;gap:10px">
-              <div>
-                <div class="kpi-label" style="margin-bottom:4px">1. URL du serveur Stockage DB</div>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="fedBaseUrl" type="text" class="mono" readonly>
-                  <button type="button" class="btn-sm" id="copyFedUrlBtn">Copier</button>
+            <!-- Mode 2: /api/search -->
+            <form id="pgSearchForm" class="hide">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+                <div style="flex:1;min-width:220px">
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Recherche (<span class="mono">q</span>)</label>
+                  <input id="pgSearchQ" type="text" placeholder="Ex. Stranger, Severance, tt…">
                 </div>
+                <div style="min-width:150px">
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Filtre source</label>
+                  <select id="pgSearchFilter">
+                    <option value="any">Avec flux MP4</option>
+                    <option value="">Toutes les fiches</option>
+                    <option value="netflix">Netflix</option>
+                    <option value="apple">Apple TV+</option>
+                    <option value="manual">Lien direct</option>
+                  </select>
+                </div>
+                <div style="min-width:130px">
+                  <label class="kpi-label" style="display:block;margin-bottom:4px">Type</label>
+                  <select id="pgSearchType">
+                    <option value="">Tous</option>
+                    <option value="series">Séries</option>
+                    <option value="movie">Films</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn-primary">Tester /api/search</button>
               </div>
-              <div style="font-size:12.5px;color:var(--muted);line-height:1.5">
-                <b>2. Clé API (<span class="mono">sdb_…</span>)</b> : crée une clé nommée ci-contre et colle-la dans le champ Clé API de <span class="mono">vf-trailer-wallace</span>.<br>
-                Les requêtes arrivent avec <span class="mono">imdb</span>, <span class="mono">tmdb</span>, <span class="mono">type</span>, <span class="mono">season</span> et <span class="mono">strict_season=1</span>.
-              </div>
-            </div>
-          </div>
-
-          <!-- Gestion des clés API -->
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Clés d'accès API</h2>
-                <p class="card-sub" id="keysCountLabel">Jusqu'à 5 clés nommées (seule l'empreinte SHA-256 est stockée).</p>
-              </div>
-            </div>
-
-            <form id="keyCreateForm" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-              <input id="keyLabel" type="text" placeholder="Nom du client (ex. vf-trailer-prod)" maxlength="60" style="flex:1;min-width:180px" required>
-              <button type="submit" class="btn-primary" id="keyCreateBtn">+ Créer une clé</button>
             </form>
 
-            <div id="keyCreatedBox" class="secret-banner hide">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
-                <b style="font-size:12.5px;color:var(--accent)">Clé générée (affichée une seule fois — copie-la maintenant) :</b>
-                <button type="button" class="btn-xs" id="copyNewKeyBtn">Copier la clé</button>
+            <!-- Mode 3: /api/trailers/batch -->
+            <form id="pgBatchForm" class="hide">
+              <label class="kpi-label" style="display:block;margin-bottom:4px">Corps JSON (<span class="mono">items</span> — jusqu'à 25 titres vérifiés en un seul appel)</label>
+              <textarea id="pgBatchJson">{
+  "items": [
+    { "imdb": "tt13016388", "type": "series", "season": 1, "strict_season": 1 },
+    { "imdb": "tt13016388", "type": "series", "season": 2, "strict_season": 1 }
+  ]
+}</textarea>
+              <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                <button type="submit" class="btn-primary">Exécuter le batch</button>
               </div>
-              <div id="keyCreatedVal" class="mono" style="word-break:break-all;font-weight:600;color:var(--fg)"></div>
-            </div>
+            </form>
 
-            <div id="legacyKeyBox" class="hide" style="margin-bottom:10px;padding:9px 11px;border-radius:8px;background:var(--warn-soft);border:1px solid rgba(245,158,11,.35);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">
-              <span>Une clé héritée (<span class="mono">API_KEY</span>) est aussi active.</span>
-              <button type="button" class="btn-xs" id="clearLegacyKeyBtn">Retirer la surcharge API_KEY</button>
-            </div>
-
-            <div id="keysList"></div>
-          </div>
-        </div>
-
-        <!-- Testeur interactif en direct -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Testeur en direct de l'API <span class="mono">/api/trailers</span></h2>
-              <p class="card-sub">Simule exactement l'appel envoyé par <span class="mono">vf-trailer-wallace</span> (saison, filtrage strict des bonus, résolution à la demande) et prévisualise les vidéos renvoyées.</p>
-            </div>
-          </div>
-
-          <form id="fedTestForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;align-items:end">
-            <div>
-              <label class="kpi-label" style="display:block;margin-bottom:4px">ID IMDb</label>
-              <input id="ftImdb" type="text" class="mono" placeholder="tt13016388">
-            </div>
-            <div>
-              <label class="kpi-label" style="display:block;margin-bottom:4px">ID TMDB (opt.)</label>
-              <input id="ftTmdb" type="text" class="mono" placeholder="108545">
-            </div>
-            <div>
-              <label class="kpi-label" style="display:block;margin-bottom:4px">ID Netflix (opt.)</label>
-              <input id="ftNetflix" type="text" class="mono" placeholder="81024821">
-            </div>
-            <div>
-              <label class="kpi-label" style="display:block;margin-bottom:4px">Type</label>
-              <select id="ftType">
-                <option value="series">Série (series)</option>
-                <option value="movie">Film (movie)</option>
-                <option value="">Auto</option>
-              </select>
-            </div>
-            <div>
-              <label class="kpi-label" style="display:block;margin-bottom:4px">Saison</label>
-              <input id="ftSeason" type="number" min="1" max="50" placeholder="Ex. 2">
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;padding-bottom:4px;font-size:12px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftStrict" checked> <span class="mono">strict_season=1</span></label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ftExtras"> <span class="mono">include_extras=1</span></label>
-            </div>
-            <div>
-              <button type="submit" class="btn-primary" style="width:100%">Tester la réponse</button>
-            </div>
-          </form>
-
-          <div id="fedTestOut" class="hide" style="margin-top:14px"></div>
-        </div>
-
-        <div class="card">
-          <h2 class="card-title" style="margin-bottom:8px">Référence rapide des routes HTTP</h2>
-          <div class="code-box" id="curlDocBox"></div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 5: PARAMÈTRES & HLS ==================== -->
-      <section id="tab-settings" class="hide">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Paramètres &amp; Cache HLS</h1>
-            <p class="page-desc">Les réglages modifiés ici sont enregistrés dans SQLite et prennent immédiatement le dessus sur le fichier <span class="mono">.env</span>.</p>
-          </div>
-          <div class="head-actions">
-            <span id="dirtyInfo" class="muted" style="font-size:12.5px">Aucune modification en attente</span>
-            <button type="button" class="btn-primary" id="saveBtn" disabled>Enregistrer les modifications</button>
-          </div>
-        </div>
-
-        <div class="cols-2">
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Cache disque des conversions HLS → MP4</h2>
-                <p class="card-sub">Les flux HLS Apple TV+ et manuels sont convertis en MP4 fragmenté et servis avec <span class="mono">Range</span>.</p>
-              </div>
-              <button type="button" class="btn-sm btn-danger" id="clearHlsBtn">Purger le cache MP4</button>
-            </div>
-            <div id="hlsCacheBox" class="muted" style="font-size:13px">Chargement…</div>
-          </div>
-
-          <div class="card" style="margin-bottom:0">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Mode addon Stremio autonome (optionnel)</h2>
-                <p class="card-sub">Si tu utilises aussi Stockage DB directement dans Stremio sans passer par <span class="mono">vf-trailer-wallace</span>.</p>
+            <!-- Mode 4: /api/status -->
+            <div id="pgStatusBox" class="hide">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+                <span class="muted" style="font-size:13px">Interroge <span class="mono">GET /api/status</span> (version, sources actives, capacités et compteurs du catalogue).</span>
+                <button type="button" class="btn-primary" id="pgStatusBtn">Exécuter /api/status</button>
               </div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input id="stremioManifestInput" type="text" class="mono" readonly style="flex:1;min-width:220px">
-              <button type="button" class="btn-sm" id="copyManifestBtn">Copier</button>
-              <a id="stremioInstallLink" class="btn btn-sm" href="#">Ouvrir dans Stremio</a>
+
+            <div id="fedTestOut" class="hide" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"></div>
+          </div>
+
+          <div class="cols-2">
+            <!-- Flux en direct des appels API -->
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Trafic API récent</h2>
+                  <p class="card-sub">40 derniers appels reçus sur <span class="mono">/api/*</span> avec client et latence.</p>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button type="button" class="btn-xs" id="refreshMetricsBtn">↻</button>
+                  <button type="button" class="btn-xs" id="resetMetricsBtn">Réinitialiser</button>
+                </div>
+              </div>
+              <div id="apiRecentCallsBox" class="muted" style="font-size:12.5px">Aucun appel enregistré depuis le démarrage.</div>
+            </div>
+
+            <!-- Référence propre des routes HTTP -->
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Référence des routes REST (<span class="mono">/api</span> &amp; <span class="mono">/api/v1</span>)</h2>
+                  <p class="card-sub">Clique sur <b>Copier curl</b> pour récupérer la commande prête à l'emploi.</p>
+                </div>
+              </div>
+              <div id="routesDocList"></div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div id="restartBanner" class="secret-banner hide" style="border-color:rgba(245,158,11,.45);background:var(--warn-soft);color:var(--warn)"></div>
-        <div id="settingsWrap" style="margin-top:16px"></div>
-      </section>
-
-      <!-- ==================== TAB 6: JOURNAL ==================== -->
-      <section id="tab-logs" class="hide">
-        <div class="page-head">
-          <div>
-            <h1 class="page-title">Journal d'événements</h1>
-            <p class="page-desc">Historique persistant des 2 000 derniers événements : appels de fédération, conversions HLS, relais vidéo, moissonnage et sécurité.</p>
+        <!-- ==================== TAB 5: PARAMÈTRES & HLS ==================== -->
+        <section id="tab-settings" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Paramètres &amp; Cache HLS</h1>
+              <p class="page-desc">Les réglages modifiés ici sont enregistrés dans SQLite et prennent immédiatement le dessus sur le fichier <span class="mono">.env</span>.</p>
+            </div>
+            <div class="head-actions">
+              <span id="dirtyInfo" class="muted" style="font-size:12.5px">Aucune modification en attente</span>
+              <button type="button" class="btn-primary" id="saveBtn" disabled>Enregistrer les modifications</button>
+            </div>
           </div>
-          <div class="head-actions">
-            <label class="btn btn-sm" style="cursor:pointer">
-              <input type="checkbox" id="logAutoTail" style="margin:0"> Suivi en direct (5 s)
-            </label>
-            <button type="button" class="btn-sm" id="logRefresh">↻ Actualiser</button>
-            <button type="button" class="btn-sm btn-danger" id="logClear">Vider le journal</button>
+
+          <div class="cols-2">
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Cache disque des conversions HLS → MP4</h2>
+                  <p class="card-sub">Les flux HLS Apple TV+ et manuels sont convertis en MP4 fragmenté et servis avec <span class="mono">Range</span>.</p>
+                </div>
+                <button type="button" class="btn-sm btn-danger" id="clearHlsBtn">Vider le cache MP4</button>
+              </div>
+              <div id="hlsCacheBox" class="muted" style="font-size:13px">Chargement…</div>
+            </div>
+
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">Mode addon Stremio autonome (optionnel)</h2>
+                  <p class="card-sub">Si tu utilises aussi Stockage DB directement dans Stremio sans passer par <span class="mono">vf-trailer-wallace</span>.</p>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <input id="stremioManifestInput" type="text" class="mono" readonly style="flex:1;min-width:220px">
+                <button type="button" class="btn-sm" id="copyManifestBtn">Copier</button>
+                <a id="stremioInstallLink" class="btn btn-sm" href="#">Ouvrir dans Stremio</a>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="toolbar">
-          <select id="logLevel" style="width:auto;min-width:150px">
-            <option value="">Tous les niveaux</option>
-            <option value="error">Erreurs uniquement</option>
-            <option value="warn">Avertissements</option>
-            <option value="info">Informations</option>
-            <option value="debug">Debug</option>
-          </select>
-          <select id="logSource" style="width:auto;min-width:170px">
-            <option value="">Toutes les sources</option>
-            <option value="federation">federation (API)</option>
-            <option value="netflix">netflix</option>
-            <option value="appletv">appletv</option>
-            <option value="hls">hls (ffmpeg)</option>
-            <option value="trailer">trailer (relais)</option>
-            <option value="resolve">resolve (auto)</option>
-            <option value="harvest">harvest</option>
-            <option value="link">link</option>
-            <option value="vf">vf (TMDB)</option>
-            <option value="admin">admin</option>
-            <option value="auth">auth</option>
-          </select>
-          <input id="logSearch" type="search" placeholder="Filtrer par message, ID IMDb, nom de série…" style="flex:1;min-width:220px">
-          <span class="muted" style="font-size:12.5px" id="logCount">0 entrée</span>
-        </div>
+          <div id="restartBanner" class="secret-banner hide" style="border-color:rgba(245,158,11,.45);background:var(--warn-soft);color:var(--warn)"></div>
+          <div id="settingsWrap" style="margin-top:16px"></div>
+        </section>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:155px">Date</th>
-                <th style="width:85px">Niveau</th>
-                <th style="width:110px">Source</th>
-                <th>Message &amp; métadonnées</th>
-              </tr>
-            </thead>
-            <tbody id="logBody"></tbody>
-          </table>
-        </div>
+        <!-- ==================== TAB 6: JOURNAL ==================== -->
+        <section id="tab-logs" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Journal d'événements</h1>
+              <p class="page-desc">Historique persistant des 2 000 derniers événements : appels de fédération, conversions HLS, relais vidéo, moissonnage et sécurité.</p>
+            </div>
+            <div class="head-actions">
+              <label class="btn btn-sm" style="cursor:pointer">
+                <input type="checkbox" id="logAutoTail" style="margin:0"> Suivi en direct (5 s)
+              </label>
+              <button type="button" class="btn-sm" id="logRefresh">↻ Actualiser</button>
+              <button type="button" class="btn-sm btn-danger" id="logClear">Vider le journal</button>
+            </div>
+          </div>
 
-        <div style="margin-top:12px;text-align:center">
-          <button type="button" class="btn-sm hide" id="logMoreBtn">Charger 200 entrées plus anciennes</button>
-        </div>
-      </section>
+          <div class="toolbar">
+            <select id="logLevel" style="width:auto;min-width:150px">
+              <option value="">Tous les niveaux</option>
+              <option value="error">Erreurs uniquement</option>
+              <option value="warn">Avertissements</option>
+              <option value="info">Informations</option>
+              <option value="debug">Debug</option>
+            </select>
+            <select id="logSource" style="width:auto;min-width:170px">
+              <option value="">Toutes les sources</option>
+              <option value="federation">federation (API)</option>
+              <option value="netflix">netflix</option>
+              <option value="appletv">appletv</option>
+              <option value="hls">hls (ffmpeg)</option>
+              <option value="trailer">trailer (relais)</option>
+              <option value="resolve">resolve (auto)</option>
+              <option value="harvest">harvest</option>
+              <option value="link">link</option>
+              <option value="vf">vf (TMDB)</option>
+              <option value="admin">admin</option>
+              <option value="auth">auth</option>
+            </select>
+            <input id="logSearch" type="search" placeholder="Filtrer par message, ID IMDb, nom de série…" style="flex:1;min-width:220px">
+            <span class="muted" style="font-size:12.5px" id="logCount">0 entrée</span>
+          </div>
 
-    </main>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:155px">Date</th>
+                  <th style="width:85px">Niveau</th>
+                  <th style="width:110px">Source</th>
+                  <th>Message &amp; métadonnées</th>
+                </tr>
+              </thead>
+              <tbody id="logBody"></tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:12px;text-align:center">
+            <button type="button" class="btn-sm hide" id="logMoreBtn">Charger 200 entrées plus anciennes</button>
+          </div>
+        </section>
+
+      </main>
+    </div>
   </div>
 </div>
 
 <!-- ==================== MODAL INSPECTEUR & LECTEUR VIDÉO ==================== -->
 <div id="titleModal" class="modal-backdrop hide" role="dialog" aria-modal="true">
   <div class="modal">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <h2 class="card-title" style="font-size:18px" id="mdTitle">Titre</h2>
@@ -1253,7 +1585,8 @@
         </div>
         <div id="mdIds" class="id-pills" style="margin-top:6px"></div>
       </div>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn-sm" id="mdJumpApiBtn" title="Pré-remplir le testeur API avec cette fiche">⚡ Tester dans l'API</button>
         <button type="button" class="btn-sm" id="mdRecheckBtn">↻ Re-vérifier</button>
         <button type="button" class="btn-sm" id="mdCloseBtn">✕ Fermer</button>
       </div>
@@ -1293,14 +1626,56 @@
 
   let token = sessionStorage.getItem(TOKEN_KEY) || '';
   let activeTab = 'overview';
+  let activePgMode = 'trailers';
   let summaryData = null;
+  let lastCreatedSecret = '';
+  let currentModalDetail = null;
+  let currentModalId = null;
   let dirty = new Map();
   let resetKeys = new Set();
-  let titlesState = { search: '', filter: '', type: '', offset: 0, limit: 50, total: 0 };
+  let titlesState = { search: '', filter: '', type: '', sort: 'added', offset: 0, limit: 50, total: 0 };
   let logsState = { limit: 200, offset: 0, total: 0, items: [] };
-  let currentModalId = null;
   let jobTimer = null;
   let logTailTimer = null;
+
+  // ---- Helpers ----
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtInt = (n) => Number(n || 0).toLocaleString('fr-FR');
+  const pl = (n, sing, plur = `${sing}s`) => `${fmtInt(n)} ${Number(n) > 1 ? plur : sing}`;
+  const fmtBytes = (b) => {
+    const n = Number(b || 0);
+    if (n < 1024) return `${n} o`;
+    if (n < 1048576) return `${(n / 1024).toFixed(1).replace('.', ',')} Ko`;
+    if (n < 1073741824) return `${(n / 1048576).toFixed(1).replace('.', ',')} Mo`;
+    return `${(n / 1073741824).toFixed(2).replace('.', ',')} Go`;
+  };
+  const fmtUptime = (sec) => {
+    const s = Math.max(0, Math.floor(Number(sec || 0)));
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}j ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m} min`;
+  };
+  const fmtDate = (ts) => {
+    if (!ts) return '—';
+    const d = new Date(Number(ts));
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+  const fmtDuration = (sec) => {
+    const n = Math.round(Number(sec || 0));
+    if (!n) return '';
+    return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+  };
+  const toPlayablePath = (rawUrl) => {
+    try {
+      const u = new URL(rawUrl);
+      if (/^\/(trailer|apple|media)\//.test(u.pathname)) return u.pathname;
+    } catch {}
+    return rawUrl;
+  };
 
   // ---- Theme ----
   function applyTheme(t) {
@@ -1311,81 +1686,54 @@
     if ($('themeBtn')) $('themeBtn').textContent = label;
     if ($('gateThemeBtn')) $('gateThemeBtn').textContent = label;
   }
-  applyTheme((() => { try { return localStorage.getItem(THEME_KEY); } catch { return 'dark'; } })() || 'dark');
+  applyTheme((() => { try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch { return 'dark'; } })());
   const toggleTheme = () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
   $('themeBtn').addEventListener('click', toggleTheme);
   $('gateThemeBtn').addEventListener('click', toggleTheme);
 
-  $('gatePwToggle').addEventListener('click', () => {
-    const inp = $('tok');
-    const show = inp.type === 'password';
-    inp.type = show ? 'text' : 'password';
-    $('gatePwToggle').textContent = show ? 'Masquer' : 'Afficher';
-  });
-
-  // ---- Helpers ----
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmtInt = (n) => Number(n || 0).toLocaleString('fr-FR');
-  const fmtBytes = (b) => {
-    const n = Number(b || 0);
-    if (n >= 1073741824) return (n / 1073741824).toFixed(2).replace('.', ',') + ' Go';
-    if (n >= 1048576) return (n / 1048576).toFixed(1).replace('.', ',') + ' Mo';
-    if (n >= 1024) return Math.round(n / 1024) + ' Ko';
-    return n + ' o';
-  };
-  const fmtUptime = (sec) => {
-    const s = Math.floor(Number(sec || 0));
-    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-    if (d > 0) return `${d}j ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m} min`;
-  };
-  const fmtDate = (ts) => {
-    if (!ts) return '—';
-    const d = new Date(Number(ts));
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  };
-  const fmtDuration = (sec) => {
-    const s = Math.round(Number(sec || 0));
-    if (!s) return '';
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  };
-
   let toastTimer = null;
-  function toast(msg, kind = 'ok') {
+  function toast(msg, kind = '') {
     const el = $('toast');
     el.textContent = msg;
     el.className = `toast ${kind}`;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.add('hide'), 3600);
+    toastTimer = setTimeout(() => el.classList.add('hide'), 3400);
   }
 
-  async function copyText(text, label = 'Copié dans le presse-papiers') {
+  async function copyText(val, label = 'Copié dans le presse-papiers') {
     try {
-      await navigator.clipboard.writeText(String(text));
+      await navigator.clipboard.writeText(String(val || ''));
       toast(label, 'ok');
     } catch {
-      toast('Copie automatique refusée par le navigateur', 'err');
+      toast('Copie impossible sur ce navigateur', 'err');
     }
   }
 
-  async function api(path, opts = {}) {
-    const headers = { ...(opts.headers || {}), 'x-admin-token': token };
-    if (opts.body && typeof opts.body === 'object') {
-      headers['content-type'] = 'application/json';
-      opts.body = JSON.stringify(opts.body);
-    }
-    const res = await fetch(path, { ...opts, headers });
+  // ---- HTTP Client ----
+  async function api(path, { method = 'GET', body } = {}) {
+    const headers = { 'x-admin-token': token };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    const res = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    const data = isJson ? await res.json().catch(() => ({})) : {};
     if (res.status === 401) {
-      showGate('Session expirée ou mot de passe modifié.');
-      throw new Error('Non autorisé');
+      sessionStorage.removeItem(TOKEN_KEY);
+      token = '';
+      showGate('Session expirée ou mot de passe incorrect.');
+      throw new Error(data.error || 'Non autorisé');
     }
-    const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erreur HTTP ${res.status}`);
     return data;
   }
 
   // ---- Auth & Navigation ----
+  $('pwToggleBtn').addEventListener('click', () => {
+    const inp = $('tok');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    $('pwToggleBtn').textContent = show ? 'Masquer' : 'Afficher';
+  });
+
   function showGate(msg = '') {
     stopTimers();
     $('app').classList.add('hide');
@@ -1445,7 +1793,57 @@
   document.querySelectorAll('.nav-btn[data-tab]').forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
+
+  // ---- Top Quick Search (Ctrl+K) ----
+  let quickTimer = null;
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      $('quickSearchInput').focus();
+      $('quickSearchInput').select();
+    } else if (e.key === 'Escape') {
+      $('quickPop').classList.add('hide');
+      if (!$('titleModal').classList.contains('hide')) $('mdCloseBtn').click();
+    }
+  });
+
+  $('quickSearchInput').addEventListener('input', () => {
+    clearTimeout(quickTimer);
+    const q = $('quickSearchInput').value.trim();
+    if (q.length < 2) { $('quickPop').classList.add('hide'); return; }
+    quickTimer = setTimeout(async () => {
+      try {
+        const d = await api(`/admin/api/titles?search=${encodeURIComponent(q)}&limit=8`);
+        const rows = d.rows || [];
+        const pop = $('quickPop');
+        pop.classList.remove('hide');
+        if (!rows.length) {
+          pop.innerHTML = `<div class="muted" style="padding:10px 12px;font-size:12.5px">Aucune fiche trouvée pour « ${esc(q)} ».</div>`;
+          return;
+        }
+        pop.innerHTML = rows.map((r) => {
+          const mp4Total = (r.netflix || 0) + (r.apple || 0) + (r.upstream || 0) + ((r.manual && r.manual.length) || 0);
+          return `<div class="quick-item" data-quick-open="${esc(r.id)}">
+            <div style="min-width:0">
+              <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+              <div class="muted" style="font-size:11.5px">${r.type === 'series' ? 'Série' : 'Film'}${r.year ? ` · ${r.year}` : ''}${r.imdb ? ` · <span class="mono">${esc(r.imdb)}</span>` : ''}</div>
+            </div>
+            <span class="badge ${mp4Total ? 'badge-ok' : ''}">${mp4Total ? `${mp4Total} MP4` : (r.youtube ? 'YouTube' : '0 vidéo')}</span>
+          </div>`;
+        }).join('');
+      } catch {}
+    }, 180);
+  });
+
+  $('quickPop').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-quick-open]');
+    if (!item) return;
+    $('quickPop').classList.add('hide');
+    openInspector(item.dataset.quickOpen);
+  });
+
   document.addEventListener('click', (e) => {
+    if (!e.target.closest('#quickWrap')) $('quickPop').classList.add('hide');
     const jumpTab = e.target.closest('[data-jump-tab]');
     if (jumpTab) { switchTab(jumpTab.dataset.jumpTab); return; }
     const jumpTitles = e.target.closest('[data-jump-titles]');
@@ -1465,7 +1863,7 @@
       return;
     }
     const copyEl = e.target.closest('[data-copy]');
-    if (copyEl) { copyText(copyEl.dataset.copy, `Copié : ${copyEl.dataset.copy.slice(0, 48)}`); }
+    if (copyEl) { copyText(copyEl.dataset.copy, 'Copié dans le presse-papiers'); }
   });
 
   // ---- Summary, Health, Coverage & KPIs ----
@@ -1475,21 +1873,35 @@
     renderSummary(sum);
   }
 
+  function renderVfEnvSnippet(baseUrl) {
+    const base = String(baseUrl || location.origin).replace(/\/+$/, '');
+    const keyExample = lastCreatedSecret || 'sdb_COLLE_ICI_TA_CLE_GENEREE';
+    $('vfEnvSnippet').textContent = `STOCKAGE_URL=${base}\nSTOCKAGE_API_KEY=${keyExample}`;
+  }
+
   function renderSummary(d) {
     summaryData = d;
     const s = d.stats || {};
     const src = d.sources || {};
     const hls = d.hls || { files: 0, bytes: 0, maxMB: 2048, cacheDays: 14, inflight: 0 };
+    const m = d.apiMetrics || {};
 
-    // Version badges
     const verTxt = `v${d.version || '__APP_VERSION__'}`;
     document.querySelectorAll('[data-version-badge], #ver').forEach((el) => { el.textContent = verTxt; });
     $('sideUptime').textContent = `Actif ${fmtUptime(d.uptime)}`;
     $('sideDbSize').textContent = fmtBytes(s.dbBytes);
     $('navTitlesCount').textContent = fmtInt(s.total);
 
-    const fedStatus = src.apiOpen ? 'Ouverte' : src.apiHasKey ? `${src.apiKeyCount || 1} clé${(src.apiKeyCount || 1) > 1 ? 's' : ''}` : 'Fermée';
-    $('navApiBadge').textContent = fedStatus;
+    const keyCount = src.apiKeyCount || 0;
+    const fedShort = src.apiOpen ? 'Ouverte' : src.apiHasKey ? pl(keyCount, 'clé') : 'Fermée';
+    $('navApiBadge').textContent = fedShort;
+    $('navApiBadge').className = `nav-count ${src.apiHasKey ? 'ok' : ''}`;
+
+    $('topApiPill').innerHTML = src.apiOpen
+      ? `<span class="dot dot-warn"></span>API ouverte`
+      : src.apiHasKey
+        ? `<span class="dot dot-ok"></span>API active · ${esc(pl(keyCount, 'clé'))}`
+        : `<span class="dot dot-warn"></span>API sans clé`;
 
     if (s.logErrors > 0) {
       $('errBadge').textContent = fmtInt(s.logErrors);
@@ -1504,7 +1916,7 @@
       src.apiOpen
         ? { dot: 'warn', label: 'API Fédération', val: 'Ouverte sans clé' }
         : src.apiHasKey
-          ? { dot: 'ok', label: 'API Fédération', val: `Protégée (${src.apiKeyCount || 1} clé${(src.apiKeyCount || 1) > 1 ? 's' : ''})` }
+          ? { dot: 'ok', label: 'API Fédération', val: `Protégée (${pl(keyCount, 'clé')})` }
           : { dot: 'warn', label: 'API Fédération', val: 'Désactivée (0 clé)' },
       src.ffmpeg
         ? { dot: 'ok', label: 'Relais HLS (ffmpeg)', val: 'Audio + vidéo MP4' }
@@ -1531,7 +1943,7 @@
     const pct = total ? Math.round((withVideo / total) * 100) : 0;
     $('covPct').textContent = `${pct} %`;
     $('covSub').textContent = total
-      ? `${fmtInt(withVideo)} fiche(s) couvertes sur ${fmtInt(total)} (${fmtInt(s.withTrailer)} avec flux MP4 relayé, ${fmtInt(s.withYoutube)} en repli YouTube)`
+      ? `${pl(withVideo, 'fiche couverte', 'fiches couvertes')} sur ${fmtInt(total)} (${fmtInt(s.withTrailer)} avec flux MP4 relayé, ${fmtInt(s.withYoutube)} en repli YouTube)`
       : 'Aucune fiche en base — lance un moissonnage Netflix ou ajoute un titre.';
 
     const segments = [
@@ -1552,7 +1964,7 @@
       `<button type="button" class="seg-item" data-jump-titles="none"><span class="seg-swatch" style="background:var(--line-strong)"></span><span>Sans vidéo</span><b class="tabular">${fmtInt(Math.max(0, total - withVideo))}</b></button>`,
     ].join('');
 
-    // 4 Coherent KPIs
+    // 4 Overview KPIs
     const hlsUsedMB = (hls.bytes || 0) / 1048576;
     $('kpis').innerHTML = [
       {
@@ -1571,9 +1983,9 @@
         foot: `${hlsUsedMB.toFixed(1).replace('.', ',')} Mo / ${fmtInt(hls.maxMB)} Mo max (${hls.cacheDays} j)`,
       },
       {
-        label: 'Résolution & Fédération',
-        val: src.apiOpen ? 'Ouverte' : `${fmtInt(src.apiKeyCount || 0)} clé(s)`,
-        foot: `${fmtInt(s.lookupsFound)}/${fmtInt(s.lookups)} résolutions IMDb auto trouvées`,
+        label: 'Trafic & Fédération API',
+        val: pl(m.totalCalls || 0, 'appel'),
+        foot: m.trailersCalls ? `Taux MP4 : ${m.hitRate ?? 0} % · Latence moy. ${m.avgLatencyMs || 0} ms` : `${src.apiOpen ? 'API ouverte' : pl(keyCount, 'clé active', 'clés actives')}`,
       },
     ].map((k) => `<div class="kpi-card"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-val">${esc(k.val)}</div><div class="kpi-foot">${esc(k.foot)}</div></div>`).join('');
 
@@ -1581,21 +1993,21 @@
     const hlsPct = Math.min(100, Math.round((hlsUsedMB / Math.max(1, hls.maxMB || 2048)) * 100));
     $('hlsCacheBox').innerHTML = `
       <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px">
-        <span><b>${fmtInt(hls.files)}</b> vidéo(s) convertie(s) en cache (${fmtBytes(hls.bytes)})</span>
+        <span><b>${pl(hls.files, 'vidéo convertie', 'vidéos converties')}</b> en cache (${fmtBytes(hls.bytes)})</span>
         <span class="mono">${hlsPct} % du plafond (${fmtInt(hls.maxMB)} Mo)</span>
       </div>
       <div class="progress" style="margin:6px 0 8px"><div style="width:${hlsPct}%"></div></div>
-      <div class="muted" style="font-size:12px">Conservation : ${hls.cacheDays} jour(s) · Conversions actives : ${hls.inflight || 0} · Dossier : <span class="mono">${esc(hls.dir || 'data/hls')}</span></div>
+      <div class="muted" style="font-size:12px">Conservation : ${pl(hls.cacheDays, 'jour')} · Conversions actives : ${hls.inflight || 0} · Dossier : <span class="mono">${esc(hls.dir || 'data/hls')}</span></div>
     `;
 
-    // Stremio standalone manifest URL (Settings tab)
-    const pub = (d.addon && d.addon.publicUrl) || location.origin;
-    const manifestUrl = `${pub.replace(/\/+$/, '')}/manifest.json`;
+    // Stremio standalone manifest URL
+    const pub = ((d.addon && d.addon.publicUrl) || location.origin).replace(/\/+$/, '');
+    const manifestUrl = `${pub}/manifest.json`;
     $('stremioManifestInput').value = manifestUrl;
     $('stremioInstallLink').href = manifestUrl.replace(/^https?:\/\//, 'stremio://');
-    $('fedBaseUrl').value = pub.replace(/\/+$/, '');
+    $('fedBaseUrl').value = pub;
+    renderVfEnvSnippet(pub);
 
-    // Render Settings form only if user isn't mid-edit
     if (dirty.size === 0 && resetKeys.size === 0) {
       renderSettings(d.settings || []);
     }
@@ -1635,7 +2047,7 @@
       $('ntStartBtn').classList.toggle('hide', nt.running);
       $('ntStopBtn').classList.toggle('hide', !nt.running);
       $('ntText').textContent = nt.running
-        ? `Lecture : ${nt.current ? nt.current.name : '…'} — ${fmtInt(nt.found)} avec bande-annonce, ${fmtInt(nt.empty)} sans vidéo, ${fmtInt(nt.failed)} erreur(s)`
+        ? `Lecture : ${nt.current ? nt.current.name : '…'} — ${fmtInt(nt.found)} avec bande-annonce, ${fmtInt(nt.empty)} sans vidéo, ${pl(nt.failed, 'erreur')}`
         : `${fmtInt(s.withNetflixTrailer || 0)} fiches avec flux Netflix · ${fmtInt(s.netflixTrailerPending || 0)} fiches liées dont la page reste à lire.`;
       renderJobErrors('ntErrors', nt.errors);
 
@@ -1648,7 +2060,7 @@
       $('apStartBtn').classList.toggle('hide', ap.running);
       $('apStopBtn').classList.toggle('hide', !ap.running);
       $('apText').textContent = ap.running
-        ? `Vérification : ${ap.current ? ap.current.name : '…'} — ${fmtInt(ap.found)} trouvée(s), ${fmtInt(ap.failed)} erreur(s)`
+        ? `Vérification : ${ap.current ? ap.current.name : '…'} — ${pl(ap.found, 'trouvée')}, ${pl(ap.failed, 'erreur')}`
         : `${fmtInt(s.withAppletv || 0)} fiches avec bande-annonce Apple TV+ stockée.`;
       renderJobErrors('apErrors', ap.errors);
 
@@ -1693,15 +2105,33 @@
     if (!token) return;
     pollJobs();
     try {
-      const [fedLogs, errLogs] = await Promise.all([
-        api('/admin/api/logs?source=federation&limit=5'),
+      const [metrics, errLogs] = await Promise.all([
+        api('/admin/api/metrics'),
         api('/admin/api/logs?level=error&limit=5'),
       ]);
-      $('recentFedBox').innerHTML = (fedLogs.logs || []).length
-        ? fedLogs.logs.map((l) => `<div style="padding:5px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px"><span>${esc(l.message)}</span><span class="muted mono">${esc(fmtDate(l.ts))}</span></div>`).join('')
-        : 'Aucun appel récent sur <span class="mono">/api/trailers</span>.';
+      const calls = (metrics.recentCalls || []).slice(0, 5);
+      $('recentFedBox').innerHTML = calls.length
+        ? calls.map((c) => {
+            const stBadge = c.found === true
+              ? `<span class="badge badge-ok">${c.count} MP4</span>`
+              : c.found === false
+                ? `<span class="badge">0 MP4</span>`
+                : `<span class="badge badge-info">${c.status}</span>`;
+            return `<div style="padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                <span class="mono" style="font-weight:600">${esc(c.path)}</span>
+                ${c.query ? `<span class="muted mono">${esc(c.query)}</span>` : ''}
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                ${stBadge}
+                <span class="muted mono">${c.ms} ms</span>
+              </div>
+            </div>`;
+          }).join('')
+        : 'Aucun appel API reçu depuis le démarrage du serveur.';
+
       $('recentAlertsBox').innerHTML = (errLogs.logs || []).length
-        ? errLogs.logs.map((l) => `<div style="padding:5px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px"><span style="color:var(--danger)">[${esc(l.source || 'app')}] ${esc(l.message)}</span><span class="muted mono">${esc(fmtDate(l.ts))}</span></div>`).join('')
+        ? errLogs.logs.map((l) => `<div style="padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px"><span style="color:var(--danger)">[${esc(l.source || 'app')}] ${esc(l.message)}</span><span class="muted mono">${esc(fmtDate(l.ts))}</span></div>`).join('')
         : '<span style="color:var(--ok)">Aucune erreur enregistrée dans le journal.</span>';
     } catch {}
   }
@@ -1721,11 +2151,11 @@
   bindJob('harvestStopBtn', '/admin/harvest/stop', null, 'Arrêt du moissonnage demandé');
   bindJob('ntStartBtn', '/admin/netflix-trailers', () => ({ limit: Number($('ntLimit').value) || 0 }), 'Extraction des pages Netflix lancée');
   bindJob('ntStopBtn', '/admin/netflix-trailers/stop', null, 'Arrêt demandé');
-  bindJob('apStartBtn', '/admin/appletv', null, 'Recherche Apple TV+ lancée');
+  bindJob('apStartBtn', '/admin/appletv', () => ({ limit: Number($('apLimit').value) || 0 }), 'Recherche Apple TV+ lancée');
   bindJob('apStopBtn', '/admin/appletv/stop', null, 'Arrêt demandé');
-  bindJob('linkStartBtn', '/admin/netflix-ids', null, 'Association des IDs Netflix lancée');
+  bindJob('linkStartBtn', '/admin/netflix-ids', () => ({ limit: Number($('linkLimit').value) || 0 }), 'Association des IDs Netflix lancée');
   bindJob('linkStopBtn', '/admin/netflix-ids/stop', null, 'Arrêt demandé');
-  bindJob('vfStartBtn', '/admin/vf', null, 'Enrichissement TMDB / IMDb lancé');
+  bindJob('vfStartBtn', '/admin/vf', () => ({ limit: Number($('vfLimit').value) || 0 }), 'Enrichissement TMDB / IMDb lancé');
   bindJob('vfStopBtn', '/admin/vf/stop', null, 'Arrêt demandé');
 
   $('syncBtn').addEventListener('click', async () => {
@@ -1757,8 +2187,16 @@
     } catch (err) { toast(err.message, 'err'); }
   });
 
-  $('refreshBtn').addEventListener('click', () => { loadSummary(); refreshOverviewExtras(); toast('Données actualisées'); });
-  $('mobileRefreshBtn').addEventListener('click', () => { loadSummary(); if (activeTab === 'overview') refreshOverviewExtras(); });
+  const refreshCurrentView = () => {
+    loadSummary();
+    if (activeTab === 'overview') refreshOverviewExtras();
+    else if (activeTab === 'titles') loadTitles();
+    else if (activeTab === 'api') loadKeys();
+    else if (activeTab === 'logs') loadLogs(false);
+    toast('Données actualisées');
+  };
+  $('topRefreshBtn').addEventListener('click', refreshCurrentView);
+  $('mobileRefreshBtn').addEventListener('click', refreshCurrentView);
 
   // ---- TAB 2: Catalogue & Inspector Modal ----
   function syncTitleChips() {
@@ -1774,10 +2212,15 @@
       titlesState.search = $('titlesSearch').value.trim();
       titlesState.offset = 0;
       loadTitles();
-    }, 240);
+    }, 220);
   });
   $('titlesType').addEventListener('change', () => {
     titlesState.type = $('titlesType').value;
+    titlesState.offset = 0;
+    loadTitles();
+  });
+  $('titlesSort').addEventListener('change', () => {
+    titlesState.sort = $('titlesSort').value || 'added';
     titlesState.offset = 0;
     loadTitles();
   });
@@ -1806,6 +2249,7 @@
     const p = new URLSearchParams({
       limit: String(titlesState.limit),
       offset: String(titlesState.offset),
+      sort: titlesState.sort || 'added',
     });
     if (titlesState.search) p.set('search', titlesState.search);
     if (titlesState.filter) p.set('filter', titlesState.filter);
@@ -1814,7 +2258,7 @@
     try {
       const d = await api(`/admin/api/titles?${p}`);
       titlesState.total = d.total || 0;
-      $('titlesCount').textContent = `${fmtInt(d.total)} fiche${d.total > 1 ? 's' : ''}`;
+      $('titlesCount').textContent = pl(d.total, 'fiche');
       const from = d.total ? titlesState.offset + 1 : 0;
       const to = Math.min(d.total, titlesState.offset + (d.rows || []).length);
       $('titlesPageInfo').textContent = d.total ? `Affichage ${fmtInt(from)}–${fmtInt(to)} sur ${fmtInt(d.total)}` : 'Aucun résultat';
@@ -1859,6 +2303,7 @@
           <td class="muted mono">${esc(fmtDate(r.added))}</td>
           <td style="text-align:right;white-space:nowrap">
             <button type="button" class="btn-xs btn-primary" data-inspect="${esc(r.id)}">▶ Détails</button>
+            <button type="button" class="btn-xs" data-test-row="${esc(r.id)}" data-imdb="${esc(r.imdb || '')}" data-tmdb="${esc(r.tmdbId || '')}" data-nflx="${esc(r.netflixId || '')}" data-type="${esc(r.type)}" title="Tester dans le Studio API">⚡ API</button>
             <button type="button" class="btn-xs" data-recheck="${esc(r.id)}" title="Re-vérifier toutes les sources">↻</button>
             <button type="button" class="btn-xs btn-danger" data-delete="${esc(r.id)}" data-name="${esc(r.name)}" title="Supprimer la fiche">✕</button>
           </td>
@@ -1869,9 +2314,32 @@
     }
   }
 
+  function jumpToPlaygroundWith({ imdb = '', tmdb = '', netflix = '', type = 'series' }) {
+    setPlaygroundMode('trailers');
+    $('ftImdb').value = imdb || '';
+    $('ftTmdb').value = tmdb ? String(tmdb) : '';
+    $('ftNetflix').value = netflix || '';
+    $('ftType').value = type || 'series';
+    $('ftSeason').value = type === 'series' ? '1' : '';
+    $('ftStrict').checked = type === 'series';
+    switchTab('api');
+    setTimeout(() => $('pgTrailersForm').requestSubmit(), 60);
+  }
+
   $('titlesBody').addEventListener('click', async (e) => {
     const inspectBtn = e.target.closest('[data-inspect]');
     if (inspectBtn) { openInspector(inspectBtn.dataset.inspect); return; }
+
+    const testRowBtn = e.target.closest('[data-test-row]');
+    if (testRowBtn) {
+      jumpToPlaygroundWith({
+        imdb: testRowBtn.dataset.imdb,
+        tmdb: testRowBtn.dataset.tmdb,
+        netflix: testRowBtn.dataset.nflx,
+        type: testRowBtn.dataset.type,
+      });
+      return;
+    }
 
     const recheckBtn = e.target.closest('[data-recheck]');
     if (recheckBtn) {
@@ -1903,16 +2371,26 @@
   // ---- Inspector & Video Player Modal ----
   async function openInspector(id) {
     currentModalId = id;
+    currentModalDetail = null;
     stopModalVideo();
     $('titleModal').classList.remove('hide');
     $('mdTitle').textContent = 'Chargement…';
     $('mdTrailersList').innerHTML = '<div class="muted">Lecture des bandes-annonces…</div>';
     try {
       const d = await api(`/admin/api/titles/${encodeURIComponent(id)}`);
+      currentModalDetail = d;
       renderInspector(d);
     } catch (e) {
       $('mdTrailersList').innerHTML = `<div style="color:var(--danger)">${esc(e.message)}</div>`;
     }
+  }
+
+  function playInModal(url, title) {
+    $('mdPlayerLabel').textContent = title || 'Aperçu vidéo';
+    $('mdPlayerWrap').classList.remove('hide');
+    const v = $('mdVideo');
+    v.src = toPlayablePath(url);
+    v.play().catch(() => {});
   }
 
   function renderInspector(d) {
@@ -1941,19 +2419,13 @@
         const rmBtn = t.source === 'manual' && Number.isInteger(t.index)
           ? `<button type="button" class="btn-xs btn-danger" data-rm-manual="${t.index}">Supprimer</button>`
           : '';
-        // Utilise un chemin relatif pour la lecture dans le navigateur même si PUBLIC_URL n'est pas encore configuré en HTTPS
-        let playPath = t.url;
-        try {
-          const u = new URL(t.url);
-          if (/^\/(trailer|apple|media)\//.test(u.pathname)) playPath = u.pathname;
-        } catch {}
         return `<div class="trailer-item">
           <div style="min-width:220px;flex:1">
             <div style="font-weight:600;margin-bottom:4px">${esc(t.title)} ${dur ? `<span class="muted mono">(${dur})</span>` : ''}</div>
             <div style="display:flex;gap:5px;flex-wrap:wrap">${srcTag}${seasonTag}${kindTag}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <button type="button" class="btn-xs btn-primary" data-play-url="${esc(playPath)}" data-play-title="${esc(t.title)}">▶ Lire</button>
+            <button type="button" class="btn-xs btn-primary" data-play-url="${esc(t.url)}" data-play-title="${esc(t.title)}">▶ Lire</button>
             <button type="button" class="btn-xs" data-copy="${esc(t.url)}">Copier URL</button>
             ${rmBtn}
           </div>
@@ -1961,7 +2433,7 @@
       }).join('');
     }
     if ((d.unservableApple || []).length) {
-      html += `<div class="job-errors" style="margin-top:8px">${d.unservableApple.length} flux HLS Apple TV stocké(s) mais non exposés car <span class="mono">ffmpeg</span> n'est pas installé sur le serveur.</div>`;
+      html += `<div class="job-errors" style="margin-top:8px">${pl(d.unservableApple.length, 'flux HLS Apple TV stocké', 'flux HLS Apple TV stockés')} mais non exposés car <span class="mono">ffmpeg</span> n'est pas installé sur le serveur.</div>`;
     }
     $('mdTrailersList').innerHTML = html;
   }
@@ -1978,14 +2450,17 @@
   $('mdStopVideoBtn').addEventListener('click', stopModalVideo);
   $('titleModal').addEventListener('click', (e) => { if (e.target === $('titleModal')) $('mdCloseBtn').click(); });
 
+  $('mdJumpApiBtn').addEventListener('click', () => {
+    if (!currentModalDetail) return;
+    const d = currentModalDetail;
+    $('mdCloseBtn').click();
+    jumpToPlaygroundWith({ imdb: d.imdb, tmdb: d.tmdbId, netflix: d.netflixId, type: d.type });
+  });
+
   $('mdTrailersList').addEventListener('click', async (e) => {
     const playBtn = e.target.closest('[data-play-url]');
     if (playBtn) {
-      $('mdPlayerLabel').textContent = playBtn.dataset.playTitle || 'Aperçu vidéo';
-      $('mdPlayerWrap').classList.remove('hide');
-      const v = $('mdVideo');
-      v.src = playBtn.dataset.playUrl;
-      v.play().catch(() => {});
+      playInModal(playBtn.dataset.playUrl, playBtn.dataset.playTitle);
       return;
     }
     const rmBtn = e.target.closest('[data-rm-manual]');
@@ -2075,8 +2550,8 @@
       try {
         const r = await api('/admin/add', { method: 'POST', body: { id: nfBtn.dataset.addNf } });
         const cnt = r.trailersNetflix ?? r.trailers ?? 0;
-        toast(`${r.name} importé (${cnt} bande(s)-annonce(s) Netflix)`, 'ok');
-        nfBtn.textContent = `✓ ${cnt} vidéo(s)`;
+        toast(`${r.name} importé (${pl(cnt, 'flux MP4', 'flux MP4')})`, 'ok');
+        nfBtn.textContent = `✓ ${pl(cnt, 'vidéo')}`;
         loadSummary();
       } catch (err) { toast(err.message, 'err'); nfBtn.disabled = false; nfBtn.textContent = '+ Importer'; }
       return;
@@ -2090,7 +2565,7 @@
           method: 'POST',
           body: { id: apBtn.dataset.addAp, type: apBtn.dataset.type, title: apBtn.dataset.title, year: apBtn.dataset.year },
         });
-        toast(`${r.name} : ${r.trailers} bande(s)-annonce(s) Apple TV+ rattachée(s)`, 'ok');
+        toast(`${r.name} : ${pl(r.trailers, 'flux Apple TV+ rattaché', 'flux Apple TV+ rattachés')}`, 'ok');
         apBtn.textContent = `✓ ${r.trailers} HLS`;
         loadSummary();
       } catch (err) { toast(err.message, 'err'); apBtn.disabled = false; apBtn.textContent = '+ Extraire HLS'; }
@@ -2106,7 +2581,7 @@
     try {
       const r = await api('/admin/add', { method: 'POST', body: { url: val } });
       const nCount = r.trailersNetflix ?? r.trailers ?? 0;
-      const detail = nCount > 0 ? `${nCount} bande(s)-annonce(s) MP4 extraite(s)` : (r.trailerYoutube ? 'repli YouTube enregistré (flux source DRM)' : 'aucune bande-annonce lisible sur la page');
+      const detail = nCount > 0 ? `${pl(nCount, 'bande-annonce MP4 extraite', 'bandes-annonces MP4 extraites')}` : (r.trailerYoutube ? 'repli YouTube enregistré (flux source DRM)' : 'aucune bande-annonce lisible sur la page');
       $('addMsg').style.color = 'var(--ok)';
       $('addMsg').innerHTML = `✓ <b>${esc(r.name)}</b> (${esc(r.id)}) — ${esc(detail)}. <button type="button" class="btn-xs" data-open-added="${esc(r.id)}">Ouvrir la fiche</button>`;
       $('addInput').value = '';
@@ -2130,7 +2605,7 @@
         body: { id: $('manualKey').value.trim(), title: $('manualTitle').value.trim(), url: $('manualUrl').value.trim() },
       });
       $('manualMsg').style.color = 'var(--ok)';
-      $('manualMsg').textContent = `✓ Bande-annonce attachée à « ${r.name} » (${r.count} lien(s) direct(s)).`;
+      $('manualMsg').textContent = `✓ Bande-annonce attachée à « ${r.name} » (${pl(r.count, 'lien direct', 'liens directs')}).`;
       $('manualUrl').value = '';
       $('manualTitle').value = '';
       loadSummary();
@@ -2140,70 +2615,254 @@
     }
   });
 
-  // ---- TAB 4: Fédération & API Keys ----
+  // ---- TAB 4: API & Fédération Studio ----
+  function renderApiMetrics(m = {}, keySummary = {}) {
+    const activeCount = keySummary.activeCount || 0;
+    const isOpen = !!keySummary.open;
+    $('apiKpis').innerHTML = [
+      {
+        label: 'Sécurité & Clés',
+        val: isOpen ? 'Ouverte' : pl(activeCount, 'clé active', 'clés actives'),
+        foot: isOpen ? 'ALLOW_OPEN_API=1 (accès sans clé)' : (activeCount ? `Authentification SHA-256 + quotas par clé` : 'Crée une clé pour ouvrir la fédération'),
+      },
+      {
+        label: 'Appels reçus (session)',
+        val: fmtInt(m.totalCalls || 0),
+        foot: `${fmtInt(m.trailersCalls || 0)} /trailers · ${fmtInt(m.batchCalls || 0)} batch · ${fmtInt(m.searchCalls || 0)} search`,
+      },
+      {
+        label: 'Taux de réponse MP4',
+        val: m.hitRate != null ? `${m.hitRate} %` : '—',
+        foot: m.trailersCalls ? `${fmtInt(m.trailersHits || 0)} réponses avec MP4 sur ${fmtInt(m.trailersCalls)}` : 'En attente du premier appel /api/trailers',
+      },
+      {
+        label: 'Latence API',
+        val: m.totalCalls ? `${m.avgLatencyMs || 0} ms` : '—',
+        foot: m.totalCalls ? `P95 : ${m.p95LatencyMs || 0} ms · ${pl(m.rateLimited || 0, 'rejet quota', 'rejets quota')}` : 'Mesure automatique sur chaque requête',
+      },
+    ].map((k) => `<div class="kpi-card"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-val">${esc(k.val)}</div><div class="kpi-foot">${esc(k.foot)}</div></div>`).join('');
+
+    const calls = m.recentCalls || [];
+    $('apiRecentCallsBox').innerHTML = calls.length
+      ? `<div class="table-wrap"><table><thead><tr><th>Heure</th><th>Client</th><th>Requête</th><th>Résultat</th><th>Durée</th></tr></thead><tbody>` +
+        calls.slice(0, 12).map((c) => {
+          const resBadge = c.found === true
+            ? `<span class="badge badge-ok">${c.count} MP4</span>`
+            : c.found === false
+              ? `<span class="badge">0 MP4</span>`
+              : `<span class="badge badge-info">HTTP ${c.status}</span>`;
+          return `<tr>
+            <td class="mono muted">${esc(fmtDate(c.ts))}</td>
+            <td><span class="badge">${esc(c.client || 'API')}</span></td>
+            <td class="mono">${esc(c.method)} ${esc(c.path)}${c.query ? ` <span class="muted">(${esc(c.query)})</span>` : ''}</td>
+            <td>${resBadge}</td>
+            <td class="mono">${c.ms} ms</td>
+          </tr>`;
+        }).join('') + `</tbody></table></div>`
+      : 'Aucun appel API enregistré depuis le démarrage.';
+  }
+
+  function renderRoutesDoc(base) {
+    const keyPlaceholder = lastCreatedSecret || 'sdb_VOTRE_CLE';
+    const routes = [
+      {
+        method: 'GET',
+        path: '/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1',
+        desc: 'Flux MP4 triés pour une saison précise (appel principal utilisé par vf-trailer-wallace). Ajoute &fast=1 pour du cache SQLite pur.',
+        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"`,
+      },
+      {
+        method: 'POST',
+        path: '/api/trailers/batch',
+        desc: 'Vérifie jusqu’à 25 films/saisons en une seule requête HTTP ultra-rapide.',
+        curl: `curl -X POST "${base}/api/trailers/batch" \\\n  -H "x-api-key: ${keyPlaceholder}" \\\n  -H "content-type: application/json" \\\n  -d '{"items":[{"imdb":"tt13016388","type":"series","season":2,"strict_season":1}]}'`,
+      },
+      {
+        method: 'GET',
+        path: '/api/search?q=Severance&filter=any',
+        desc: 'Recherche dans le catalogue local avec saisons disponibles et URLs MP4 prêtes à lire.',
+        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/search?q=Severance&filter=any"`,
+      },
+      {
+        method: 'GET',
+        path: '/api/title/tt13016388',
+        desc: 'Métadonnées complètes et liste des bandes-annonces par ID IMDb, ID Netflix ou ID interne.',
+        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/title/tt13016388"`,
+      },
+      {
+        method: 'POST',
+        path: '/api/trailers/submit',
+        desc: 'Attache un flux MP4/HLS ou ingère une URL Netflix/Prime à distance (requiert le scope trailers:write).',
+        curl: `curl -X POST "${base}/api/trailers/submit" \\\n  -H "x-api-key: ${keyPlaceholder}" \\\n  -H "content-type: application/json" \\\n  -d '{"imdb":"tt13016388","title":"Bande-annonce Saison 2 VF","url":"https://cdn.exemple.fr/ba-s2.mp4"}'`,
+      },
+      {
+        method: 'GET',
+        path: '/api/status',
+        desc: 'État de santé, version, sources actives et statistiques globales.',
+        curl: `curl -H "x-api-key: ${keyPlaceholder}" "${base}/api/status"`,
+      },
+    ];
+
+    $('routesDocList').innerHTML = routes.map((r, idx) => `
+      <div class="route-row">
+        <div style="min-width:220px;flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="method-pill ${r.method === 'POST' ? 'method-post' : 'method-get'}">${r.method}</span>
+            <span class="mono" style="font-weight:600;color:var(--fg)">${esc(r.path)}</span>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:4px">${esc(r.desc)}</div>
+        </div>
+        <button type="button" class="btn-xs" data-copy-curl="${idx}">Copier curl</button>
+      </div>
+    `).join('');
+
+    $('routesDocList').onclick = (e) => {
+      const b = e.target.closest('[data-copy-curl]');
+      if (!b) return;
+      const item = routes[Number(b.dataset.copyCurl)];
+      if (item) copyText(item.curl, `Commande curl ${item.method} copiée`);
+    };
+  }
+
   async function loadKeys() {
     if (!token) return;
     try {
       const d = await api('/admin/api/keys');
       const base = (d.baseUrl || location.origin).replace(/\/+$/, '');
       $('fedBaseUrl').value = base;
-      const count = (d.keys || []).length;
-      $('keysCountLabel').textContent = `${count} / ${d.max || 5} clés créées — seule l'empreinte SHA-256 est conservée en base.`;
-      $('keyCreateBtn').disabled = count >= (d.max || 5);
-      $('legacyKeyBox').classList.toggle('hide', !d.legacy);
+      renderVfEnvSnippet(base);
+      renderRoutesDoc(base);
+
+      const keys = d.keys || [];
+      const max = d.max || 5;
+      const now = Date.now();
+      const activeNamed = keys.filter((k) => k.enabled && (!k.expires_at || k.expires_at > now)).length;
+      const leg = d.legacyInfo || { active: !!d.legacy, source: d.legacy ? 'env' : null, hint: '••••' };
+      const totalActive = activeNamed + (leg.active ? 1 : 0);
+
+      $('keysCountLabel').textContent = `${keys.length} / ${max} emplacements utilisés · Empreinte SHA-256 uniquement en base.`;
+      $('keyCreateBtn').disabled = keys.length >= max;
+      $('quickVfKeyBtn').disabled = keys.length >= max;
+
+      if (leg.active) {
+        $('legacyKeyBox').classList.remove('hide');
+        if (leg.source === 'dashboard') {
+          $('legacyKeyText').innerHTML = `Clé globale <span class="mono">API_KEY</span> active via surcharge base (<span class="mono">${esc(leg.hint || '••••')}</span>) — lecture seule.`;
+          $('clearLegacyKeyBtn').classList.remove('hide');
+        } else {
+          $('legacyKeyText').innerHTML = `Clé globale <span class="mono">API_KEY</span> définie dans <span class="mono">.env</span> (<span class="mono">${esc(leg.hint || '••••')}</span>) — active en parallèle des clés nommées.`;
+          $('clearLegacyKeyBtn').classList.add('hide');
+        }
+      } else {
+        $('legacyKeyBox').classList.add('hide');
+      }
 
       if (d.open) {
         $('apiStateBadge').textContent = 'API ouverte (ALLOW_OPEN_API=1)';
         $('apiStateBadge').className = 'badge badge-warn';
-      } else if (count > 0 || d.legacy) {
-        $('apiStateBadge').textContent = `API active & protégée (${count + (d.legacy ? 1 : 0)} clé(s))`;
+      } else if (totalActive > 0) {
+        $('apiStateBadge').textContent = `API active & protégée · ${pl(totalActive, 'clé')}`;
         $('apiStateBadge').className = 'badge badge-ok';
       } else {
-        $('apiStateBadge').textContent = 'API fermée — crée une clé pour activer la fédération';
+        $('apiStateBadge').textContent = 'API fermée — génère une clé pour activer la fédération';
         $('apiStateBadge').className = 'badge badge-warn';
       }
 
-      $('keysList').innerHTML = count
-        ? d.keys.map((k) => `<div class="trailer-item">
-            <div>
-              <div style="font-weight:600">${esc(k.label)} <span class="mono muted">sdb_••••${esc(k.last4)}</span></div>
-              <div class="muted" style="font-size:11.5px">Créée le ${esc(fmtDate(k.created_at))} · Dernier appel : ${k.last_used_at ? esc(fmtDate(k.last_used_at)) : 'jamais utilisée'}</div>
-            </div>
-            <button type="button" class="btn-xs btn-danger" data-del-key="${k.id}" data-label="${esc(k.label)}">Révoquer</button>
-          </div>`).join('')
-        : '<div class="muted" style="font-size:12.5px">Aucune clé nommée créée pour l\'instant.</div>';
+      renderApiMetrics(d.metrics || {}, { activeCount: totalActive, open: d.open });
 
-      $('curlDocBox').innerHTML = [
-        `# État de l'instance`,
-        `curl -H "x-api-key: sdb_VOTRE_CLE" "${esc(base)}/api/status"`,
-        ``,
-        `# Bandes-annonces d'une série pour une saison précise (mode strict utilisé par vf-trailer-wallace)`,
-        `curl -H "x-api-key: sdb_VOTRE_CLE" "${esc(base)}/api/trailers?imdb=tt13016388&type=series&season=2&strict_season=1"`,
-        ``,
-        `# Diagnostic détaillé (?debug=1)`,
-        `curl -H "x-api-key: sdb_VOTRE_CLE" "${esc(base)}/api/trailers?imdb=tt13016388&type=series&season=2&debug=1"`,
-      ].join('\n');
+      $('keysList').innerHTML = keys.length
+        ? keys.map((k) => {
+            const expired = !!(k.expires_at && k.expires_at <= now);
+            const paused = !k.enabled;
+            const stBadge = expired
+              ? `<span class="badge badge-err">Expirée</span>`
+              : paused
+                ? `<span class="badge badge-warn">En pause</span>`
+                : `<span class="badge badge-ok">Active</span>`;
+            const quotaLabel = k.rate_limit > 0 ? `${k.rate_limit}/min` : 'Illimité';
+            const scopes = String(k.scopes || 'trailers:read').split(',').filter(Boolean);
+            const masked = `${k.prefix || 'sdb_'}…••••${k.last4}`;
+            return `<div class="key-card ${paused || expired ? 'paused' : ''}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                <div>
+                  <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+                    <b style="font-size:13.5px">${esc(k.label)}</b>
+                    <span class="mono muted">${esc(masked)}</span>
+                    ${stBadge}
+                    <span class="badge">${esc(quotaLabel)}</span>
+                  </div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+                    ${scopes.map((sc) => `<span class="badge ${sc === 'trailers:write' ? 'badge-warn' : 'badge-accent'} mono">${esc(sc)}</span>`).join('')}
+                  </div>
+                  <div class="muted" style="font-size:11.5px;margin-top:6px">
+                    <b>${fmtInt(k.calls_total || 0)}</b> appels (<b>${fmtInt(k.hits_total || 0)}</b> hits MP4)
+                    · Dernier accès : ${k.last_used_at ? `${esc(fmtDate(k.last_used_at))}${k.last_ip ? ` (${esc(k.last_ip)})` : ''}` : 'jamais utilisée'}
+                    ${k.expires_at ? ` · Expire le ${esc(fmtDate(k.expires_at))}` : ''}
+                  </div>
+                </div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                  <button type="button" class="btn-xs" data-toggle-key="${k.id}" data-next-enabled="${paused ? '1' : '0'}">${paused ? '▶ Reprendre' : '⏸ Pause'}</button>
+                  <button type="button" class="btn-xs" data-rotate-key="${k.id}" data-label="${esc(k.label)}" title="Générer un nouveau secret pour cette clé">↻ Rotation</button>
+                  <button type="button" class="btn-xs btn-danger" data-del-key="${k.id}" data-label="${esc(k.label)}">Révoquer</button>
+                </div>
+              </div>
+            </div>`;
+          }).join('')
+        : '<div class="muted" style="font-size:12.5px">Aucune clé nommée créée — clique sur <b>⚡ Créer une clé vf-trailer</b> ou utilise le formulaire ci-dessus.</div>';
     } catch (e) { toast(e.message, 'err'); }
   }
 
+  function revealGeneratedSecret(secret, label) {
+    lastCreatedSecret = secret;
+    $('keyCreatedTitle').textContent = `Secret pour « ${label} » (affiché une seule fois — copie-le maintenant) :`;
+    $('keyCreatedVal').textContent = secret;
+    $('keyCreatedBox').classList.remove('hide');
+    renderVfEnvSnippet($('fedBaseUrl').value);
+    renderRoutesDoc($('fedBaseUrl').value);
+  }
+
   $('copyFedUrlBtn').addEventListener('click', () => copyText($('fedBaseUrl').value, 'URL du serveur copiée'));
+  $('copyEnvSnippetBtn').addEventListener('click', () => copyText($('vfEnvSnippet').textContent, 'Bloc .env copié'));
+  $('copyNewKeyBtn').addEventListener('click', () => copyText($('keyCreatedVal').textContent, 'Clé API copiée'));
+
+  $('quickVfKeyBtn').addEventListener('click', async () => {
+    try {
+      const r = await api('/admin/api/keys', {
+        method: 'POST',
+        body: { label: 'vf-trailer-wallace', scopes: 'trailers:read,catalog:read', rateLimit: 600, expiresInDays: 0 },
+      });
+      revealGeneratedSecret(r.key, r.label);
+      toast('Clé dédiée vf-trailer-wallace générée !', 'ok');
+      loadKeys();
+      loadSummary();
+    } catch (e) { toast(e.message, 'err'); }
+  });
 
   $('keyCreateForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const label = $('keyLabel').value.trim();
     if (!label) return;
+    const scopes = ['trailers:read'];
+    if ($('scCatalogRead').checked) scopes.push('catalog:read');
+    if ($('scTrailersWrite').checked) scopes.push('trailers:write');
     try {
-      const r = await api('/admin/api/keys', { method: 'POST', body: { label } });
+      const r = await api('/admin/api/keys', {
+        method: 'POST',
+        body: {
+          label,
+          scopes: scopes.join(','),
+          rateLimit: Number($('keyRateLimit').value),
+          expiresInDays: Number($('keyExpires').value) || 0,
+        },
+      });
       $('keyLabel').value = '';
-      $('keyCreatedVal').textContent = r.key;
-      $('keyCreatedBox').classList.remove('hide');
+      $('scTrailersWrite').checked = false;
+      revealGeneratedSecret(r.key, r.label);
       toast(`Clé « ${r.label} » créée`, 'ok');
       loadKeys();
       loadSummary();
     } catch (err) { toast(err.message, 'err'); }
   });
-
-  $('copyNewKeyBtn').addEventListener('click', () => copyText($('keyCreatedVal').textContent, 'Clé API copiée'));
 
   $('clearLegacyKeyBtn').addEventListener('click', async () => {
     try {
@@ -2215,19 +2874,66 @@
   });
 
   $('keysList').addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-del-key]');
-    if (!btn) return;
-    if (!confirm(`Révoquer la clé API « ${btn.dataset.label} » ? Les clients qui l'utilisent recevront une erreur 401.`)) return;
-    try {
-      await api('/admin/api/keys/delete', { method: 'POST', body: { id: Number(btn.dataset.delKey) } });
-      toast('Clé API révoquée', 'ok');
-      loadKeys();
-      loadSummary();
-    } catch (err) { toast(err.message, 'err'); }
+    const toggleBtn = e.target.closest('[data-toggle-key]');
+    if (toggleBtn) {
+      try {
+        const enabled = toggleBtn.dataset.nextEnabled === '1';
+        await api('/admin/api/keys/update', { method: 'POST', body: { id: Number(toggleBtn.dataset.toggleKey), enabled } });
+        toast(enabled ? 'Clé réactivée' : 'Clé mise en pause', 'ok');
+        loadKeys();
+        loadSummary();
+      } catch (err) { toast(err.message, 'err'); }
+      return;
+    }
+
+    const rotBtn = e.target.closest('[data-rotate-key]');
+    if (rotBtn) {
+      if (!confirm(`Régénérer le secret de « ${rotBtn.dataset.label} » ? L'ancienne clé cessera immédiatement de fonctionner.`)) return;
+      try {
+        const r = await api('/admin/api/keys/rotate', { method: 'POST', body: { id: Number(rotBtn.dataset.rotateKey) } });
+        revealGeneratedSecret(r.key, r.label);
+        toast(`Nouveau secret généré pour « ${r.label} »`, 'ok');
+        loadKeys();
+      } catch (err) { toast(err.message, 'err'); }
+      return;
+    }
+
+    const delBtn = e.target.closest('[data-del-key]');
+    if (delBtn) {
+      if (!confirm(`Révoquer définitivement la clé « ${delBtn.dataset.label} » ?`)) return;
+      try {
+        await api('/admin/api/keys/delete', { method: 'POST', body: { id: Number(delBtn.dataset.delKey) } });
+        toast('Clé API révoquée', 'ok');
+        loadKeys();
+        loadSummary();
+      } catch (err) { toast(err.message, 'err'); }
+    }
   });
 
-  // Live Federation Tester
-  $('fedTestForm').addEventListener('submit', async (e) => {
+  $('refreshMetricsBtn').addEventListener('click', () => loadKeys());
+  $('resetMetricsBtn').addEventListener('click', async () => {
+    try {
+      await api('/admin/api/metrics/reset', { method: 'POST', body: {} });
+      toast('Compteurs de session réinitialisés', 'ok');
+      loadKeys();
+      loadSummary();
+    } catch (e) { toast(e.message, 'err'); }
+  });
+
+  // ---- Multi-Mode API Playground ----
+  function setPlaygroundMode(mode) {
+    activePgMode = mode;
+    document.querySelectorAll('#pgTabs .subtab').forEach((b) => b.classList.toggle('active', b.dataset.pg === mode));
+    $('pgTrailersForm').classList.toggle('hide', mode !== 'trailers');
+    $('pgSearchForm').classList.toggle('hide', mode !== 'search');
+    $('pgBatchForm').classList.toggle('hide', mode !== 'batch');
+    $('pgStatusBox').classList.toggle('hide', mode !== 'status');
+  }
+  document.querySelectorAll('#pgTabs .subtab').forEach((b) => {
+    b.addEventListener('click', () => setPlaygroundMode(b.dataset.pg));
+  });
+
+  $('pgTrailersForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const p = new URLSearchParams();
     if ($('ftImdb').value.trim()) p.set('imdb', $('ftImdb').value.trim());
@@ -2235,44 +2941,130 @@
     if ($('ftNetflix').value.trim()) p.set('netflix', $('ftNetflix').value.trim());
     if ($('ftType').value) p.set('type', $('ftType').value);
     if ($('ftSeason').value.trim()) p.set('season', $('ftSeason').value.trim());
+    if ($('ftSource').value) p.set('source', $('ftSource').value);
     if ($('ftStrict').checked) p.set('strict_season', '1');
     if ($('ftExtras').checked) p.set('include_extras', '1');
+    if ($('ftFast').checked) p.set('fast', '1');
 
     const box = $('fedTestOut');
     box.classList.remove('hide');
-    box.innerHTML = '<div class="muted">Exécution de la requête de fédération…</div>';
+    box.innerHTML = '<div class="muted">Exécution de GET /api/trailers…</div>';
+    const base = ($('fedBaseUrl').value || location.origin).replace(/\/+$/, '');
+    const keyEx = lastCreatedSecret || 'sdb_VOTRE_CLE';
+    const curlCmd = `curl -H "x-api-key: ${keyEx}" "${base}/api/trailers?${p}"`;
+
     try {
       const d = await api(`/admin/api/test-federation?${p}`);
       const list = d.trailers || [];
+      const seasonsInfo = (d.seasonsAvailable || []).length
+        ? ` · Saisons détectées sur la fiche : ${d.seasonsAvailable.map((n) => `S${n}`).join(', ')}`
+        : '';
       let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <div>
-          <span class="badge ${d.found ? 'badge-ok' : 'badge-warn'}">${d.found ? `✓ ${list.length} bande(s)-annonce(s) renvoyée(s)` : '0 bande-annonce renvoyée'}</span>
-          ${d.title ? `<span style="margin-left:8px;font-weight:600">${esc(d.title.name)} (${esc(d.title.id)})</span>` : '<span class="muted" style="margin-left:8px">Aucune fiche correspondante en base</span>'}
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="badge ${d.found ? 'badge-ok' : 'badge-warn'}">${d.found ? `✓ ${pl(list.length, 'flux MP4 renvoyé', 'flux MP4 renvoyés')}` : '0 flux MP4 renvoyé'}</span>
+          <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span>
+          ${d.title ? `<span style="font-weight:600">${esc(d.title.name)} <span class="muted mono">(${esc(d.title.id)}${esc(seasonsInfo)})</span></span>` : '<span class="muted">Aucune fiche correspondante en base</span>'}
         </div>
-        ${d.title ? `<button type="button" class="btn-xs" data-inspect-tested="${esc(d.title.id)}">Ouvrir la fiche complète →</button>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn-xs" data-copy="${esc(curlCmd)}">Copier curl</button>
+          ${d.title ? `<button type="button" class="btn-xs" data-inspect-tested="${esc(d.title.id)}">Ouvrir la fiche complète →</button>` : ''}
+        </div>
       </div>`;
+
       if (list.length) {
         html += list.map((t) => `<div class="trailer-item">
           <div>
             <div style="font-weight:600">${esc(t.title)}</div>
             <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
               <span class="badge">${esc(t.source)}</span>
-              <span class="badge badge-accent">${t.season ? `Saison ${t.season}` : 'Sans saison explicite'}</span>
+              <span class="badge badge-accent">${t.season ? `Saison ${t.season}` : 'Toutes saisons'}</span>
               <span class="badge">${esc(t.kind || 'trailer')}</span>
             </div>
           </div>
-          <button type="button" class="btn-xs" data-copy="${esc(t.url)}">Copier URL</button>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn-xs btn-primary" data-pg-play="${esc(t.url)}" data-pg-title="${esc(t.title)}" data-pg-id="${esc(d.title?.id || '')}">▶ Lire</button>
+            <button type="button" class="btn-xs" data-copy="${esc(t.url)}">Copier URL</button>
+          </div>
         </div>`).join('');
       }
       if (d.debug) {
-        html += `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:12px">Diagnostic JSON complet (debug)</summary><pre class="code-box" style="margin-top:6px">${esc(JSON.stringify(d.debug, null, 2))}</pre></details>`;
+        html += `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:12px">Réponse &amp; diagnostic JSON complet</summary><pre class="code-box" style="margin-top:6px">${esc(JSON.stringify(d, null, 2))}</pre></details>`;
       }
       box.innerHTML = html;
     } catch (err) {
       box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
     }
   });
-  $('fedTestOut').addEventListener('click', (e) => {
+
+  $('pgSearchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p = new URLSearchParams({ limit: '10' });
+    if ($('pgSearchQ').value.trim()) p.set('q', $('pgSearchQ').value.trim());
+    if ($('pgSearchFilter').value) p.set('filter', $('pgSearchFilter').value);
+    if ($('pgSearchType').value) p.set('type', $('pgSearchType').value);
+    const box = $('fedTestOut');
+    box.classList.remove('hide');
+    box.innerHTML = '<div class="muted">Exécution de GET /api/search…</div>';
+    try {
+      const d = await api(`/admin/api/test-search?${p}`);
+      box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div><span class="badge badge-ok">${pl(d.total || 0, 'fiche correspondante', 'fiches correspondantes')}</span> <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span></div>
+      </div>
+      <pre class="code-box">${esc(JSON.stringify(d, null, 2))}</pre>`;
+    } catch (err) { box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`; }
+  });
+
+  $('pgBatchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const box = $('fedTestOut');
+    box.classList.remove('hide');
+    try {
+      const parsed = JSON.parse($('pgBatchJson').value);
+      box.innerHTML = '<div class="muted">Exécution de POST /api/trailers/batch…</div>';
+      const d = await api('/admin/api/test-batch', { method: 'POST', body: parsed });
+      box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <span class="badge badge-ok">${d.foundCount} / ${d.count} avec MP4</span>
+        <span class="badge badge-info mono">${d.tookMs ?? 0} ms</span>
+      </div>
+      <pre class="code-box">${esc(JSON.stringify(d, null, 2))}</pre>`;
+    } catch (err) {
+      box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
+    }
+  });
+
+  $('pgStatusBtn').addEventListener('click', async () => {
+    const box = $('fedTestOut');
+    box.classList.remove('hide');
+    try {
+      const sum = await api('/admin/api/summary');
+      const statusSample = {
+        ok: true,
+        version: sum.version,
+        uptime: Math.round(sum.uptime || 0),
+        capabilities: ['trailers', 'batch', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
+        sources: {
+          netflix: true,
+          appletv: !!sum.sources?.appletv,
+          ffmpeg: !!sum.sources?.ffmpeg,
+          resolve: !!sum.sources?.resolve,
+          upstream: !!sum.sources?.upstream,
+        },
+        stats: sum.stats,
+      };
+      box.innerHTML = `<pre class="code-box">${esc(JSON.stringify(statusSample, null, 2))}</pre>`;
+    } catch (err) {
+      box.innerHTML = `<div class="job-errors">${esc(err.message)}</div>`;
+    }
+  });
+
+  $('fedTestOut').addEventListener('click', async (e) => {
+    const playBtn = e.target.closest('[data-pg-play]');
+    if (playBtn) {
+      const id = playBtn.dataset.pgId;
+      if (id) await openInspector(id);
+      playInModal(playBtn.dataset.pgPlay, playBtn.dataset.pgTitle);
+      return;
+    }
     const b = e.target.closest('[data-inspect-tested]');
     if (b) openInspector(b.dataset.inspectTested);
   });
@@ -2284,14 +3076,14 @@
     if (!confirm('Purger tous les fichiers MP4 convertis du cache HLS ? Ils seront reconvertis à la demande.')) return;
     try {
       const r = await api('/admin/api/hls/clear', { method: 'POST', body: {} });
-      toast(`${r.removed} fichier(s) MP4 supprimé(s) (${fmtBytes(r.bytes)})`, 'ok');
+      toast(`${pl(r.removed, 'fichier MP4 supprimé', 'fichiers MP4 supprimés')} (${fmtBytes(r.bytes)})`, 'ok');
       loadSummary();
     } catch (e) { toast(e.message, 'err'); }
   });
 
   function updateDirtyBar() {
     const n = dirty.size + resetKeys.size;
-    $('dirtyInfo').textContent = n ? `${n} paramètre(s) modifié(s)` : 'Aucune modification en attente';
+    $('dirtyInfo').textContent = n ? pl(n, 'paramètre modifié', 'paramètres modifiés') : 'Aucune modification en attente';
     $('saveBtn').disabled = n === 0;
   }
 
@@ -2358,29 +3150,28 @@
     const key = btn.dataset.resetCfg;
     dirty.delete(key);
     resetKeys.add(key);
-    btn.textContent = 'Sera rétabli ✓';
+    btn.textContent = 'Sera rétabli';
     btn.disabled = true;
     updateDirtyBar();
   });
 
   $('saveBtn').addEventListener('click', async () => {
     const values = {};
-    for (const [k, v] of dirty) values[k] = v;
-    for (const k of resetKeys) values[k] = '';
-    if (!Object.keys(values).length) return;
+    for (const [k, v] of dirty.entries()) values[k] = v;
+    for (const k of resetKeys) values[k] = null;
     $('saveBtn').disabled = true;
     try {
       const r = await api('/admin/api/settings', { method: 'POST', body: { values } });
-      if (values.ADMIN_TOKEN) {
+      if (values.ADMIN_TOKEN && typeof values.ADMIN_TOKEN === 'string') {
         token = values.ADMIN_TOKEN;
         sessionStorage.setItem(TOKEN_KEY, token);
       }
       dirty.clear();
       resetKeys.clear();
       updateDirtyBar();
-      if (r.restart && r.restart.length) {
+      if ((r.restart || []).length) {
+        $('restartBanner').textContent = `Paramètres enregistrés. Un redémarrage du conteneur est requis pour : ${r.restart.join(', ')}.`;
         $('restartBanner').classList.remove('hide');
-        $('restartBanner').textContent = `Paramètres enregistrés. Redémarre le serveur pour appliquer : ${r.restart.join(', ')}.`;
       } else {
         $('restartBanner').classList.add('hide');
       }
@@ -2392,10 +3183,10 @@
     }
   });
 
-  // ---- TAB 6: Journal ----
+  // ---- TAB 6: Logs ----
   async function loadLogs(append = false) {
     if (!token) return;
-    if (!append) logsState.offset = 0;
+    if (!append) { logsState.offset = 0; logsState.items = []; }
     const p = new URLSearchParams({
       limit: String(logsState.limit),
       offset: String(logsState.offset),
@@ -2407,29 +3198,27 @@
     try {
       const d = await api(`/admin/api/logs?${p}`);
       logsState.total = d.total || 0;
-      logsState.items = append ? [...logsState.items, ...(d.logs || [])] : (d.logs || []);
-      $('logCount').textContent = `${fmtInt(logsState.items.length)} / ${fmtInt(logsState.total)} entrée(s)`;
+      logsState.items = append ? logsState.items.concat(d.logs || []) : (d.logs || []);
+      $('logCount').textContent = pl(logsState.total, 'entrée');
       $('logMoreBtn').classList.toggle('hide', logsState.items.length >= logsState.total);
 
       const lvlBadge = {
-        error: 'badge-err',
-        warn: 'badge-warn',
-        info: 'badge-ok',
-        debug: '',
+        error: '<span class="badge badge-err">error</span>',
+        warn: '<span class="badge badge-warn">warn</span>',
+        info: '<span class="badge badge-ok">info</span>',
+        debug: '<span class="badge">debug</span>',
       };
-      if (!logsState.items.length) {
-        $('logBody').innerHTML = `<tr><td colspan="4" class="muted" style="text-align:center;padding:26px">Aucune entrée dans le journal pour ce filtre.</td></tr>`;
-        return;
-      }
-      $('logBody').innerHTML = logsState.items.map((l) => `<tr>
-        <td class="mono muted">${esc(fmtDate(l.ts))}</td>
-        <td><span class="badge ${lvlBadge[l.level] || ''}">${esc(l.level)}</span></td>
-        <td class="mono">${esc(l.source || '—')}</td>
-        <td>
-          <div>${esc(l.message)}</div>
-          ${l.meta ? `<div class="mono muted" style="font-size:11px;margin-top:2px">${esc(JSON.stringify(l.meta))}</div>` : ''}
-        </td>
-      </tr>`).join('');
+      $('logBody').innerHTML = logsState.items.length
+        ? logsState.items.map((l) => `<tr>
+            <td class="mono muted">${esc(fmtDate(l.ts))}</td>
+            <td>${lvlBadge[l.level] || `<span class="badge">${esc(l.level)}</span>`}</td>
+            <td><span class="mono" style="color:var(--accent)">${esc(l.source || '—')}</span></td>
+            <td>
+              <div>${esc(l.message)}</div>
+              ${l.meta ? `<div class="mono muted" style="margin-top:2px;word-break:break-all">${esc(JSON.stringify(l.meta))}</div>` : ''}
+            </td>
+          </tr>`).join('')
+        : `<tr><td colspan="4" class="muted" style="text-align:center;padding:26px">Aucune entrée dans le journal pour ces filtres.</td></tr>`;
     } catch (e) { toast(e.message, 'err'); }
   }
 
@@ -2441,12 +3230,9 @@
     logSearchDebounce = setTimeout(() => loadLogs(false), 240);
   });
   $('logRefresh').addEventListener('click', () => loadLogs(false));
-  $('logMoreBtn').addEventListener('click', () => {
-    logsState.offset = logsState.items.length;
-    loadLogs(true);
-  });
+  $('logMoreBtn').addEventListener('click', () => { logsState.offset += logsState.limit; loadLogs(true); });
   $('logClear').addEventListener('click', async () => {
-    if (!confirm('Vider toutes les entrées du journal ?')) return;
+    if (!confirm('Effacer tout le journal d’événements ?')) return;
     try {
       await api('/admin/api/logs/clear', { method: 'POST', body: {} });
       toast('Journal effacé', 'ok');
@@ -2457,23 +3243,23 @@
   $('logAutoTail').addEventListener('change', () => {
     clearInterval(logTailTimer);
     if ($('logAutoTail').checked) {
-      logTailTimer = setInterval(() => { if (activeTab === 'logs') loadLogs(false); }, 5000);
+      logTailTimer = setInterval(() => { if (activeTab === 'logs' && token) loadLogs(false); }, 5000);
     }
   });
 
-  // ---- Timers & Initial Boot ----
+  // ---- Timers & Boot ----
   function startTimers() {
     stopTimers();
-    jobTimer = setInterval(() => {
-      if (activeTab === 'overview') pollJobs();
-    }, 3000);
+    jobTimer = setInterval(() => { if (token && activeTab === 'overview') pollJobs(); }, 2500);
   }
   function stopTimers() {
     clearInterval(jobTimer);
     clearInterval(logTailTimer);
+    jobTimer = null;
+    logTailTimer = null;
   }
 
-  (async () => {
+  (async function boot() {
     if (!token) { showGate(); return; }
     try {
       const sum = await api('/admin/api/summary');
@@ -2482,8 +3268,6 @@
       refreshOverviewExtras();
       startTimers();
     } catch {
-      sessionStorage.removeItem(TOKEN_KEY);
-      token = '';
       showGate();
     }
   })();

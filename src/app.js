@@ -70,33 +70,209 @@ function auth(req, res, next) {
   next();
 }
 
-// ---- API de fédération : clés API (en-tête x-api-key, Authorization: Bearer, ou ?key=) ----
-// Fermée par défaut : sans clé créée dans l'onglet API (ni API_KEY historique), les appels sont
-// refusés. ALLOW_OPEN_API=1 ouvre volontairement l'API (une autre instance n'a alors besoin que
-// de l'URL) — déconseillé : n'importe qui peut lire le catalogue et déclencher des résolutions.
+// ---- API de fédération & API publique v1 : clés API, scopes, quotas par clé et télémétrie ----
+// Fermée par défaut : sans clé active (ni API_KEY historique), les appels sont refusés.
+// ALLOW_OPEN_API=1 ouvre volontairement la lecture (déconseillé : expose le catalogue sans clé).
 const MAX_API_KEYS = 5;
+const VALID_SCOPES = new Set(['trailers:read', 'catalog:read', 'trailers:write']);
 const keyHash = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
-const apiHasKey = () => !!config.apiKey || store.countApiKeys() > 0;
+const apiHasKey = () => !!config.apiKey || store.countActiveApiKeys() > 0;
 const apiIsOpen = () => !!config.allowOpenApi;
 
-function apiAuth(req, res, next) {
-  if (apiIsOpen()) return next();
-  if (!apiHasKey()) {
-    return res.status(403).json({
-      error: 'API de fédération désactivée : crée une clé dans l\'onglet API (ou ALLOW_OPEN_API=1 pour l\'ouvrir explicitement)',
-    });
-  }
-  const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
-  const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
-  if (given) {
-    const hit = store.findApiKey(keyHash(given));
-    if (hit) { store.touchApiKey(hit.id); return next(); }
-    if (federation.keyOk(given)) return next();          // clé historique (API_KEY du .env / des réglages)
-  }
-  return res.status(401).json({ error: 'Clé API invalide', hint: "en-tête x-api-key, ou Authorization: Bearer <clé>" });
+function normalizeScopes(raw) {
+  const list = Array.isArray(raw)
+    ? raw
+    : String(raw || 'trailers:read,catalog:read').split(/[\s,]+/);
+  const clean = [...new Set(list.map((s) => String(s).trim()).filter((s) => VALID_SCOPES.has(s)))];
+  return clean.length ? clean.join(',') : 'trailers:read,catalog:read';
+}
+const hasScope = (scopesStr, needed) => {
+  if (!needed) return true;
+  const set = new Set(String(scopesStr || '').split(/[\s,]+/).filter(Boolean));
+  if (set.has('*') || set.has(needed)) return true;
+  // Les clés créées en v2.7/v2.8 avaient uniquement 'trailers:read' : elles gardent la lecture catalogue par compatibilité
+  if (needed === 'catalog:read' && set.has('trailers:read')) return true;
+  return false;
+};
+
+function legacyKeyInfo() {
+  if (!config.apiKey) return { active: false, source: null, hint: null };
+  const overrides = store.allSettings();
+  const fromDb = Object.prototype.hasOwnProperty.call(overrides, 'API_KEY') && !!overrides.API_KEY;
+  const raw = String(config.apiKey);
+  return {
+    active: true,
+    source: fromDb ? 'dashboard' : 'env',
+    hint: raw.length >= 6 ? `••••${raw.slice(-4)}` : '••••',
+  };
 }
 
-// Génère une clé API et l'enregistre (elle n'est affichée qu'une fois, dans la réponse).
+// Télémétrie temps réel de l'API (mémoire légère, zéro surcharge disque)
+const API_RECENT_MAX = 80;
+const LATENCY_WINDOW_MAX = 200;
+const apiMetrics = {
+  startedAt: Date.now(),
+  totalCalls: 0,
+  trailersCalls: 0,
+  trailersHits: 0,
+  batchCalls: 0,
+  searchCalls: 0,
+  titleCalls: 0,
+  submitCalls: 0,
+  authErrors: 0,
+  rateLimited: 0,
+  latencies: [],
+  recentCalls: [],
+};
+
+function recordApiTelemetry(entry) {
+  apiMetrics.totalCalls++;
+  if (Number.isFinite(entry.ms)) {
+    apiMetrics.latencies.push(entry.ms);
+    if (apiMetrics.latencies.length > LATENCY_WINDOW_MAX) apiMetrics.latencies.shift();
+  }
+  apiMetrics.recentCalls.unshift(entry);
+  if (apiMetrics.recentCalls.length > API_RECENT_MAX) apiMetrics.recentCalls.pop();
+}
+
+function getApiMetricsView() {
+  const lats = apiMetrics.latencies;
+  const avgLatencyMs = lats.length ? Math.round(lats.reduce((a, b) => a + b, 0) / lats.length) : 0;
+  let p95LatencyMs = 0;
+  if (lats.length) {
+    const sorted = [...lats].sort((a, b) => a - b);
+    p95LatencyMs = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+  }
+  const hitRate = apiMetrics.trailersCalls
+    ? Math.round((apiMetrics.trailersHits / apiMetrics.trailersCalls) * 100)
+    : null;
+  return {
+    startedAt: apiMetrics.startedAt,
+    uptimeSec: Math.round((Date.now() - apiMetrics.startedAt) / 1000),
+    totalCalls: apiMetrics.totalCalls,
+    trailersCalls: apiMetrics.trailersCalls,
+    trailersHits: apiMetrics.trailersHits,
+    hitRate,
+    batchCalls: apiMetrics.batchCalls,
+    searchCalls: apiMetrics.searchCalls,
+    titleCalls: apiMetrics.titleCalls,
+    submitCalls: apiMetrics.submitCalls,
+    authErrors: apiMetrics.authErrors,
+    rateLimited: apiMetrics.rateLimited,
+    avgLatencyMs,
+    p95LatencyMs,
+    recentCalls: apiMetrics.recentCalls.slice(0, 40),
+  };
+}
+
+// Quotas de débit par clé API (fenêtre glissante d'une minute) : un serveur vf-trailer-wallace
+// mutualisé derrière une seule IP dispose ainsi de son propre quota (300 req/min par défaut) sans être bloqué à 60.
+const keyBuckets = new Map();
+const keyBucketTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of keyBuckets) if (v.reset <= now) keyBuckets.delete(k);
+}, 60_000);
+if (keyBucketTimer.unref) keyBucketTimer.unref();
+
+function checkBucket(bucketKey, limitPerMin, res) {
+  res.setHeader('X-Stockage-Version', manifest.version);
+  if (!limitPerMin || limitPerMin <= 0) {
+    res.setHeader('X-RateLimit-Limit', 'unlimited');
+    return true; // 0 = illimité pour cette clé
+  }
+  const now = Date.now();
+  let b = keyBuckets.get(bucketKey);
+  if (!b || b.reset <= now) {
+    b = { n: 0, reset: now + 60_000 };
+    keyBuckets.set(bucketKey, b);
+    while (keyBuckets.size > 5000) keyBuckets.delete(keyBuckets.keys().next().value);
+  }
+  b.n++;
+  const remaining = Math.max(0, limitPerMin - b.n);
+  const resetSec = Math.max(1, Math.ceil((b.reset - now) / 1000));
+  res.setHeader('X-RateLimit-Limit', String(limitPerMin));
+  res.setHeader('X-RateLimit-Remaining', String(remaining));
+  res.setHeader('X-RateLimit-Reset', String(resetSec));
+  if (b.n > limitPerMin) {
+    apiMetrics.rateLimited++;
+    res.setHeader('Retry-After', String(resetSec));
+    res.status(429).json({ error: `Quota API dépassé (${limitPerMin}/min), réessaie dans ${resetSec}s` });
+    return false;
+  }
+  return true;
+}
+
+// En-têtes CORS sur toute l'API publique (permet les outils web, Hoppscotch, addons externes)
+app.use('/api', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Response-Time, X-Trailer-Count, X-Stockage-Version, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+function apiGuard(requiredScope = 'trailers:read') {
+  return function apiAuthMiddleware(req, res, next) {
+    req.apiStartMs = Date.now();
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const bearer = /^Bearer\s+(.+)$/i.exec(String(req.get('authorization') || ''));
+    const given = req.get('x-api-key') || (bearer && bearer[1]) || req.query.key;
+
+    if (given) {
+      const hit = store.findApiKey(keyHash(given));
+      if (hit) {
+        if (!hit.enabled) {
+          apiMetrics.authErrors++;
+          return res.status(403).json({ error: 'Clé API temporairement désactivée (en pause)' });
+        }
+        if (hit.expires_at && hit.expires_at <= Date.now()) {
+          apiMetrics.authErrors++;
+          return res.status(401).json({ error: 'Clé API expirée' });
+        }
+        if (!hasScope(hit.scopes, requiredScope)) {
+          apiMetrics.authErrors++;
+          return res.status(403).json({ error: `Permission insuffisante : scope « ${requiredScope} » requis sur cette clé` });
+        }
+        const limit = hit.rate_limit != null ? Number(hit.rate_limit) : 300;
+        if (!checkBucket(`key:${hit.id}`, limit, res)) return;
+        req.apiClient = { type: 'key', id: hit.id, label: hit.label, ip: clientIp };
+        // Enregistre immédiatement l'utilisation de base (les hits positifs /api/trailers sont incrémentés après exécution)
+        store.recordApiKeyUse(hit.id, { hit: false, ip: clientIp });
+        return next();
+      }
+      if (federation.keyOk(given)) {
+        if (requiredScope === 'trailers:write') {
+          apiMetrics.authErrors++;
+          return res.status(403).json({ error: 'La clé héritée API_KEY est en lecture seule : crée une clé nommée avec le scope trailers:write' });
+        }
+        if (!checkBucket(`legacy:${clientIp}`, 300, res)) return;
+        req.apiClient = { type: 'legacy', id: null, label: 'API_KEY (.env)', ip: clientIp };
+        return next();
+      }
+      apiMetrics.authErrors++;
+      return res.status(401).json({ error: 'Clé API invalide', hint: 'en-tête x-api-key, ou Authorization: Bearer <clé>' });
+    }
+
+    if (apiIsOpen() && requiredScope !== 'trailers:write') {
+      if (!checkBucket(`open:${clientIp}`, 60, res)) return;
+      req.apiClient = { type: 'open', id: null, label: 'Accès ouvert', ip: clientIp };
+      return next();
+    }
+
+    if (!apiHasKey()) {
+      apiMetrics.authErrors++;
+      return res.status(403).json({
+        error: "API de fédération désactivée : crée une clé dans l'onglet API (ou ALLOW_OPEN_API=1 pour l'ouvrir explicitement)",
+      });
+    }
+
+    apiMetrics.authErrors++;
+    return res.status(401).json({ error: 'Clé API invalide', hint: 'en-tête x-api-key, ou Authorization: Bearer <clé>' });
+  };
+}
+
+// Génère une clé API héritée et l'enregistre (route historique conservée).
 app.post('/admin/api-key', auth, (_req, res) => {
   const key = crypto.randomBytes(24).toString('hex');
   settings.save({ API_KEY: key });
@@ -104,31 +280,104 @@ app.post('/admin/api-key', auth, (_req, res) => {
   res.json({ ok: true, key });
 });
 
-// Gestion des clés API (onglet « API ») : liste, création (la clé n'est renvoyée qu'ici, une seule fois), révocation.
+// Gestion complète des clés API (onglet « API & Fédération ») : liste, création, édition/pause, rotation, révocation.
 app.get('/admin/api/keys', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
-  res.json({ keys: store.listApiKeys(), max: MAX_API_KEYS, legacy: !!config.apiKey, open: apiIsOpen(), baseUrl: config.publicUrl });
+  const leg = legacyKeyInfo();
+  res.json({
+    keys: store.listApiKeys(),
+    max: MAX_API_KEYS,
+    legacy: leg.active,
+    legacyInfo: leg,
+    open: apiIsOpen(),
+    baseUrl: config.publicUrl,
+    metrics: getApiMetricsView(),
+  });
 });
+
 app.post('/admin/api/keys', auth, (req, res) => {
-  if (store.countApiKeys() >= MAX_API_KEYS) return res.status(400).json({ error: `Limite de ${MAX_API_KEYS} clés atteinte : révoque-en une d'abord` });
-  const label = String((req.body && req.body.label) || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Sans nom';
+  if (store.countApiKeys() >= MAX_API_KEYS) {
+    return res.status(400).json({ error: `Limite de ${MAX_API_KEYS} clés atteinte : révoque ou régénère une clé existante` });
+  }
+  const b = req.body || {};
+  const label = String(b.label || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Sans nom';
+  const scopes = normalizeScopes(b.scopes);
+  const rateLimit = b.rateLimit !== undefined ? Math.max(0, Math.min(10000, Number(b.rateLimit) || 0)) : 300;
+  const days = Number(b.expiresInDays) || 0;
+  const expiresAt = days > 0 ? Date.now() + Math.min(days, 3650) * 86400000 : null;
   const key = `sdb_${crypto.randomBytes(24).toString('hex')}`;
-  const id = store.createApiKey({ label, hash: keyHash(key), last4: key.slice(-4) });
-  log.info('admin', `Clé API créée : ${label}`, { id });
-  res.json({ ok: true, id, label, key });
+  const id = store.createApiKey({
+    label,
+    hash: keyHash(key),
+    prefix: key.slice(0, 8),
+    last4: key.slice(-4),
+    scopes,
+    rateLimit,
+    expiresAt,
+  });
+  log.info('admin', `Clé API créée : ${label}`, { id, scopes, rateLimit });
+  res.json({ ok: true, id, label, key, scopes, rateLimit, expiresAt });
 });
+
+app.post('/admin/api/keys/update', auth, (req, res) => {
+  const b = req.body || {};
+  const id = Number(b.id);
+  if (!id) return res.status(400).json({ error: 'Identifiant de clé manquant' });
+  const patch = {};
+  if (b.label !== undefined) patch.label = b.label;
+  if (b.scopes !== undefined) patch.scopes = normalizeScopes(b.scopes);
+  if (b.enabled !== undefined) patch.enabled = !!b.enabled;
+  if (b.rateLimit !== undefined) patch.rateLimit = Math.max(0, Math.min(10000, Number(b.rateLimit) || 0));
+  if (b.expiresInDays !== undefined) {
+    const d = Number(b.expiresInDays);
+    patch.expiresAt = d > 0 ? Date.now() + Math.min(d, 3650) * 86400000 : null;
+  }
+  const updated = store.updateApiKey(id, patch);
+  if (!updated) return res.status(404).json({ error: 'Clé introuvable' });
+  log.info('admin', `Clé API modifiée : ${updated.label}`, { id, enabled: !!updated.enabled, scopes: updated.scopes, rateLimit: updated.rate_limit });
+  res.json({ ok: true, keyInfo: updated });
+});
+
+app.post('/admin/api/keys/rotate', auth, (req, res) => {
+  const id = Number(req.body && req.body.id);
+  const existing = id && store.getApiKeyById(id);
+  if (!existing) return res.status(404).json({ error: 'Clé introuvable' });
+  const newKey = `sdb_${crypto.randomBytes(24).toString('hex')}`;
+  const updated = store.rotateApiKey(id, { hash: keyHash(newKey), prefix: newKey.slice(0, 8), last4: newKey.slice(-4) });
+  keyBuckets.delete(`key:${id}`);
+  log.warn('admin', `Clé API régénérée (rotation) : ${existing.label}`, { id });
+  res.json({ ok: true, id, label: existing.label, key: newKey, keyInfo: updated });
+});
+
 app.post('/admin/api/keys/delete', auth, (req, res) => {
   const id = Number(req.body && req.body.id);
   const label = (store.listApiKeys().find((k) => k.id === id) || {}).label;
   if (!label || !store.deleteApiKey(id)) return res.status(404).json({ error: 'Clé introuvable' });
+  keyBuckets.delete(`key:${id}`);
   log.warn('admin', `Clé API révoquée : ${label}`, { id });
   res.json({ ok: true, id });
 });
+
 app.post('/admin/api/keys/legacy/clear', auth, (_req, res) => {
   settings.save({ API_KEY: '' });
   log.warn('admin', 'Clé API héritée effacée des surcharges');
-  res.json({ ok: true, legacy: !!config.apiKey });
+  const leg = legacyKeyInfo();
+  res.json({ ok: true, legacy: leg.active, legacyInfo: leg });
 });
+
+app.get('/admin/api/metrics', auth, (_req, res) => {
+  res.set('cache-control', 'no-store');
+  res.json(getApiMetricsView());
+});
+app.post('/admin/api/metrics/reset', auth, (_req, res) => {
+  Object.assign(apiMetrics, {
+    startedAt: Date.now(), totalCalls: 0, trailersCalls: 0, trailersHits: 0,
+    batchCalls: 0, searchCalls: 0, titleCalls: 0, submitCalls: 0,
+    authErrors: 0, rateLimited: 0, latencies: [], recentCalls: [],
+  });
+  res.json({ ok: true, metrics: getApiMetricsView() });
+});
+
 app.post('/admin/api/hls/clear', auth, wrap(async (_req, res) => {
   const r = await hls.clearCache();
   log.info('admin', `Cache HLS purgé (${r.removed} fichier(s))`, r);
@@ -139,11 +388,15 @@ app.get('/admin', (_req, res) => { res.set('cache-control', 'no-store'); res.typ
 app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
   res.set('cache-control', 'no-store');
   const hlsStats = await hls.cacheStats();
-  const hasKey = apiHasKey();
-  const keyCount = store.countApiKeys();
+  const leg = legacyKeyInfo();
+  const activeKeys = store.countActiveApiKeys();
+  const totalNamedKeys = store.countApiKeys();
+  const effectiveKeyCount = activeKeys + (leg.active ? 1 : 0);
+  const hasKey = effectiveKeyCount > 0;
   res.json({
     version: manifest.version, uptime: process.uptime(), node: process.version,
     stats: store.stats(), settings: settings.view(), hls: hlsStats,
+    apiMetrics: getApiMetricsView(),
     addon: {
       resolve: !!(config.resolveEnabled && config.tmdbKey),
       publicUrl: config.publicUrl,
@@ -151,9 +404,11 @@ app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
       upstream: !!config.upstreamUrl,
       apiOpen: apiIsOpen(),
       apiHasKey: hasKey,
-      apiKeyCount: keyCount,
+      apiKeyCount: effectiveKeyCount,
+      namedKeyCount: totalNamedKeys,
+      activeNamedKeyCount: activeKeys,
+      legacyKey: leg,
     },
-    // État des sources : ce qui, dans ce projet, casse en premier (clé TMDB, moteur de recherche, Apple TV, ffmpeg, fédération).
     sources: {
       tmdb: !!config.tmdbKey,
       brave: !!config.braveApiKey,
@@ -164,7 +419,10 @@ app.get('/admin/api/summary', auth, wrap(async (_req, res) => {
       upstream: config.upstreamUrl || '',
       apiOpen: apiIsOpen(),
       apiHasKey: hasKey,
-      apiKeyCount: keyCount,
+      apiKeyCount: effectiveKeyCount,
+      namedKeyCount: totalNamedKeys,
+      activeNamedKeyCount: activeKeys,
+      legacyKey: leg,
     },
   });
 }));
@@ -205,10 +463,11 @@ app.get('/admin/api/netflix-ids', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json(link.status());
 });
-app.post('/admin/netflix-ids', auth, (_req, res) => {
+app.post('/admin/netflix-ids', auth, (req, res) => {
   try {
-    const st = link.start({});
-    log.info('link', 'Liage lancé depuis le dashboard', { total: st.total });
+    const limit = Number(req.body && req.body.limit) || 0;
+    const st = link.start(limit ? { limit } : {});
+    log.info('link', 'Liage lancé depuis le dashboard', { total: st.total, limit });
     res.json(st);
   } catch (e) {
     log.error('link', `Échec du lancement : ${e.message}`);
@@ -246,10 +505,11 @@ app.get('/admin/api/vf', auth, (_req, res) => {
   res.set('cache-control', 'no-store');
   res.json(vf.status());
 });
-app.post('/admin/vf', auth, (_req, res) => {
+app.post('/admin/vf', auth, (req, res) => {
   try {
-    const st = vf.start({});
-    log.info('vf', 'Recherche des bandes-annonces VF lancée depuis le dashboard', { total: st.total });
+    const limit = Number(req.body && req.body.limit) || 0;
+    const st = vf.start(limit ? { limit } : {});
+    log.info('vf', 'Recherche des bandes-annonces VF lancée depuis le dashboard', { total: st.total, limit });
     res.json(st);
   } catch (e) {
     log.error('vf', `Échec du lancement : ${e.message}`);
@@ -263,10 +523,11 @@ app.post('/admin/vf/stop', auth, (_req, res) => {
 });
 // Bandes-annonces Apple TV : statut, lancement, arrêt.
 app.get('/admin/api/appletv', auth, (_req, res) => { res.set('cache-control', 'no-store'); res.json(appletv.status()); });
-app.post('/admin/appletv', auth, (_req, res) => {
+app.post('/admin/appletv', auth, (req, res) => {
   try {
-    const st = appletv.start({});
-    log.info('appletv', 'Recherche Apple TV lancée depuis le dashboard', { total: st.total });
+    const limit = Number(req.body && req.body.limit) || 0;
+    const st = appletv.start(limit ? { limit } : {});
+    log.info('appletv', 'Recherche Apple TV lancée depuis le dashboard', { total: st.total, limit });
     res.json(st);
   } catch (e) {
     log.error('appletv', `Échec du lancement : ${e.message}`);
@@ -356,6 +617,7 @@ app.get('/admin/api/titles', auth, (req, res) => {
     search: String(req.query.search || '').trim(),
     filter: String(req.query.filter || ''),
     type: String(req.query.type || ''),
+    sort: String(req.query.sort || 'added'),
     limit: Math.min(Number(req.query.limit) || 50, 200),
     offset: Number(req.query.offset) || 0,
   });
@@ -366,6 +628,7 @@ app.get('/admin/api/titles', auth, (req, res) => {
       name: r.name,
       type: r.type,
       year: r.year,
+      releaseDate: r.release_date || null,
       imdb: r.imdb_id || null,
       netflixId: r.netflix_id || null,
       tmdbId: r.tmdb_id || null,
@@ -485,47 +748,77 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, version: manifest.version, uptime: Math.round(process.uptime()), titles: store.stats().total });
 });
 
-// ---- Logique partagée de l'API de fédération (/api/trailers + testeur interactif du dashboard) ----
-async function executeTrailersQuery(q, { logFederation = true, forceDebug = false } = {}) {
+// ---- Logique partagée de l'API de fédération (/api/trailers + batch + console interactive du dashboard) ----
+const youtubeInfoOf = (row) => {
+  const key = row && (row.vf_trailer || row.trailer_yt);
+  return key ? { key, url: `https://www.youtube.com/watch?v=${key}`, vf: !!row.vf_trailer } : null;
+};
+
+const seasonsAvailableOf = (trailers) => [...new Set((trailers || []).map((t) => t.season).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b);
+
+async function executeTrailersQuery(q, { logFederation = true, forceDebug = false, forceFast = false } = {}) {
+  const t0 = Date.now();
   const imdb = String(q.imdb || '').trim();
   const tmdb = String(q.tmdb || '').trim();
   const netflix = String(q.netflix || '').trim();
   const type = String(q.type || '').trim();
   const season = Number(q.season) || null;
-  const strictSeason = String(q.strict_season || '') === '1';
-  const includeExtras = String(q.include_extras || '') === '1';
-  if (!imdb && !tmdb && !netflix) {
-    return { status: 400, body: { error: 'paramètre imdb, tmdb ou netflix requis' } };
-  }
-  let row = federation.lookup({ imdb, tmdb, type, netflix });
-  // Si la fiche Netflix existe déjà (moissonnée sans vidéo, ou lue il y a > NETFLIX_REFRESH_HOURS),
-  // on relit sa page Netflix pour capter tout nouveau teaser / nouvelle saison.
-  if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
-  // Titre inconnu (ou sans bande-annonce Netflix) : résolution à la demande TMDB → web → page Netflix.
-  if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
-  if (row) {
-    row = await federation.ensureUpstreamTrailers(row);
-    row = await appletv.ensure(row, { timeoutMs: 4000 });
-  }
-  const pending = !!imdb && resolve.isPending(imdb);
-  if (!row) return { status: 200, body: { found: false, pending, trailers: [] } };
+  const strictSeason = String(q.strict_season || '') === '1' || q.strict_season === true;
+  const includeExtras = String(q.include_extras || '') === '1' || q.include_extras === true;
+  const includeYoutube = String(q.include_youtube || '') === '1' || q.include_youtube === true;
+  const fastOnly = forceFast || String(q.fast || '') === '1' || q.fast === true;
+  const sourceFilter = String(q.source || '').trim()
+    ? new Set(String(q.source).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
+    : null;
+  const kindFilter = String(q.kind || '').trim()
+    ? new Set(String(q.kind).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
+    : null;
 
-  // On expose TOUTES les sources relayables : Netflix, instance amont, Apple TV et liens manuels,
-  // triées pour la saison demandée (vraies bandes-annonces/teasers avant les bonus longs).
+  if (!imdb && !tmdb && !netflix) {
+    return { status: 400, body: { error: 'paramètre imdb, tmdb ou netflix requis' }, tookMs: Date.now() - t0 };
+  }
+
+  let row = federation.lookup({ imdb, tmdb, type, netflix });
+
+  // Mode normal (fast=0) : rafraîchissement Netflix + résolution à la demande + amont + Apple TV+
+  if (!fastOnly) {
+    if (row && row.netflix_id) row = await ensureFreshTrailers(row, { timeoutMs: 4500, season });
+    if (imdb) row = (await resolve.ensure(imdb, type, row, { timeoutMs: 4500 })) || row;
+    if (row) {
+      row = await federation.ensureUpstreamTrailers(row);
+      row = await appletv.ensure(row, { timeoutMs: 4000 });
+    }
+  }
+
+  const pending = !!imdb && resolve.isPending(imdb);
+  const tookMs = Date.now() - t0;
+  if (!row) {
+    return { status: 200, tookMs, body: { found: false, pending, tookMs, trailers: [] } };
+  }
+
+  // On expose toutes les sources relayables (Netflix, amont, Apple TV, liens manuels), triées pour la saison demandée.
   const allTrailers = federation.trailerUrls(row, { includeApple: true, includeManual: true, season });
+  const seasonsAvailable = seasonsAvailableOf(allTrailers);
   let trailers = allTrailers;
   if (strictSeason && season > 0) {
     trailers = trailers.filter((t) => t.season === season && (includeExtras || t.kind !== 'extra'));
   }
+  if (sourceFilter && sourceFilter.size) {
+    trailers = trailers.filter((t) => sourceFilter.has(String(t.source || '').toLowerCase()));
+  }
+  if (kindFilter && kindFilter.size) {
+    trailers = trailers.filter((t) => kindFilter.has(String(t.kind || '').toLowerCase()));
+  }
 
   if (logFederation) {
     const asked = imdb || (tmdb ? `tmdb:${tmdb}` : `netflix:${netflix}`);
-    if (trailers.length) log.info('federation', `${asked} → ${trailers.length} bande(s)-annonce(s)`, { sources: trailers.map((t) => t.source).join(','), ...(season ? { season } : {}) });
-    else log.warn('federation', `${asked} → aucune bande-annonce`, { fiche: row ? row.id : 'introuvable', pending, ...(season ? { season } : {}) });
+    if (trailers.length) log.info('federation', `${asked} → ${trailers.length} flux MP4`, { sources: [...new Set(trailers.map((t) => t.source))].join(','), ms: tookMs, ...(season ? { season } : {}) });
+    else log.warn('federation', `${asked} → aucun flux MP4`, { fiche: row ? row.id : 'introuvable', pending, ms: tookMs, ...(season ? { season } : {}) });
   }
 
+  const yt = youtubeInfoOf(row);
   const debug = (forceDebug || String(q.debug || '') === '1') ? {
-    query: { imdb, tmdb, netflix, type, season, strictSeason, includeExtras },
+    query: { imdb, tmdb, netflix, type, season, strictSeason, includeExtras, fastOnly, source: sourceFilter ? [...sourceFilter] : null, kind: kindFilter ? [...kindFilter] : null },
     fiche: {
       id: row.id, name: row.name, imdb_id: row.imdb_id, tmdb_id: row.tmdb_id,
       netflix_id: row.netflix_id, trailers_checked: row.trailers_checked || null, appletv_checked: row.appletv_checked || null,
@@ -537,44 +830,365 @@ async function executeTrailersQuery(q, { logFederation = true, forceDebug = fals
       manual: (row.extra && Array.isArray(row.extra.manualTrailers)) ? row.extra.manualTrailers.length : 0,
       beforeStrictFilter: allTrailers.length,
     },
+    seasonsAvailable,
+    youtube: yt,
     resolveActive: !!(config.resolveEnabled && config.tmdbKey),
     ffmpegAvailable: hls.ffmpegAvailable(),
     apiOpen: apiIsOpen(),
     apiHasKey: apiHasKey(),
+    tookMs,
   } : undefined;
 
   return {
     status: 200,
+    tookMs,
     body: {
       found: trailers.length > 0,
       pending: pending && !trailers.length,
+      tookMs,
+      seasonsAvailable,
       title: {
         id: row.id, name: row.name, type: row.type, year: row.year,
         netflix_id: row.netflix_id, tmdb_id: row.tmdb_id, tmdb_type: row.tmdb_type, imdb_id: row.imdb_id,
       },
       trailers,
+      ...(includeYoutube || yt ? { youtube: yt } : {}),
       ...(debug ? { debug } : {}),
     },
   };
 }
 
-// Testeur interactif depuis l'onglet « Fédération » du dashboard (sans consommer de clé API externe).
+function executeCatalogSearch(q = {}) {
+  const query = String(q.q || q.search || '').trim();
+  const filter = String(q.filter || q.source || '').trim();
+  const type = String(q.type || '').trim();
+  const sort = String(q.sort || 'added').trim();
+  const limit = Math.min(Math.max(1, Number(q.limit) || 20), 100);
+  const offset = Math.max(0, Number(q.offset) || 0);
+  const { total, rows } = store.listTitles({ search: query, filter, type, sort, limit, offset });
+  return {
+    ok: true,
+    total,
+    limit,
+    offset,
+    results: rows.map((r) => {
+      const trailers = federation.trailerUrls(r, { includeApple: true, includeManual: true });
+      return {
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        year: r.year || null,
+        release_date: r.release_date || null,
+        imdb_id: r.imdb_id || null,
+        tmdb_id: r.tmdb_id || null,
+        tmdb_type: r.tmdb_type || null,
+        netflix_id: r.netflix_id || null,
+        poster: r.poster || null,
+        seasonsAvailable: seasonsAvailableOf(trailers),
+        youtube: youtubeInfoOf(r),
+        trailersCount: trailers.length,
+        trailers,
+      };
+    }),
+  };
+}
+
+function resolveAnyTitleId(rawId) {
+  const key = String(rawId || '').trim();
+  if (!key) return null;
+  return store.getTitle(key)
+    || (/^tt\d+$/i.test(key) ? store.findByImdbId(key) : null)
+    || (/^\d+$/.test(key) ? store.findByNetflixId(key) : null);
+}
+
+// ---- Console interactive du dashboard (onglet « API & Fédération », sans consommer de clé externe) ----
 app.get('/admin/api/test-federation', auth, wrap(async (req, res) => {
   res.set('cache-control', 'no-store');
   const out = await executeTrailersQuery(req.query, { logFederation: false, forceDebug: true });
+  res.setHeader('X-Response-Time', `${out.tookMs}ms`);
   res.status(out.status).json(out.body);
 }));
 
-// ---- API de fédération : exposer les bandes-annonces à une autre instance (ex. vf-trailer-wallace) ----
-app.get('/api/status', apiLimiter, apiAuth, (_req, res) => {
+app.get('/admin/api/test-search', auth, (req, res) => {
   res.set('cache-control', 'no-store');
-  res.json({ ok: true, version: manifest.version, stats: store.stats() });
+  const t0 = Date.now();
+  const body = executeCatalogSearch(req.query);
+  const tookMs = Date.now() - t0;
+  res.setHeader('X-Response-Time', `${tookMs}ms`);
+  res.json({ ...body, tookMs });
 });
 
-app.get('/api/trailers', apiLimiter, apiAuth, wrap(async (req, res) => {
+app.post('/admin/api/test-batch', auth, wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 25) : [];
+  if (!items.length) return res.status(400).json({ error: 'Tableau items requis (1 à 25 entrées)' });
+  const t0 = Date.now();
+  const results = [];
+  for (const it of items) {
+    const out = await executeTrailersQuery(it || {}, { logFederation: false, forceFast: true });
+    results.push({ query: it, ...(out.body || {}) });
+  }
+  const tookMs = Date.now() - t0;
+  res.json({ ok: true, count: results.length, foundCount: results.filter((r) => r.found).length, tookMs, results });
+}));
+
+// ---- Spécification OpenAPI 3.0.3 (importable dans Bruno, Postman, Hoppscotch, Swagger) ----
+function buildOpenApiSpec() {
+  const base = String(config.publicUrl || 'http://localhost:7000').replace(/\/+$/, '');
+  return {
+    openapi: '3.0.3',
+    info: {
+      title: 'Stockage DB — API de Fédération & Catalogue',
+      version: manifest.version,
+      description: 'API REST de Stockage DB : bandes-annonces MP4/HLS multi-sources (Netflix, Apple TV+, liens directs, instance amont) triées par saison pour vf-trailer-wallace et clients externes.',
+    },
+    servers: [{ url: base }],
+    components: {
+      securitySchemes: {
+        ApiKeyHeader: { type: 'apiKey', in: 'header', name: 'x-api-key' },
+        BearerAuth: { type: 'http', scheme: 'bearer' },
+      },
+    },
+    security: [{ ApiKeyHeader: [] }, { BearerAuth: [] }],
+    paths: {
+      '/api/status': {
+        get: { summary: "État de l'instance, capacités et compteurs du catalogue", responses: { 200: { description: 'Statut JSON' } } },
+      },
+      '/api/trailers': {
+        get: {
+          summary: 'Bandes-annonces MP4 relayées pour un film ou une série (triées par saison)',
+          parameters: [
+            { name: 'imdb', in: 'query', schema: { type: 'string', example: 'tt13016388' } },
+            { name: 'tmdb', in: 'query', schema: { type: 'string', example: '108545' } },
+            { name: 'netflix', in: 'query', schema: { type: 'string', example: '81024821' } },
+            { name: 'type', in: 'query', schema: { type: 'string', enum: ['movie', 'series'] } },
+            { name: 'season', in: 'query', schema: { type: 'integer', example: 2 } },
+            { name: 'strict_season', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
+            { name: 'include_extras', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
+            { name: 'fast', in: 'query', description: 'Cache SQLite uniquement (0 appel réseau externe)', schema: { type: 'string', enum: ['0', '1'] } },
+            { name: 'source', in: 'query', description: 'Filtrer par source (netflix,appletv,manual,upstream)', schema: { type: 'string' } },
+            { name: 'kind', in: 'query', description: 'Filtrer par nature (trailer,teaser,extra)', schema: { type: 'string' } },
+            { name: 'debug', in: 'query', schema: { type: 'string', enum: ['0', '1'] } },
+          ],
+          responses: { 200: { description: 'Liste ordonnée de flux MP4 prêts à lire' } },
+        },
+      },
+      '/api/trailers/batch': {
+        post: { summary: 'Requête groupée (jusqu’à 25 titres en 1 appel rapide)', responses: { 200: { description: 'Résultats groupés' } } },
+      },
+      '/api/search': {
+        get: {
+          summary: 'Recherche dans le catalogue local avec compteurs et flux MP4',
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' } },
+            { name: 'type', in: 'query', schema: { type: 'string', enum: ['movie', 'series'] } },
+            { name: 'filter', in: 'query', schema: { type: 'string', enum: ['any', 'netflix', 'apple', 'manual', 'upstream', 'youtube', 'none'] } },
+            { name: 'sort', in: 'query', schema: { type: 'string', enum: ['added', 'release', 'year', 'name'] } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          ],
+          responses: { 200: { description: 'Résultats paginés' } },
+        },
+      },
+      '/api/title/{id}': {
+        get: {
+          summary: 'Fiche détaillée par ID interne, ID IMDb (tt…) ou ID Netflix',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Métadonnées et bandes-annonces' }, 404: { description: 'Introuvable' } },
+        },
+      },
+      '/api/trailers/submit': {
+        post: { summary: 'Attacher un flux MP4/HLS ou ingérer une URL Netflix/Prime (scope trailers:write requis)', responses: { 200: { description: 'Flux enregistré' } } },
+      },
+    },
+  };
+}
+
+app.get(['/api/openapi.json', '/api/v1/openapi.json'], (_req, res) => {
+  res.set('cache-control', 'public, max-age=60');
+  res.json(buildOpenApiSpec());
+});
+
+// ---- Routes de l'API publique (exposées sur /api/* et /api/v1/* pour compatibilité totale avec vf-trailer-wallace) ----
+app.get(['/api/status', '/api/v1/status'], apiGuard('trailers:read'), (req, res) => {
+  res.set('cache-control', 'no-store');
+  const ms = Date.now() - (req.apiStartMs || Date.now());
+  recordApiTelemetry({
+    ts: Date.now(), method: 'GET', path: req.path, query: '',
+    client: req.apiClient?.label || 'API', status: 200, found: null, count: null, ms,
+  });
+  res.setHeader('X-Response-Time', `${ms}ms`);
+  res.json({
+    ok: true,
+    version: manifest.version,
+    uptime: Math.round(process.uptime()),
+    capabilities: ['trailers', 'batch', 'search', 'title', 'submit', 'openapi', 'strict_season', 'fast_cache', 'source_filter'],
+    sources: {
+      netflix: true,
+      appletv: !!config.appletvEnabled,
+      ffmpeg: hls.ffmpegAvailable(),
+      resolve: !!(config.resolveEnabled && config.tmdbKey),
+      upstream: !!config.upstreamUrl,
+    },
+    stats: store.stats(),
+  });
+});
+
+app.get(['/api/trailers', '/api/v1/trailers'], apiGuard('trailers:read'), wrap(async (req, res) => {
   res.set('cache-control', 'no-store');
   const out = await executeTrailersQuery(req.query, { logFederation: true });
+  const ms = out.tookMs ?? (Date.now() - (req.apiStartMs || Date.now()));
+  const count = Array.isArray(out.body?.trailers) ? out.body.trailers.length : 0;
+  const found = !!out.body?.found;
+  apiMetrics.trailersCalls++;
+  if (found) {
+    apiMetrics.trailersHits++;
+    if (req.apiClient?.type === 'key' && req.apiClient.id) {
+      // Incrémente uniquement hits_total sans recompter calls_total déjà incrémenté par apiGuard
+      store.db.prepare('UPDATE api_keys SET hits_total = COALESCE(hits_total, 0) + 1 WHERE id = ?').run(req.apiClient.id);
+    }
+  }
+  const qSummary = [
+    req.query.imdb || (req.query.tmdb ? `tmdb:${req.query.tmdb}` : req.query.netflix ? `nflx:${req.query.netflix}` : ''),
+    req.query.season ? `S${req.query.season}` : '',
+    req.query.strict_season === '1' ? 'strict' : '',
+    req.query.fast === '1' ? 'fast' : '',
+  ].filter(Boolean).join(' · ');
+  recordApiTelemetry({
+    ts: Date.now(), method: 'GET', path: '/api/trailers', query: qSummary,
+    client: req.apiClient?.label || 'API', status: out.status, found, count, ms,
+  });
+  res.setHeader('X-Response-Time', `${ms}ms`);
+  res.setHeader('X-Trailer-Count', String(count));
   res.status(out.status).json(out.body);
+}));
+
+app.post(['/api/trailers/batch', '/api/v1/trailers/batch'], apiGuard('trailers:read'), wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const rawItems = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+  if (!rawItems.length) return res.status(400).json({ error: 'Tableau items requis (1 à 25 requêtes)' });
+  if (rawItems.length > 25) return res.status(400).json({ error: 'Maximum 25 entrées par appel batch' });
+  const t0 = Date.now();
+  const includeExtras = !!(req.body && req.body.include_extras);
+  const results = [];
+  for (const item of rawItems) {
+    const out = await executeTrailersQuery({ ...(item || {}), ...(includeExtras ? { include_extras: '1' } : {}) }, { logFederation: false, forceFast: true });
+    results.push({ query: item, ...(out.body || {}) });
+  }
+  const tookMs = Date.now() - t0;
+  const foundCount = results.filter((r) => r.found).length;
+  apiMetrics.batchCalls++;
+  recordApiTelemetry({
+    ts: Date.now(), method: 'POST', path: '/api/trailers/batch', query: `${results.length} titres`,
+    client: req.apiClient?.label || 'API', status: 200, found: foundCount > 0, count: foundCount, ms: tookMs,
+  });
+  res.setHeader('X-Response-Time', `${tookMs}ms`);
+  res.json({ ok: true, count: results.length, foundCount, tookMs, results });
+}));
+
+app.get(['/api/search', '/api/v1/search'], apiGuard('catalog:read'), (req, res) => {
+  res.set('cache-control', 'no-store');
+  const t0 = Date.now();
+  const body = executeCatalogSearch(req.query);
+  const tookMs = Date.now() - t0;
+  apiMetrics.searchCalls++;
+  recordApiTelemetry({
+    ts: Date.now(), method: 'GET', path: '/api/search', query: String(req.query.q || req.query.filter || 'catalogue').slice(0, 40),
+    client: req.apiClient?.label || 'API', status: 200, found: body.results.length > 0, count: body.results.length, ms: tookMs,
+  });
+  res.setHeader('X-Response-Time', `${tookMs}ms`);
+  res.json({ ...body, tookMs });
+});
+
+app.get(['/api/title/:id', '/api/v1/title/:id'], apiGuard('catalog:read'), (req, res) => {
+  res.set('cache-control', 'no-store');
+  const t0 = Date.now();
+  const row = resolveAnyTitleId(req.params.id);
+  const tookMs = Date.now() - t0;
+  apiMetrics.titleCalls++;
+  if (!row) {
+    recordApiTelemetry({
+      ts: Date.now(), method: 'GET', path: '/api/title/:id', query: String(req.params.id || '').slice(0, 32),
+      client: req.apiClient?.label || 'API', status: 404, found: false, count: 0, ms: tookMs,
+    });
+    return res.status(404).json({ error: 'Titre introuvable' });
+  }
+  const trailers = federation.trailerUrls(row, { includeApple: true, includeManual: true });
+  recordApiTelemetry({
+    ts: Date.now(), method: 'GET', path: '/api/title/:id', query: row.imdb_id || row.id,
+    client: req.apiClient?.label || 'API', status: 200, found: trailers.length > 0, count: trailers.length, ms: tookMs,
+  });
+  res.setHeader('X-Response-Time', `${tookMs}ms`);
+  res.json({
+    ok: true,
+    tookMs,
+    title: {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      year: row.year || null,
+      release_date: row.release_date || null,
+      imdb_id: row.imdb_id || null,
+      tmdb_id: row.tmdb_id || null,
+      tmdb_type: row.tmdb_type || null,
+      netflix_id: row.netflix_id || null,
+      poster: row.poster || null,
+      background: row.background || null,
+      synopsis: row.synopsis || null,
+      genres: row.genres || [],
+      episodesCount: row.type === 'series' ? store.getEpisodes(row.id).length : 0,
+    },
+    seasonsAvailable: seasonsAvailableOf(trailers),
+    youtube: youtubeInfoOf(row),
+    trailers,
+  });
+});
+
+app.post(['/api/trailers/submit', '/api/v1/trailers/submit'], apiGuard('trailers:write'), wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  const t0 = Date.now();
+  const b = req.body || {};
+  apiMetrics.submitCalls++;
+  try {
+    // Mode 1 : ingestion directe d'une fiche Netflix / Prime Video via l'API
+    if (b.ingest) {
+      const input = String(b.ingest).trim();
+      const isPrime = /primevideo\.com|amazon\.[a-z.]+\/.*detail/i.test(input) || (!/^\d+$/.test(input) && !!parsePrimeId(input));
+      const r = isPrime ? await ingestPrime(input) : await ingestNetflix(input);
+      const tookMs = Date.now() - t0;
+      log.info('federation', `Ingestion API (${req.apiClient?.label || 'clé'}) : ${r.name}`, { id: r.id });
+      recordApiTelemetry({
+        ts: Date.now(), method: 'POST', path: '/api/trailers/submit', query: `ingest:${r.id}`,
+        client: req.apiClient?.label || 'API', status: 200, found: true, count: r.trailers || 0, ms: tookMs,
+      });
+      return res.json({ ok: true, mode: 'ingest', tookMs, result: r });
+    }
+
+    // Mode 2 : rattachement d'une URL directe MP4 / HLS (.m3u8) à une fiche existante
+    const url = String(b.url || '').trim();
+    if (!/^https?:\/\//i.test(url)) throw new Error('URL http(s) attendue');
+    assertSafeUrlSync(url);
+    const target = String(b.id || b.imdb || b.netflix || b.target || '').trim();
+    if (!target) throw new Error('Cible requise (id, imdb ou netflix)');
+    const row = resolveAnyTitleId(target);
+    if (!row) return res.status(404).json({ error: `Titre introuvable pour « ${target} »` });
+    const extra = { ...(row.extra || {}) };
+    const list = Array.isArray(extra.manualTrailers) ? extra.manualTrailers : [];
+    const label = String(b.title || 'Bande-annonce').slice(0, 120);
+    list.push({ title: label, url, addedAt: Date.now(), addedBy: req.apiClient?.label || 'api' });
+    extra.manualTrailers = list.slice(-5);
+    store.upsertTitle({ id: row.id, type: row.type, name: row.name, extra });
+    const idx = extra.manualTrailers.length - 1;
+    const relayUrl = `${config.publicUrl}/media/${encodeURIComponent(row.id)}/${idx}.mp4`;
+    const tookMs = Date.now() - t0;
+    log.info('federation', `Flux direct soumis par API (${req.apiClient?.label || 'clé'}) : ${row.name}`, { id: row.id, label });
+    recordApiTelemetry({
+      ts: Date.now(), method: 'POST', path: '/api/trailers/submit', query: `${row.id}`,
+      client: req.apiClient?.label || 'API', status: 200, found: true, count: extra.manualTrailers.length, ms: tookMs,
+    });
+    return res.json({ ok: true, mode: 'manual', id: row.id, name: row.name, count: extra.manualTrailers.length, relayUrl, tookMs });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
 }));
 
 // Racine : redirige vers le dashboard (l'addon Stremio reste sur /manifest.json).

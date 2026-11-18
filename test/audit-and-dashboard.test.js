@@ -269,13 +269,14 @@ async function testHlsAndHttp() {
     assert.strictEqual(s3Fed.trailers[0].season, 3);
     assert.strictEqual(s3Fed.trailers[0].source, 'manual');
 
-    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v2.8.0 ----
+    // ---- 5. Dashboard HTML + nouveaux endpoints Admin v2.9.0 ----
     const htmlRes = await fetch(`${base}/admin`);
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.ok(html.includes('Stockage DB'), 'Le titre Stockage DB doit figurer dans /admin');
-    assert.ok(html.includes('v2.8.0'), 'Le badge de version v2.8.0 doit être injecté dans /admin');
+    assert.ok(html.includes('v2.9.0'), 'Le badge de version v2.9.0 doit être injecté dans /admin');
     assert.ok(html.includes('vf-trailer-wallace'), 'La section de fédération vf-trailer-wallace doit être présente');
+    assert.ok(html.includes('white-space: pre-wrap'), 'Les blocs code-box doivent préserver les retours à la ligne');
 
     // Vérifie que tout le JavaScript embarqué dans admin.html se compile sans aucune erreur de syntaxe
     const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
@@ -288,10 +289,16 @@ async function testHlsAndHttp() {
     const sumRes = await fetch(`${base}/admin/api/summary`, { headers: adminHeaders });
     assert.strictEqual(sumRes.status, 200);
     const summary = await sumRes.json();
-    assert.strictEqual(summary.version, '2.8.0');
+    assert.strictEqual(summary.version, '2.9.0');
     assert.strictEqual(summary.addon.apiHasKey, true);
     assert.ok(summary.hls && typeof summary.hls.files === 'number');
     assert.ok(typeof summary.stats.withManual === 'number');
+    assert.ok(summary.apiMetrics && typeof summary.apiMetrics.totalCalls === 'number');
+
+    // Tri du catalogue dans /admin/api/titles?sort=name
+    const sortedRes = await fetch(`${base}/admin/api/titles?sort=name&limit=5`, { headers: adminHeaders }).then((r) => r.json());
+    assert.ok(Array.isArray(sortedRes.rows) && sortedRes.rows.length >= 2);
+    assert.ok(sortedRes.rows[0].name.localeCompare(sortedRes.rows[1].name, 'fr') <= 0, 'Le tri alphabétique doit ordonner les titres A→Z');
 
     // /admin/api/titles/:id (inspecteur des bandes-annonces et saisons)
     const detailRes = await fetch(`${base}/admin/api/titles/${encodeURIComponent('nflx:880099')}`, { headers: adminHeaders });
@@ -310,6 +317,132 @@ async function testHlsAndHttp() {
     assert.strictEqual(testFedJson.trailers.length, 1);
     assert.ok(testFedJson.debug && testFedJson.debug.counts);
 
+    // ---- 6. Système d'API v2.9.0 : clés scopées, quotas par clé, pause/rotation, batch, search, title, submit, OpenAPI ----
+    // 6a. Spécification OpenAPI 3.0.3 publique + CORS
+    const oaRes = await fetch(`${base}/api/v1/openapi.json`);
+    assert.strictEqual(oaRes.status, 200);
+    assert.strictEqual(oaRes.headers.get('access-control-allow-origin'), '*');
+    const oaJson = await oaRes.json();
+    assert.strictEqual(oaJson.openapi, '3.0.3');
+    assert.strictEqual(oaJson.info.version, '2.9.0');
+    assert.ok(oaJson.paths['/api/trailers/batch']);
+
+    // 6b. Création d'une clé scopée lecture seule avec quota personnalisé (120 req/min)
+    const keyCreateRes = await fetch(`${base}/admin/api/keys`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ label: 'Serveur VF Test', scopes: 'trailers:read,catalog:read', rateLimit: 120, expiresInDays: 30 }),
+    });
+    assert.strictEqual(keyCreateRes.status, 200);
+    const createdKey = await keyCreateRes.json();
+    assert.ok(createdKey.key.startsWith('sdb_'));
+    assert.strictEqual(createdKey.rateLimit, 120);
+
+    // Vérification des en-têtes X-RateLimit-* sur /api/v1/status
+    const stV1Res = await fetch(`${base}/api/v1/status`, { headers: { Authorization: `Bearer ${createdKey.key}` } });
+    assert.strictEqual(stV1Res.status, 200);
+    assert.strictEqual(stV1Res.headers.get('x-ratelimit-limit'), '120');
+    const stV1Json = await stV1Res.json();
+    assert.ok(Array.isArray(stV1Json.capabilities) && stV1Json.capabilities.includes('batch'));
+
+    // 6c. Pause puis réactivation de la clé
+    await fetch(`${base}/admin/api/keys/update`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ id: createdKey.id, enabled: false }),
+    });
+    const pausedRes = await fetch(`${base}/api/status`, { headers: { 'x-api-key': createdKey.key } });
+    assert.strictEqual(pausedRes.status, 403, 'Une clé en pause doit répondre 403');
+
+    await fetch(`${base}/admin/api/keys/update`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ id: createdKey.id, enabled: true }),
+    });
+    const resumedRes = await fetch(`${base}/api/status`, { headers: { 'x-api-key': createdKey.key } });
+    assert.strictEqual(resumedRes.status, 200, 'La clé réactivée doit de nouveau répondre 200');
+
+    // 6d. Contrôle des scopes : lecture seule refusée sur POST /api/trailers/submit (403)
+    const deniedSubmit = await fetch(`${base}/api/trailers/submit`, {
+      method: 'POST',
+      headers: { 'x-api-key': createdKey.key, 'content-type': 'application/json' },
+      body: JSON.stringify({ imdb: 'tt8800991', title: 'Saison 4 VF', url: `http://127.0.0.1:${upPort}/ok.mp4` }),
+    });
+    assert.strictEqual(deniedSubmit.status, 403);
+
+    // Ajout du scope trailers:write + rotation du secret
+    await fetch(`${base}/admin/api/keys/update`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ id: createdKey.id, scopes: 'trailers:read,catalog:read,trailers:write', rateLimit: 0 }),
+    });
+    const rotRes = await fetch(`${base}/admin/api/keys/rotate`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ id: createdKey.id }),
+    }).then((r) => r.json());
+    assert.strictEqual(rotRes.ok, true);
+    assert.notStrictEqual(rotRes.key, createdKey.key);
+
+    // L'ancienne clé doit être rejetée (401), la nouvelle acceptée avec quota illimité ('unlimited')
+    const oldKeyRes = await fetch(`${base}/api/status`, { headers: { 'x-api-key': createdKey.key } });
+    assert.strictEqual(oldKeyRes.status, 401);
+    const rotatedHeaders = { 'x-api-key': rotRes.key, 'content-type': 'application/json' };
+    const unlimRes = await fetch(`${base}/api/status`, { headers: rotatedHeaders });
+    assert.strictEqual(unlimRes.status, 200);
+    assert.strictEqual(unlimRes.headers.get('x-ratelimit-limit'), 'unlimited');
+
+    // Soumission de bande-annonce autorisée avec trailers:write
+    const okSubmit = await fetch(`${base}/api/v1/trailers/submit`, {
+      method: 'POST',
+      headers: rotatedHeaders,
+      body: JSON.stringify({ imdb: 'tt8800991', title: 'Saison 4 — Bande-annonce VF', url: `http://127.0.0.1:${upPort}/ok.mp4` }),
+    });
+    assert.strictEqual(okSubmit.status, 200);
+    const submitJson = await okSubmit.json();
+    assert.strictEqual(submitJson.ok, true);
+    assert.ok(submitJson.relayUrl.includes('/media/'));
+
+    // 6e. Mode fast=1 + filtre source=manual + seasonsAvailable sur /api/v1/trailers
+    const fastRes = await fetch(`${base}/api/v1/trailers?imdb=tt8800991&fast=1&source=manual`, { headers: rotatedHeaders });
+    assert.strictEqual(fastRes.status, 200);
+    assert.ok(fastRes.headers.get('x-response-time'));
+    assert.strictEqual(fastRes.headers.get('x-trailer-count'), '2');
+    const fastJson = await fastRes.json();
+    assert.deepStrictEqual(fastJson.seasonsAvailable, [2, 3, 4]);
+    assert.ok(fastJson.trailers.every((t) => t.source === 'manual'));
+
+    // 6f. Batch lookup (/api/v1/trailers/batch), recherche (/api/v1/search) et fiche (/api/v1/title/:id)
+    const batchRes = await fetch(`${base}/api/v1/trailers/batch`, {
+      method: 'POST',
+      headers: rotatedHeaders,
+      body: JSON.stringify({
+        items: [
+          { imdb: 'tt8800991', type: 'series', season: 4, strict_season: 1 },
+          { imdb: 'tt0000000', type: 'movie' },
+        ],
+      }),
+    }).then((r) => r.json());
+    assert.strictEqual(batchRes.ok, true);
+    assert.strictEqual(batchRes.count, 2);
+    assert.strictEqual(batchRes.foundCount, 1);
+    assert.strictEqual(batchRes.results[0].trailers[0].season, 4);
+
+    const apiSearch = await fetch(`${base}/api/v1/search?q=Relais&type=series`, { headers: rotatedHeaders }).then((r) => r.json());
+    assert.strictEqual(apiSearch.ok, true);
+    assert.ok(apiSearch.results.some((r) => r.imdb_id === 'tt8800991'));
+
+    const apiTitle = await fetch(`${base}/api/v1/title/tt8800991`, { headers: rotatedHeaders }).then((r) => r.json());
+    assert.strictEqual(apiTitle.ok, true);
+    assert.strictEqual(apiTitle.title.id, 'nflx:880099');
+    assert.deepStrictEqual(apiTitle.seasonsAvailable, [2, 3, 4]);
+
+    // 6g. Télémétrie live /admin/api/metrics
+    const metricsJson = await fetch(`${base}/admin/api/metrics`, { headers: adminHeaders }).then((r) => r.json());
+    assert.ok(metricsJson.totalCalls >= 6);
+    assert.ok(metricsJson.trailersHits >= 3);
+    assert.ok(Array.isArray(metricsJson.recentCalls) && metricsJson.recentCalls.length >= 4);
+
     // /admin/api/hls/clear
     const clearRes = await fetch(`${base}/admin/api/hls/clear`, { method: 'POST', headers: adminHeaders, body: '{}' });
     assert.strictEqual(clearRes.status, 200);
@@ -325,7 +458,7 @@ async function testHlsAndHttp() {
 }
 
 testHlsAndHttp().then(() => {
-  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, fédération et dashboard v2.8.0 vérifiés');
+  console.log('audit-and-dashboard OK : SSRF IPv6, fusion SQLite, HLS, API v1 avancée et dashboard v2.9.0 vérifiés');
 }).catch((err) => {
   console.error(err);
   process.exit(1);
