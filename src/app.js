@@ -20,6 +20,8 @@ const search = require('./search');
 const resolve = require('./resolve');
 const appletv = require('./appletv');
 const netflixTrailers = require('./netflix-trailers');
+const quality = require('./quality');
+const facebook = require('./facebook');
 const hls = require('./hls');
 const aiomDirectRelay = require('./aiom-direct-relay');
 const { syncCatalog, syncRecent } = require('./sync');
@@ -35,7 +37,9 @@ app.use(express.json({ limit: '64kb' }));
 app.set('trust proxy', config.trustProxy);
 
 // Limiteur dédié sur le relais vidéo public (/trailer, /apple, /media).
-const mediaLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'media' });
+const publicMediaLimiter = rateLimit({ windowMs: 60_000, max: 120, name: 'media' });
+// Les sondes de qualité internes (ffprobe → 127.0.0.1 + secret du processus) n'entament pas le quota public.
+const mediaLimiter = (req, res, next) => (quality.isInternalProbe(req) ? next() : publicMediaLimiter(req, res, next));
 
 // ---- Accès admin : mot de passe = ADMIN_TOKEN (.env) ----
 const attempts = new Map();               // borne les essais : 10 échecs / minute / IP
@@ -601,6 +605,51 @@ app.post('/admin/netflix-trailers/stop', auth, (_req, res) => {
   const st = netflixTrailers.stop();
   log.warn('netflix', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
   res.json(st);
+});
+// ---- Qualité des flux (résolution, codec, débit, audio) : détection ffprobe + onglet « Qualité » ----
+app.get('/admin/api/quality', auth, (req, res) => {
+  res.set('cache-control', 'no-store');
+  const q = req.query || {};
+  const { rows, total } = store.listQuality({
+    tier: String(q.tier || ''), source: String(q.source || ''), status: String(q.status || ''),
+    search: String(q.search || '').trim(), sort: String(q.sort || 'recent'),
+    limit: Number(q.limit) || 50, offset: Number(q.offset) || 0,
+  });
+  res.json({ ok: true, total, rows, stats: store.qualityStats(), scan: quality.status(), tiers: quality.TIERS });
+});
+app.get('/admin/api/quality/status', auth, (_req, res) => { res.set('cache-control', 'no-store'); res.json(quality.status()); });
+app.post('/admin/quality/scan', auth, (req, res) => {
+  try {
+    const b = req.body || {};
+    const st = quality.start({ force: !!b.force, convertHls: !!b.convertHls, limit: Math.max(0, Number(b.limit) || 0) });
+    log.info('quality', 'Analyse de qualité lancée depuis le dashboard', { total: st.total, force: !!b.force });
+    res.json(st);
+  } catch (e) {
+    log.error('quality', `Échec du lancement : ${e.message}`);
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post('/admin/quality/stop', auth, (_req, res) => {
+  const st = quality.stop();
+  log.warn('quality', 'Arrêt demandé depuis le dashboard', { done: st.done, total: st.total });
+  res.json(st);
+});
+app.post('/admin/quality/analyze', auth, wrap(async (req, res) => {
+  res.set('cache-control', 'no-store');
+  if (!quality.available()) return res.status(400).json({ error: 'ffprobe introuvable : installe ffmpeg ou renseigne FFPROBE_PATH' });
+  const key = String((req.body && req.body.key) || '').trim();
+  if (!key) return res.status(400).json({ error: 'Clé du flux requise' });
+  try {
+    const out = await quality.analyzeKey(key);
+    res.json({ ok: !!out.ok, record: out.record || null, error: out.error || null });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+}));
+app.post('/admin/quality/clear', auth, (_req, res) => {
+  const n = store.clearQuality();
+  log.warn('quality', `Historique de qualité vidé (${n} ligne(s))`);
+  res.json({ ok: true, removed: n });
 });
 // Recherche manuelle : liens Netflix (Brave Search) + titres Apple TV (API iTunes). Chaque source échoue indépendamment des autres.
 const normName = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -1766,12 +1815,18 @@ app.head('/apple/:id/:idx.mp4', mediaLimiter, appleTrailerHandler);
 // ---- Bandes-annonces ajoutées à la main : n'importe quelle URL publique (MP4 ou HLS) ----
 // Couvre les plateformes sans source dédiée (Arte, Dailymotion, MP4 de distributeur…), stockées dans
 // `extra.manualTrailers` de la fiche ciblée. Aucun contournement de DRM : un flux protégé échouera.
-app.post('/admin/add/trailer', auth, (req, res) => {
+app.post('/admin/add/trailer', auth, wrap(async (req, res) => {
   try {
     const url = String((req.body && req.body.url) || '').trim();
     if (!/^https?:\/\//i.test(url)) throw new Error('URL http(s) attendue');
     // Refuse les adresses internes dès l'ajout (le relais les refuserait de toute façon).
     assertSafeUrlSync(url);
+    let fbTitle = null;
+    if (facebook.isFacebookUrl(url)) {
+      // Vérifie tout de suite qu'une vidéo est bien lisible (sinon on prévient au lieu d'ajouter un lien mort).
+      try { fbTitle = (await facebook.resolveFacebookVideo(url, { fresh: true })).title; }
+      catch (e) { if (e.code === 'FB_LOGIN_WALL' || e.code === 'FB_NO_VIDEO') throw new Error(e.message); log.warn('admin', `Facebook : vérification impossible (${e.message}), lien ajouté quand même`); }
+    }
     const key = String((req.body && (req.body.id || req.body.imdb || req.body.netflix)) || '').trim();
     if (!key) throw new Error('Titre cible manquant (ID Netflix, ID IMDb ou URL)');
     let row = store.getTitle(key) || (/^tt\d+$/.test(key) ? store.findByImdbId(key) : null) || store.findByNetflixId(key);
@@ -1779,7 +1834,7 @@ app.post('/admin/add/trailer', auth, (req, res) => {
     if (!row) throw new Error(`Titre inconnu : ${key} — ajoute-le d'abord (onglet Ajouter)`);
     const extra = { ...(row.extra || {}) };
     const list = Array.isArray(extra.manualTrailers) ? extra.manualTrailers : [];
-    list.push({ title: String((req.body && req.body.title) || 'Bande-annonce').slice(0, 120), url, addedAt: Date.now() });
+    list.push({ title: String((req.body && req.body.title) || fbTitle || 'Bande-annonce').slice(0, 120), url, addedAt: Date.now() });
     extra.manualTrailers = list.slice(-5);
     store.upsertTitle({ id: row.id, type: row.type, name: row.name, extra });
     log.info('admin', `Bande-annonce ajoutée à la main : ${row.name}`, { url: url.slice(0, 90) });
@@ -1788,7 +1843,20 @@ app.post('/admin/add/trailer', auth, (req, res) => {
     log.warn('admin', `Bande-annonce refusée : ${e.message}`);
     res.status(400).json({ error: e.message });
   }
-});
+}));
+
+/** Vidéo Facebook : les liens fbcdn expirent, on les résout donc à chaque lecture (avec un nouvel essai si Facebook répond 403/410). */
+async function facebookRelay(req, res, pageUrl) {
+  const hdr = () => ({ 'user-agent': UA, ...(req.headers.range ? { range: req.headers.range } : {}) });
+  let info = await facebook.resolveFacebookVideo(pageUrl);
+  let up = await fetchHead(info.sources[0].url, hdr(), res, req.method);
+  if (up.status === 403 || up.status === 404 || up.status === 410) {
+    await up.body?.cancel().catch(() => {});
+    info = await facebook.resolveFacebookVideo(pageUrl, { fresh: true });
+    up = await fetchHead(info.sources[0].url, hdr(), res, req.method);
+  }
+  pipeUpstream(req, res, up);
+}
 
 async function manualTrailerHandler(req, res) {
   const row = store.getTitle(String(req.params.id));
@@ -1796,6 +1864,7 @@ async function manualTrailerHandler(req, res) {
   const t = list[Number(req.params.idx)];
   if (!t || !t.url) return res.status(404).send('bande-annonce inconnue');
   try {
+    if (facebook.isFacebookUrl(t.url)) return await facebookRelay(req, res, t.url);   // reel / vidéo Facebook : lien MP4 résolu à la lecture
     if (hls.isHls(t.url)) return await serveHls(req, res, t.url);   // HLS → MP4 (même pipeline qu'Apple TV)
     return await relayVideo(req, res, t.url);
   } catch (e) {

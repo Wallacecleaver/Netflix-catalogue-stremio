@@ -16,9 +16,10 @@
     "harvest": "node scripts/harvest-all.js",
     "harvest:recent": "node scripts/harvest-all.js --recent",
     "vf": "node scripts/vf-check.js",
-    "test": "node scripts/smoke.js && node test/search-brave-itunes.test.js && node test/youtube.test.js && node test/audit-and-dashboard.test.js",
+    "test": "node scripts/smoke.js && node test/search-brave-itunes.test.js && node test/youtube.test.js && node test/audit-and-dashboard.test.js && node test/quality.test.js",
     "test:search": "node test/search-brave-itunes.test.js",
     "test:youtube": "node test/youtube.test.js",
+    "test:quality": "node test/quality.test.js",
     "seed": "node scripts/seed.js",
     "inspect-prime": "node scripts/inspect-prime.js"
   },

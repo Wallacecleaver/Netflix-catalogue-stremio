@@ -108,6 +108,7 @@ Toute l'exploitation quotidienne se fait depuis l'interface web (thème sombre/c
 | **Catalogue** | Exploration filtrable et triable des fiches, inspecteur détaillé par saison, export JSON et suppression propre. |
 | **Ajouter & Chercher** | Recherche multi-sources (JustWatch, Apple TV+) et ajout manuel par URL/ID Netflix, Prime Video, Apple TV+ ou **lien direct MP4 / `.m3u8`**. |
 | **Test des flux** | Lecteur vidéo intégré + **sonde serveur réelle** (code HTTP, validation de l'en-tête MP4 `ftyp`, taille, latence en `ms`) + diagnostic rapide de 6 flux au hasard. |
+| **Qualité des flux** | **Détection automatique de la qualité** de chaque bande-annonce (ffprobe) : palier 4K / 1440p / Full HD / HD / SD / Basse, résolution, codec, débit, piste audio, durée. Analyse de tout le catalogue en tâche de fond, répartition par qualité et par source, filtres (flux muets, débit faible, en erreur) et bouton « Analyser » par flux. |
 
 ### Intégration & Système
 
@@ -193,6 +194,7 @@ curl "https://stockage.mondomaine.fr/api/v1/trailers?title=Severance&year=2022&a
 | **Netflix** | `/trailer/<nid>/<n>.mp4` | Lien MP4 signé en clair, rafraîchi automatiquement à l'expiration | `768×432` |
 | **Apple TV+** | `/apple/<id>/<n>.mp4` | Flux HLS non chiffré remuxé en MP4 (vidéo + audio) par `ffmpeg` | Jusqu'à `720p` (`HLS_MAX_HEIGHT`) |
 | **Lien direct** | `/media/<id>/<n>.mp4` | Toute URL publique `.mp4` ou `.m3u8` rattachée à une fiche (Arte, distributeur…) | Qualité d'origine |
+| **Facebook** | `/media/<id>/<n>.mp4` | Colle l'URL d'un reel ou d'une vidéo publique (`facebook.com/reel/…`, `/videos/…`, `fb.watch/…`) dans **Ajouter → lien direct** : la page est relue à chaque lecture pour obtenir le MP4 HD (ou SD), car les liens Facebook expirent en quelques heures | Jusqu'à `720p` selon la vidéo |
 | **YouTube** | Lien externe `ytId` | Repli via TMDB ou recherche VF filtrée (`YOUTUBE_AS_SOURCE=1` pour l'inclure systématiquement) | Jusqu'à `1080p` |
 
 > **Note sur les DRM** : le serveur ne contourne aucun chiffrement DRM. Les flux protégés (Prime Video, Disney+, Max) ne sont pas relayables ; seules leurs métadonnées et bandes-annonces publiques sont exploitées.
@@ -231,6 +233,7 @@ curl "https://stockage.mondomaine.fr/api/v1/trailers?title=Severance&year=2022&a
 | `HLS_CACHE_DAYS` / `HLS_MAX_DISK_MB` | `7` / `2048` | Durée de rétention (jours) et quota disque total (Mo) du cache HLS. |
 | `HLS_MAX_CONCURRENT` | `2` | Nombre maximal de conversions `ffmpeg` simultanées. |
 | `FFMPEG_PATH` | *(auto)* | Chemin explicite vers le binaire `ffmpeg` s'il n'est pas dans le `PATH`. |
+| `FFPROBE_PATH` | *(auto)* | Chemin explicite vers `ffprobe` (détection de qualité). Par défaut : déduit de `FFMPEG_PATH`, sinon `ffprobe` dans le `PATH`. |
 | `YOUTUBE_SEARCH` / `YOUTUBE_AS_SOURCE` | `1` / `0` | Recherche YouTube de secours (`1`) et ajout systématique aux côtés des flux MP4 (`0`/`1`). |
 | `UPSTREAM_URL` / `UPSTREAM_API_KEY` | *(vide)* | Autre instance Stockage DB amont interrogée en cascade. |
 | `ALLOW_OPEN_API` | *(vide)* | `1` ouvre l'API en lecture sans clé (déconseillé en production). |
@@ -283,6 +286,8 @@ stockage-db/
 │   ├── federation.js        # Résolution des flux relayables & filtrage par saison
 │   ├── security.js          # Protection anti-SSRF IPv4/IPv6, CSP, rate-limiting
 │   ├── hls.js               # Conversion HLS -> MP4 via ffmpeg + cache disque borné
+│   ├── quality.js           # Détection de qualité des flux (ffprobe, paliers, scan de fond)
+│   ├── facebook.js          # Source Facebook : URL de reel/vidéo -> lien MP4 (HD/SD)
 │   ├── netflix.js           # Extraction des pages et liens vidéo Netflix
 │   ├── appletv.js           # Recherche et flux bandes-annonces Apple TV+
 │   ├── tmdb.js              # Métadonnées, IDs IMDb et vidéos TMDB

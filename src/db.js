@@ -117,6 +117,38 @@ for (const col of [
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_vf ON titles(vf_trailer)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(type, name COLLATE NOCASE)');
 
+// Qualité détectée (ffprobe) de chaque flux relayé : une ligne par bande-annonce (clé « source:fiche:index »).
+db.exec(`
+CREATE TABLE IF NOT EXISTS stream_quality (
+  key TEXT PRIMARY KEY,
+  title_id TEXT NOT NULL,
+  title_name TEXT,
+  title_type TEXT,
+  source TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  label TEXT,
+  width INTEGER,
+  height INTEGER,
+  tier TEXT,
+  rank INTEGER,
+  vcodec TEXT,
+  acodec TEXT,
+  fps REAL,
+  bitrate_kbps INTEGER,
+  duration_sec REAL,
+  size_bytes INTEGER,
+  has_audio INTEGER,
+  hdr INTEGER,
+  ok INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  probe_ms INTEGER,
+  checked_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sq_title ON stream_quality(title_id);
+CREATE INDEX IF NOT EXISTS idx_sq_tier ON stream_quality(tier, rank);
+CREATE INDEX IF NOT EXISTS idx_sq_checked ON stream_quality(checked_at DESC);
+`);
+
 // vf_trailer = clé YouTube de la bande-annonce en français (TMDB) ; vf_checked = date de la dernière vérification.
 const FIELDS = ['netflix_id', 'tmdb_id', 'tmdb_type', 'imdb_id', 'type', 'name', 'year', 'release_date',
   'certification', 'genres_json', 'synopsis', 'cast_json', 'poster', 'background', 'logo', 'trailer_yt', 'runtime', 'extra_json', 'trailers_json',
@@ -374,6 +406,7 @@ function computeStats() {
 /** Supprime une fiche (les épisodes partent avec : ON DELETE CASCADE). */
 function deleteTitle(id) {
   invalidateStats();
+  db.prepare('DELETE FROM stream_quality WHERE title_id = ?').run(String(id));
   return db.prepare('DELETE FROM titles WHERE id = ?').run(String(id)).changes;
 }
 
@@ -385,6 +418,67 @@ function resetChecks(id) {
   db.prepare('UPDATE titles SET vf_checked = NULL, appletv_checked = NULL, trailers_checked = NULL, link_checked = NULL, updated_at = ? WHERE id = ?').run(Date.now(), id);
   if (row.imdb_id) db.prepare('DELETE FROM lookups WHERE imdb = ?').run(row.imdb_id);
   return true;
+}
+
+
+// ---- Qualité des flux (onglet « Qualité » du dashboard) ----
+const QUALITY_COLS = ['key', 'title_id', 'title_name', 'title_type', 'source', 'idx', 'label', 'width', 'height', 'tier', 'rank', 'vcodec', 'acodec',
+  'fps', 'bitrate_kbps', 'duration_sec', 'size_bytes', 'has_audio', 'hdr', 'ok', 'error', 'probe_ms'];
+const upsertQualitySql = db.prepare(`INSERT INTO stream_quality (${QUALITY_COLS.join(',')}, checked_at)
+  VALUES (${QUALITY_COLS.map((c) => '@' + c).join(',')}, @checked_at)
+  ON CONFLICT(key) DO UPDATE SET ${[...QUALITY_COLS.slice(1), 'checked_at'].map((c) => `${c}=excluded.${c}`).join(',')}`);
+function upsertQuality(r) {
+  const row = { checked_at: Date.now() };
+  for (const c of QUALITY_COLS) row[c] = r[c] === undefined ? null : r[c];
+  upsertQualitySql.run(row);
+}
+const getQuality = (key) => db.prepare('SELECT * FROM stream_quality WHERE key = ?').get(String(key));
+const qualityForTitle = (titleId) => db.prepare('SELECT * FROM stream_quality WHERE title_id = ? ORDER BY idx').all(String(titleId));
+const clearQuality = () => db.prepare('DELETE FROM stream_quality').run().changes;
+
+function listQuality({ tier = '', source = '', status = '', search = '', sort = 'recent', limit = 50, offset = 0 } = {}) {
+  const where = [];
+  const args = {};
+  if (tier) { where.push('tier = @tier'); args.tier = String(tier); }
+  if (source) { where.push('source = @source'); args.source = String(source); }
+  if (status === 'error') where.push('ok = 0');
+  else if (status === 'ok') where.push('ok = 1');
+  else if (status === 'noaudio') where.push('ok = 1 AND has_audio = 0');
+  else if (status === 'lowbitrate') where.push("ok = 1 AND bitrate_kbps IS NOT NULL AND bitrate_kbps < CASE WHEN rank >= 3 THEN 1500 WHEN rank = 2 THEN 700 ELSE 250 END");
+  if (search) { where.push('(title_name LIKE @q OR title_id LIKE @q)'); args.q = `%${String(search).replace(/[%_]/g, '')}%`; }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const order = {
+    best: 'ok DESC, rank DESC, height DESC, bitrate_kbps DESC',
+    worst: 'ok ASC, rank ASC, height ASC, bitrate_kbps ASC',
+    name: 'title_name COLLATE NOCASE ASC',
+    bitrate: 'bitrate_kbps DESC',
+    recent: 'checked_at DESC',
+  }[sort] || 'checked_at DESC';
+  const total = db.prepare(`SELECT COUNT(*) c FROM stream_quality ${clause}`).get(args).c;
+  const rows = db.prepare(`SELECT * FROM stream_quality ${clause} ORDER BY ${order} LIMIT @limit OFFSET @offset`)
+    .all({ ...args, limit: Math.min(Math.max(1, Number(limit) || 50), 200), offset: Math.max(0, Number(offset) || 0) });
+  return { rows, total };
+}
+
+function qualityStats() {
+  const one = (sql) => db.prepare(sql).get();
+  const t = one(`SELECT COUNT(*) total, SUM(ok) ok, SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) failed,
+    SUM(CASE WHEN ok = 1 AND has_audio = 0 THEN 1 ELSE 0 END) noAudio,
+    SUM(CASE WHEN ok = 1 AND rank >= 2 THEN 1 ELSE 0 END) hdPlus,
+    AVG(CASE WHEN ok = 1 THEN bitrate_kbps END) avgBitrate, MAX(checked_at) lastCheckedAt FROM stream_quality`);
+  const byTier = {};
+  for (const r of db.prepare('SELECT tier, COUNT(*) c FROM stream_quality WHERE ok = 1 GROUP BY tier').all()) byTier[r.tier] = r.c;
+  const bySource = {};
+  for (const r of db.prepare('SELECT source, tier, COUNT(*) c FROM stream_quality WHERE ok = 1 GROUP BY source, tier').all()) {
+    (bySource[r.source] = bySource[r.source] || {})[r.tier] = r.c;
+  }
+  const failedBySource = {};
+  for (const r of db.prepare('SELECT source, COUNT(*) c FROM stream_quality WHERE ok = 0 GROUP BY source').all()) failedBySource[r.source] = r.c;
+  return {
+    total: t.total || 0, ok: t.ok || 0, failed: t.failed || 0, noAudio: t.noAudio || 0, hdPlus: t.hdPlus || 0,
+    avgBitrate: t.avgBitrate ? Math.round(t.avgBitrate) : null, lastCheckedAt: t.lastCheckedAt || null,
+    byTier, bySource, failedBySource,
+  };
 }
 
 // Paramètres surchargés depuis le dashboard (prioritaires sur le .env).
@@ -513,4 +607,5 @@ module.exports = { db, upsertTitle, getTitle, getEpisodes, findByTmdb, findByImd
   listNetflixTrailerPending, deleteNetflixDuplicates, count, replaceEpisodes, deleteDuplicates, listAppletvPending, listTitles, stats,
   allSettings, setSettings, deleteSetting, deleteTitle, resetChecks,
   listApiKeys, getApiKeyById, countApiKeys, countActiveApiKeys, createApiKey, updateApiKey, rotateApiKey, deleteApiKey, findApiKey, recordApiKeyUse, touchApiKey,
-  addLog, listLogs, clearLogs, backupTo, optimizeDb };
+  addLog, listLogs, clearLogs, backupTo, optimizeDb,
+  upsertQuality, getQuality, qualityForTitle, listQuality, qualityStats, clearQuality };

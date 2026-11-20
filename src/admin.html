@@ -1111,6 +1111,13 @@
             <span>Test des flux</span>
           </span>
         </button>
+        <button type="button" class="nav-btn" data-tab="quality">
+          <span class="nav-btn-left">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            <span>Qualité des flux</span>
+          </span>
+          <span class="nav-count" id="navQualityCount">—</span>
+        </button>
       </nav>
 
       <div class="nav-group-label">Intégration &amp; Système</div>
@@ -1569,6 +1576,113 @@
                   <a id="stOpenRawLink" href="#" target="_blank" rel="noopener" class="btn btn-xs">Ouvrir dans un nouvel onglet ↗</a>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB : QUALITÉ DES FLUX ==================== -->
+        <section id="tab-quality" class="hide">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Qualité des flux vidéo</h1>
+              <p class="page-desc">Détection automatique de la résolution, du codec, du débit et de la piste audio de chaque bande-annonce relayée (Netflix, Apple TV+, liens directs, Facebook).</p>
+            </div>
+            <div class="head-actions">
+              <button type="button" class="btn-sm hide" id="qStopBtn">⏹ Arrêter</button>
+              <button type="button" class="btn-sm" id="qForceBtn" title="Ré-analyse tous les flux, même ceux déjà analysés récemment">↻ Tout ré-analyser</button>
+              <button type="button" class="btn-sm btn-primary" id="qScanBtn">🔎 Analyser les flux</button>
+            </div>
+          </div>
+
+          <div id="qNotice" class="card hide"></div>
+
+          <div id="qScanCard" class="card hide">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title" id="qScanTitle">Analyse en cours…</h2>
+                <p class="card-sub" id="qScanSub"></p>
+              </div>
+              <span class="badge badge-accent" id="qScanPct">0 %</span>
+            </div>
+            <div class="progress" style="margin-bottom:8px"><div id="qScanBar"></div></div>
+            <div class="muted" style="font-size:12px" id="qScanErrors"></div>
+          </div>
+
+          <div class="kpi-grid" id="qKpis"></div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Répartition par qualité</h2>
+                <p class="card-sub">Palier d'après la plus grande dimension de l'image (vidéos verticales incluses).</p>
+              </div>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--fg-soft)" title="Les flux HLS (Apple TV+, .m3u8) ne sont lus que s'ils sont déjà convertis en MP4. Coche pour les télécharger et les convertir pendant l'analyse.">
+                <input type="checkbox" id="qHls"> <span>Inclure les HLS non convertis</span>
+              </label>
+            </div>
+            <div id="qDist"></div>
+            <div id="qBySource" style="margin-top:14px"></div>
+          </div>
+
+          <div class="toolbar">
+            <input id="qSearch" type="search" placeholder="Rechercher un titre ou un ID…" style="flex:1;min-width:200px">
+            <select id="qTier" style="width:auto;min-width:130px">
+              <option value="">Toutes qualités</option>
+              <option value="4k">4K</option>
+              <option value="1440p">1440p</option>
+              <option value="1080p">Full HD</option>
+              <option value="720p">HD (720p)</option>
+              <option value="sd">SD</option>
+              <option value="low">Basse</option>
+            </select>
+            <select id="qSource" style="width:auto;min-width:130px">
+              <option value="">Toutes sources</option>
+              <option value="netflix">Netflix</option>
+              <option value="appletv">Apple TV+</option>
+              <option value="manual">Lien direct</option>
+            </select>
+            <select id="qStatus" style="width:auto;min-width:150px">
+              <option value="">Tous les états</option>
+              <option value="ok">Lisibles</option>
+              <option value="error">En erreur</option>
+              <option value="noaudio">Sans audio</option>
+              <option value="lowbitrate">Débit faible</option>
+            </select>
+            <select id="qSort" style="width:auto;min-width:150px">
+              <option value="recent">Tri : Analyse récente</option>
+              <option value="best">Tri : Meilleure qualité</option>
+              <option value="worst">Tri : Pire qualité</option>
+              <option value="bitrate">Tri : Débit</option>
+              <option value="name">Tri : Nom (A → Z)</option>
+            </select>
+            <button type="button" class="btn-sm" id="qReloadBtn">↻ Actualiser</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Titre</th>
+                  <th>Source</th>
+                  <th>Qualité</th>
+                  <th>Codec</th>
+                  <th>Débit</th>
+                  <th>Audio</th>
+                  <th>Durée</th>
+                  <th>Analysé</th>
+                  <th style="text-align:right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="qBody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
+            <span class="muted" style="font-size:12.5px" id="qPageInfo"></span>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn-sm" id="qClearBtn" title="Supprime l'historique de qualité (les vidéos ne sont pas touchées)">🗑 Vider l'historique</button>
+              <button type="button" class="btn-sm" id="qPrev">← Précédent</button>
+              <button type="button" class="btn-sm" id="qNext">Suivant →</button>
             </div>
           </div>
         </section>
@@ -2135,12 +2249,13 @@
     activeTab = tab;
     $('sidebar').classList.remove('open');
     document.querySelectorAll('.nav-btn[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    ['overview', 'titles', 'add', 'streams', 'api', 'settings', 'logs'].forEach((t) => {
+    ['overview', 'titles', 'add', 'streams', 'quality', 'api', 'settings', 'logs'].forEach((t) => {
       $(`tab-${t}`).classList.toggle('hide', t !== tab);
     });
     if (tab === 'overview') { loadSummary(); refreshOverviewExtras(); }
     else if (tab === 'titles') loadTitles();
     else if (tab === 'streams') { setTimeout(() => $('stQuery').focus(), 40); }
+    else if (tab === 'quality') loadQuality();
     else if (tab === 'api') loadKeys();
     else if (tab === 'settings') loadSummary();
     else if (tab === 'logs') loadLogs(false);
@@ -2148,6 +2263,180 @@
 
   document.querySelectorAll('.nav-btn[data-tab]').forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // ---- Qualité des flux ----
+  const Q_COL = { '4k': '#c084fc', '1440p': '#818cf8', '1080p': '#22c55e', '720p': '#14b8a6', sd: '#f59e0b', low: '#ef4444' };
+  const Q_LABEL = { '4k': '4K', '1440p': '1440p', '1080p': 'Full HD', '720p': 'HD', sd: 'SD', low: 'Basse' };
+  const Q_ORDER = ['4k', '1440p', '1080p', '720p', 'sd', 'low'];
+  const Q_SRC = { netflix: ['badge-netflix', 'Netflix'], appletv: ['badge-apple', 'Apple TV+'], manual: ['badge-manual', 'Lien direct'] };
+  const qState = { offset: 0, limit: 50, total: 0, timer: null, wasRunning: false };
+
+  const qTierBadge = (tier, extra = '') => {
+    const c = Q_COL[tier] || '#94a3b8';
+    return `<span class="badge" style="color:${c};background:${c}24;border-color:${c}66;font-weight:700">${esc(Q_LABEL[tier] || tier || '—')}${extra}</span>`;
+  };
+  const qLowBitrate = (r) => r.ok && r.bitrate_kbps != null && r.bitrate_kbps < (r.rank >= 3 ? 1500 : r.rank === 2 ? 700 : 250);
+  const fmtBitrate = (k) => (k == null ? '—' : k >= 1000 ? `${(k / 1000).toFixed(1).replace('.', ',')} Mb/s` : `${k} kb/s`);
+
+  function qFilters() {
+    const q = new URLSearchParams({
+      limit: String(qState.limit), offset: String(qState.offset),
+      search: $('qSearch').value.trim(), tier: $('qTier').value, source: $('qSource').value,
+      status: $('qStatus').value, sort: $('qSort').value,
+    });
+    return q.toString();
+  }
+
+  async function loadQuality() {
+    try {
+      const d = await api(`/admin/api/quality?${qFilters()}`);
+      qState.total = d.total || 0;
+      renderQuality(d);
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
+  function renderQScan(scan) {
+    const card = $('qScanCard');
+    const running = !!scan.running;
+    $('qStopBtn').classList.toggle('hide', !running);
+    $('qScanBtn').disabled = running;
+    $('qForceBtn').disabled = running;
+    const show = running || (scan.finishedAt && scan.total);
+    card.classList.toggle('hide', !show);
+    if (!show) return;
+    $('qScanTitle').textContent = running ? 'Analyse en cours…' : 'Dernière analyse terminée';
+    $('qScanPct').textContent = `${scan.percent || 0} %`;
+    $('qScanBar').style.width = `${scan.percent || 0}%`;
+    $('qScanSub').textContent = `${fmtInt(scan.done)} / ${fmtInt(scan.total)} flux · ${fmtInt(scan.ok)} ok · ${fmtInt(scan.failed)} en erreur · ${fmtInt(scan.skipped)} ignorés`
+      + (running && scan.current ? ` — ${scan.current.name}` : '');
+    $('qScanErrors').textContent = (scan.errors || []).length ? `Dernières erreurs : ${(scan.errors || []).slice(-3).join(' · ')}` : '';
+  }
+
+  function renderQuality(d) {
+    const st = d.stats || {};
+    const scan = d.scan || {};
+    $('navQualityCount').textContent = st.ok ? fmtInt(st.ok) : '—';
+
+    const notice = $('qNotice');
+    if (!scan.available) {
+      notice.classList.remove('hide');
+      notice.innerHTML = `<b>ffprobe est introuvable.</b> <span class="muted">La détection de qualité l'utilise (il est fourni avec ffmpeg : <span class="mono">apt install ffmpeg</span> ou <span class="mono">winget install Gyan.FFmpeg</span>). Tu peux aussi renseigner <span class="mono">FFPROBE_PATH</span> dans le .env.</span>`;
+    } else notice.classList.add('hide');
+
+    renderQScan(scan);
+
+    const pctHd = st.ok ? Math.round((st.hdPlus / st.ok) * 100) : 0;
+    $('qKpis').innerHTML = [
+      { label: 'Flux analysés', val: fmtInt(st.total), foot: `${fmtInt(st.ok)} lisibles · ${fmtInt(st.failed)} en erreur${st.lastCheckedAt ? ` · dernière analyse ${fmtDate(st.lastCheckedAt)}` : ''}` },
+      { label: 'HD ou mieux', val: st.ok ? `${pctHd} %` : '—', foot: `${fmtInt(st.hdPlus)} flux sur ${fmtInt(st.ok)} en 720p et plus` },
+      { label: 'Débit vidéo moyen', val: fmtBitrate(st.avgBitrate), foot: 'Moyenne des flux lisibles' },
+      { label: 'Sans piste audio', val: fmtInt(st.noAudio), foot: st.noAudio ? 'Flux muets : à vérifier (ffmpeg absent ?)' : 'Tous les flux ont du son' },
+    ].map((k) => `<div class="kpi-card"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-val">${esc(k.val)}</div><div class="kpi-foot">${esc(k.foot)}</div></div>`).join('');
+
+    // Répartition globale
+    const byTier = st.byTier || {};
+    const max = Math.max(1, ...Q_ORDER.map((t) => byTier[t] || 0));
+    $('qDist').innerHTML = st.ok ? Q_ORDER.map((t) => {
+      const n = byTier[t] || 0;
+      const w = Math.round((n / max) * 100);
+      const pct = st.ok ? Math.round((n / st.ok) * 100) : 0;
+      return `<div style="display:flex;align-items:center;gap:10px;margin:7px 0;cursor:pointer" data-qtier="${t}" title="Filtrer sur ${esc(Q_LABEL[t])}">
+        <span style="width:74px">${qTierBadge(t)}</span>
+        <div style="flex:1;height:10px;border-radius:999px;background:var(--bg);border:1px solid var(--line);overflow:hidden"><div style="width:${w}%;height:100%;background:${Q_COL[t]};transition:width .3s"></div></div>
+        <span class="mono" style="width:96px;text-align:right;font-size:12.5px">${fmtInt(n)} · ${pct} %</span>
+      </div>`;
+    }).join('') : `<div class="muted" style="padding:10px 2px">Aucun flux analysé pour l'instant. Clique sur <b>Analyser les flux</b> pour détecter la qualité de tout ton catalogue.</div>`;
+
+    // Détail par source
+    const bySource = st.bySource || {};
+    $('qBySource').innerHTML = Object.keys(bySource).map((src) => {
+      const tiers = bySource[src];
+      const tot = Object.values(tiers).reduce((a, b) => a + b, 0) || 1;
+      const [cls, name] = Q_SRC[src] || ['badge', src];
+      const segs = Q_ORDER.filter((t) => tiers[t]).map((t) => `<span style="width:${(tiers[t] / tot) * 100}%;background:${Q_COL[t]}" title="${esc(Q_LABEL[t])} : ${tiers[t]}"></span>`).join('');
+      const legend = Q_ORDER.filter((t) => tiers[t]).map((t) => `${qTierBadge(t, ` ${fmtInt(tiers[t])}`)}`).join(' ');
+      const failed = (st.failedBySource || {})[src] || 0;
+      return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span class="badge ${cls}">${esc(name)}</span><span class="muted" style="font-size:12px">${fmtInt(tot)} flux${failed ? ` · ${fmtInt(failed)} en erreur` : ''}</span></div><div class="seg-bar" style="margin:8px 0">${segs}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${legend}</div></div>`;
+    }).join('');
+
+    // Tableau
+    const rows = d.rows || [];
+    $('qBody').innerHTML = rows.length ? rows.map((r) => {
+      const [cls, name] = Q_SRC[r.source] || ['badge', r.source];
+      const res = r.width ? `${r.width}×${r.height}${r.fps ? ` · ${Math.round(r.fps)} i/s` : ''}${r.hdr ? ' · HDR' : ''}` : '';
+      const quality = r.ok
+        ? `${qTierBadge(r.tier)}<div class="muted mono" style="font-size:11.5px;margin-top:3px">${esc(res)}</div>`
+        : `<span class="badge badge-err">Erreur</span><div class="muted" style="font-size:11.5px;margin-top:3px;max-width:260px">${esc(r.error || 'Analyse impossible')}</div>`;
+      const bitrate = r.ok ? `${esc(fmtBitrate(r.bitrate_kbps))}${qLowBitrate(r) ? ' <span class="badge badge-warn">faible</span>' : ''}` : '—';
+      const audio = !r.ok ? '—' : r.has_audio ? `<span class="mono" style="font-size:12px">${esc(r.acodec || 'oui')}</span>` : '<span class="badge badge-err">Muet</span>';
+      return `<tr>
+        <td><div style="font-weight:600">${esc(r.title_name || r.title_id)}</div><div class="muted mono" style="font-size:11.5px">${esc(r.label || '')}</div></td>
+        <td><span class="badge ${cls}">${esc(name)}</span></td>
+        <td>${quality}</td>
+        <td class="mono" style="font-size:12px">${esc(r.vcodec || '—')}</td>
+        <td>${bitrate}</td>
+        <td>${audio}</td>
+        <td class="mono" style="font-size:12px">${esc(fmtDuration(r.duration_sec) || '—')}</td>
+        <td class="muted" style="font-size:12px">${esc(fmtDate(r.checked_at))}</td>
+        <td style="text-align:right"><button type="button" class="btn-xs" data-qkey="${esc(r.key)}">🔎 Analyser</button></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="9" class="muted" style="text-align:center;padding:22px">Aucun résultat.</td></tr>`;
+
+    const from = rows.length ? qState.offset + 1 : 0;
+    $('qPageInfo').textContent = `${fmtInt(from)}–${fmtInt(qState.offset + rows.length)} sur ${fmtInt(qState.total)}`;
+    $('qPrev').disabled = qState.offset <= 0;
+    $('qNext').disabled = qState.offset + qState.limit >= qState.total;
+
+    // Rafraîchissement automatique pendant une analyse
+    clearTimeout(qState.timer);
+    if (scan.running) qState.timer = setTimeout(() => { if (activeTab === 'quality' && token) loadQuality(); }, 1800);
+    else if (qState.wasRunning) toast('Analyse de qualité terminée', 'ok');
+    qState.wasRunning = !!scan.running;
+  }
+
+  async function startQualityScan(force) {
+    try {
+      const st = await api('/admin/quality/scan', { method: 'POST', body: { force, convertHls: $('qHls').checked } });
+      toast(st.total ? `Analyse lancée : ${fmtInt(st.total)} flux` : 'Analyse lancée', 'ok');
+      qState.wasRunning = true;
+      qState.offset = 0;
+      loadQuality();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  $('qScanBtn').addEventListener('click', () => startQualityScan(false));
+  $('qForceBtn').addEventListener('click', () => { if (confirm('Ré-analyser tous les flux, même ceux déjà analysés ?')) startQualityScan(true); });
+  $('qStopBtn').addEventListener('click', async () => {
+    try { await api('/admin/quality/stop', { method: 'POST', body: {} }); toast('Arrêt demandé…', 'ok'); loadQuality(); } catch (e) { toast(e.message, 'err'); }
+  });
+  $('qClearBtn').addEventListener('click', async () => {
+    if (!confirm('Vider tout l’historique de qualité ? (les vidéos ne sont pas supprimées)')) return;
+    try { await api('/admin/quality/clear', { method: 'POST', body: {} }); toast('Historique vidé', 'ok'); qState.offset = 0; loadQuality(); } catch (e) { toast(e.message, 'err'); }
+  });
+  $('qReloadBtn').addEventListener('click', () => loadQuality());
+  $('qPrev').addEventListener('click', () => { qState.offset = Math.max(0, qState.offset - qState.limit); loadQuality(); });
+  $('qNext').addEventListener('click', () => { qState.offset += qState.limit; loadQuality(); });
+  let qSearchTimer = null;
+  $('qSearch').addEventListener('input', () => { clearTimeout(qSearchTimer); qSearchTimer = setTimeout(() => { qState.offset = 0; loadQuality(); }, 300); });
+  ['qTier', 'qSource', 'qStatus', 'qSort'].forEach((id) => $(id).addEventListener('change', () => { qState.offset = 0; loadQuality(); }));
+  $('qDist').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-qtier]');
+    if (!row) return;
+    $('qTier').value = $('qTier').value === row.dataset.qtier ? '' : row.dataset.qtier;
+    qState.offset = 0;
+    loadQuality();
+  });
+  $('qBody').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-qkey]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ Analyse…';
+    try {
+      const r = await api('/admin/quality/analyze', { method: 'POST', body: { key: btn.dataset.qkey } });
+      if (r.ok && r.record) toast(`${Q_LABEL[r.record.tier] || '?'} · ${r.record.width}×${r.record.height}`, 'ok');
+      else toast(r.error || 'Analyse impossible', 'err');
+    } catch (err) { toast(err.message, 'err'); }
+    loadQuality();
   });
 
   // ---- Top Quick Search (Ctrl+K) ----
